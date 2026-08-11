@@ -8,7 +8,7 @@ function Login() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
   });
 
@@ -30,11 +30,11 @@ function Login() {
     event.preventDefault();
     setError('');
 
-    const { username, password } = formData;
+    const { email, password } = formData;
 
     // Required-field validation
-    if (!username || !password) {
-      setError('Username and Password are required.');
+    if (!email || !password) {
+      setError('Email and Password are required.');
       return;
     }
 
@@ -43,7 +43,7 @@ function Login() {
 
       // Login
       await login({
-        username,
+        email,
         password,
       });
 
@@ -52,7 +52,7 @@ function Login() {
     } catch (err) {
       setError(
         err.message ||
-          'Invalid username or password. Please try again.'
+          'Invalid email or password. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -86,25 +86,25 @@ function Login() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username */}
+            {/* Email */}
             <div>
               <label
-                htmlFor="username"
+                htmlFor="email"
                 className="mb-2 block text-sm font-medium text-gray-700"
               >
-                Username
+                Email
               </label>
 
               <input
-                id="username"
-                name="username"
+                id="email"
+                name="email"
                 type="text"
-                value={formData.username}
+                value={formData.email}
                 onChange={handleChange}
                 required
                 disabled={loading}
-                autoComplete="username"
-                placeholder="Enter your username"
+                autoComplete="email"
+                placeholder="Enter your email"
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
               />
             </div>

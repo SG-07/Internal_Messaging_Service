@@ -3,6 +3,7 @@
 import { Routes, Route, Navigate } from 'react-router';
 import Signup from './pages/auth/signup';
 import Login from './pages/auth/login';
+import Dashboard from './pages/dashboard';
 
 function App() {
   return (
@@ -24,16 +25,11 @@ function App() {
 
       <Route
         path="/dashboard"
-        element={
-          <div className="flex min-h-screen items-center justify-center">
-            <h1 className="text-3xl font-bold">
-              Dashboard
-            </h1>
-          </div>
-        }
+        element={<Dashboard />}
       />
     </Routes>
   );
 }
 
 export default App;
+
