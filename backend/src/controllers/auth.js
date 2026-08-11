@@ -1,5 +1,7 @@
-// backend/src/controllers/auth.js
+// backend/src/controller/auth.js
 
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import supabaseAdmin from '../config/supabaseClient.js';
 
 // --- SIGNUP ---
@@ -12,56 +14,83 @@ export const signup = async (req, res) => {
     });
   }
 
-  // Check if username already exists
-  const { data: existingUsername, error: usernameError } = await supabaseAdmin
-    .from('profiles')
-    .select('username')
-    .eq('username', username)
-    .single();
-
-  if (existingUsername) {
-    return res.status(400).json({ error: 'Username already taken' });
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
   }
 
-  if (usernameError && usernameError.code !== 'PGRST116') {
-    return res.status(500).json({ error: 'Failed to check username availability' });
+  // Validate password strength (at least 6 characters)
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
   }
 
-  // Check if email already exists in profiles
-  const { data: existingEmail, error: emailError } = await supabaseAdmin
-    .from('profiles')
-    .select('email')
-    .eq('email', email)
-    .single();
+  try {
+    // Check if username already exists
+    const { data: existingUsername, error: usernameError } = await supabaseAdmin
+      .from('profiles')
+      .select('username')
+      .eq('username', username)
+      .single();
 
-  if (existingEmail) {
-    return res.status(400).json({ error: 'Email already registered' });
-  }
+    if (existingUsername) {
+      return res.status(400).json({ error: 'Username already taken' });
+    }
 
-  if (emailError && emailError.code !== 'PGRST116') {
-    return res.status(500).json({ error: 'Failed to check email availability' });
-  }
+    if (usernameError && usernameError.code !== 'PGRST116') {
+      return res.status(500).json({ error: 'Failed to check username availability' });
+    }
 
-  // Create the auth user with username in metadata
-  const { data, error } = await supabaseAdmin.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
+    // Check if email already exists
+    const { data: existingEmail, error: emailError } = await supabaseAdmin
+      .from('profiles')
+      .select('email')
+      .eq('email', email)
+      .single();
+
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    if (emailError && emailError.code !== 'PGRST116') {
+      return res.status(500).json({ error: 'Failed to check email availability' });
+    }
+
+    // Hash the password with bcrypt (10 salt rounds)
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create the user in profiles table
+    const { data: newUser, error: createError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        email,
+        username,
         full_name: fullName || null,
-        username: username,
+        password_hash: passwordHash,
+        role: 'user',
+        is_email_confirmed: false,
+      })
+      .select('id, email, username, full_name, role, is_email_confirmed')
+      .single();
+
+    if (createError) {
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
+    // TODO: Send email confirmation link
+    // For now, just return success message
+    res.status(201).json({
+      message: 'Signup successful. Please check your email to confirm your account.',
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.username,
       },
-    },
-  });
-
-  if (error) {
-    return res.status(400).json({ error: error.message });
+    });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  res.status(201).json({
-    message: 'Signup successful. Please check your email to confirm your account.',
-    user: data.user,
-  });
 };
 
 // --- LOGIN ---
@@ -72,66 +101,158 @@ export const login = async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  const { data, error } = await supabaseAdmin.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    // Fetch user from database
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, username, full_name, password_hash, role, is_email_confirmed')
+      .eq('email', email)
+      .single();
 
-  if (error) {
-    return res.status(401).json({ error: error.message });
+    if (userError || !user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // TODO: Check if email is confirmed (email confirmation feature not yet implemented)
+    // if (!user.is_email_confirmed) {
+    //   return res.status(403).json({ 
+    //     error: 'Email not confirmed. Please check your email for confirmation link.',
+    //     userId: user.id,
+    //   });
+    // }
+
+    // Compare password with hash
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Generate access token (short-lived: 15 minutes)
+    const accessToken = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        username: user.username,
+        role: user.role,
+      },
+      process.env.JWT_ACCESS_SECRET,
+      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+    );
+
+    // Generate refresh token (long-lived: 7 days)
+    const refreshToken = jwt.sign(
+      { id: user.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
+    );
+
+    // Set access token in httpOnly cookie
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    // Set refresh token in httpOnly cookie
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.status(200).json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        full_name: user.full_name,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
+};
 
-  const { session, user } = data;
+// --- REFRESH ACCESS TOKEN ---
+export const refreshAccessToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refresh_token;
 
-  // Store the Supabase access token in an httpOnly cookie —
-  // JS on the frontend can't read it, which protects against XSS token theft.
-  res.cookie('sb_access_token', session.access_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: session.expires_in * 1000,
-  });
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh token not found' });
+    }
 
-  res.cookie('sb_refresh_token', session.refresh_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  });
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-  // Fetch the profile (includes role) to send back to frontend
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('id, email, full_name, username, role')
-    .eq('id', user.id)
-    .single();
+    // Fetch fresh user data
+    const { data: user, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, username, full_name, role')
+      .eq('id', decoded.id)
+      .single();
 
-  if (profileError) {
-    return res.status(500).json({ error: 'Logged in but failed to load profile' });
+    if (error || !user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        username: user.username,
+        role: user.role,
+      },
+      process.env.JWT_ACCESS_SECRET,
+      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+    );
+
+    // Set new access token cookie
+    res.cookie('access_token', newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.status(200).json({ message: 'Access token refreshed' });
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    res.status(401).json({ error: 'Invalid refresh token' });
   }
-
-  res.status(200).json({ message: 'Login successful', user: profile });
 };
 
 // --- LOGOUT ---
 export const logout = async (req, res) => {
-  res.clearCookie('sb_access_token');
-  res.clearCookie('sb_refresh_token');
+  res.clearCookie('access_token');
+  res.clearCookie('refresh_token');
   res.status(200).json({ message: 'Logged out successfully' });
 };
 
 // --- GET CURRENT USER ---
 export const getCurrentUser = async (req, res) => {
-  // req.user is set by the requireAuth middleware (Step 7)
-  const { data: profile, error } = await supabaseAdmin
-    .from('profiles')
-    .select('id, email, full_name, username, role')
-    .eq('id', req.user.id)
-    .single();
+  // req.user is set by the requireAuth middleware
+  try {
+    const { data: user, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, username, full_name, role, is_email_confirmed')
+      .eq('id', req.user.id)
+      .single();
 
-  if (error) {
-    return res.status(500).json({ error: 'Failed to load profile' });
+    if (error || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.status(200).json({ user });
+  } catch (err) {
+    console.error('Get current user error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  res.status(200).json({ user: profile });
 };
