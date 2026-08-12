@@ -1,4 +1,4 @@
-// frontend/src/pages/dashboard.jsx
+// frontend/src/pages/dashboard/Dashboard.jsx
 
 function Dashboard() {
   return (
