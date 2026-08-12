@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
-import { getCurrentUser } from '../../api/auth';
+import { getCurrentUser } from '../api/auth';
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -9,8 +9,8 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     async function checkAuthentication() {
       try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+        const { user } = await getCurrentUser();
+        setUser(user);
       } catch {
         setUser(null);
       } finally {

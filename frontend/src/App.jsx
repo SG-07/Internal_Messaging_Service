@@ -6,7 +6,7 @@ import Login from './pages/auth/login';
 import Signup from './pages/auth/signup';
 import Dashboard from './pages/dashboard/Dashboard';
 import Compose from './pages/compose/Compose';
-import ProtectedRoute from './components/auth/ProtectedRoute';
+import ProtectedRoute from './component/ProtectedRoute';
 
 function App() {
   return (

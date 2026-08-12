@@ -1,21 +1,20 @@
+import jwt from 'jsonwebtoken';
 import supabaseAdmin from '../config/supabaseClient.js';
 
 export const requireAuth = async (req, res, next) => {
-  const token = req.cookies?.sb_access_token;
+  const token = req.cookies?.access_token;
 
   if (!token) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
-
-  if (error || !data.user) {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
-
-  // Attach the authenticated user to the request for downstream handlers
-  req.user = data.user;
-  next();
 };
 
 export const requireAdmin = async (req, res, next) => {

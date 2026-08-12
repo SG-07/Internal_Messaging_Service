@@ -21,13 +21,14 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
 // --- Root route: landing/redirect page ---
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
-  res.send(getLandingPageHtml(FRONTEND_URL));
+  res.send(getLandingPageHtml(process.env.FRONTEND_URL));
 });
 
 

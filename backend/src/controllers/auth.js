@@ -114,14 +114,6 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // TODO: Check if email is confirmed (email confirmation feature not yet implemented)
-    // if (!user.is_email_confirmed) {
-    //   return res.status(403).json({ 
-    //     error: 'Email not confirmed. Please check your email for confirmation link.',
-    //     userId: user.id,
-    //   });
-    // }
-
     // Compare password with hash
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
@@ -148,19 +140,23 @@ export const login = async (req, res) => {
       { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
     );
 
-    // Set access token in httpOnly cookie
-    res.cookie('access_token', accessToken, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
+    };
+
+    // Set access token in httpOnly cookie
+    console.log('Setting cookie for user:', user.id);
+    res.cookie('access_token', accessToken, {
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
     // Set refresh token in httpOnly cookie
     res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -220,6 +216,7 @@ export const refreshAccessToken = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      path: '/',
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
@@ -232,8 +229,10 @@ export const refreshAccessToken = async (req, res) => {
 
 // --- LOGOUT ---
 export const logout = async (req, res) => {
-  res.clearCookie('access_token');
-  res.clearCookie('refresh_token');
+  const cookieOptions = { path: '/' };
+
+  res.clearCookie('access_token', cookieOptions);
+  res.clearCookie('refresh_token', cookieOptions);
   res.status(200).json({ message: 'Logged out successfully' });
 };
 

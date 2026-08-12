@@ -8,6 +8,7 @@ export async function request(path, options = {}) {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
+    credentials: 'include',
     ...options,
   });
 
