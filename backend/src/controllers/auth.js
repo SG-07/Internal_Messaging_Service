@@ -142,8 +142,8 @@ export const login = async (req, res) => {
 
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, 
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
     };
 
@@ -213,10 +213,7 @@ export const refreshAccessToken = async (req, res) => {
 
     // Set new access token cookie
     res.cookie('access_token', newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
