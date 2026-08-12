@@ -1,3 +1,4 @@
+// backend/src/server.js
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -5,12 +6,14 @@ import cookieParser from 'cookie-parser';
 
 dotenv.config();
 
+// Import routes
 import authRoutes from './routes/auth.js';
+import conversationsRoutes from './routes/conversations.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// --- Middleware ---
+// Middleware
 app.use(
   cors({
     origin: process.env.FRONTEND_URL,
@@ -20,19 +23,21 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// --- Routes ---
+// Routes 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });
 });
 
+// Use imported routes
 app.use('/api/auth', authRoutes);
+app.use('/api/conversations', conversationsRoutes);
 
-// --- 404 handler ---
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// --- Global error handler ---
+// Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
@@ -40,6 +45,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
