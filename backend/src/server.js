@@ -9,7 +9,7 @@ dotenv.config();
 // Import routes
 import authRoutes from './routes/auth.js';
 import conversationsRoutes from './routes/conversations.js';
-import { getLandingPageHtml } from './view/landingPage.js';
+import { getLandingPageHtml } from '../view/landingPage.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
