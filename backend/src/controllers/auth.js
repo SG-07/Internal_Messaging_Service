@@ -4,6 +4,11 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import supabaseAdmin from '../config/supabaseClient.js';
 
+// GET CURRENT USER
+export function getCurrentUser() {
+  return request('/api/auth/me');
+}
+
 // --- SIGNUP ---
 export const signup = async (req, res) => {
   const { email, password, fullName, username } = req.body;
