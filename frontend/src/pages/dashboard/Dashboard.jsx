@@ -17,10 +17,22 @@ function Dashboard() {
         setLoading(true);
         setError('');
 
+        if (import.meta.env.DEV) {
+          console.log('[Dashboard] Fetching conversations...');
+        }
+
         const data = await getConversations();
+
+        if (import.meta.env.DEV) {
+          console.log('[Dashboard] Conversations received:', data);
+        }
 
         setConversations(data || []);
       } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error('[Dashboard] Failed to load conversations:', err);
+        }
+
         setError(
           err.message ||
             'Unable to load conversations. Please try again.'
@@ -34,6 +46,13 @@ function Dashboard() {
   }, []);
 
   function openConversation(conversationId) {
+    if (import.meta.env.DEV) {
+      console.log(
+        '[Dashboard] Opening conversation:',
+        conversationId
+      );
+    }
+
     navigate(`/conversation/${conversationId}`);
   }
 
