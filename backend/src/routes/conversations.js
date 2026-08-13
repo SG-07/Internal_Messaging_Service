@@ -6,6 +6,7 @@ import {
   getConversation,
   updateConversation,
   deleteConversation,
+  addMessage,
 } from '../controllers/conversations.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -16,5 +17,6 @@ router.get('/', requireAuth, getConversations);
 router.get('/:conversationId', requireAuth, getConversation);
 router.patch('/:conversationId', requireAuth, updateConversation);
 router.delete('/:conversationId', requireAuth, deleteConversation);
+router.post('/:conversationId/messages', requireAuth, addMessage);
 
 export default router;

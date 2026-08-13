@@ -52,6 +52,51 @@ function InputField({
   );
 }
 
+function PasswordRequirements({ password }) {
+  const requirements = [
+    {
+      label: 'At least 6 characters',
+      valid: password.length >= 6,
+    },
+    {
+      label: 'At least 1 number',
+      valid: /\d/.test(password),
+    },
+    {
+      label: 'At least 1 uppercase letter',
+      valid: /[A-Z]/.test(password),
+    },
+    {
+      label: 'At least 1 lowercase letter',
+      valid: /[a-z]/.test(password),
+    },
+  ];
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-medium text-gray-600">
+        Password must have:
+      </p>
+
+      <ul className="mt-2 space-y-1">
+        {requirements.map((requirement) => (
+          <li
+            key={requirement.label}
+            className={`text-xs ${
+              requirement.valid
+                ? 'text-green-600'
+                : 'text-red-600'
+            }`}
+          >
+            {requirement.valid ? '✓' : '✗'}{' '}
+            {requirement.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Signup() {
   const navigate = useNavigate();
 
@@ -73,7 +118,9 @@ function Signup() {
   const [redirectCountdown, setRedirectCountdown] = useState(null);
 
   useEffect(() => {
-    if (redirectCountdown === null) return;
+    if (redirectCountdown === null) {
+      return;
+    }
 
     if (redirectCountdown === 0) {
       navigate('/auth/login');
@@ -99,6 +146,15 @@ function Signup() {
     setSuccess('');
   }
 
+  function isValidPassword(password) {
+    return (
+      password.length >= 6 &&
+      /\d/.test(password) &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password)
+    );
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -122,6 +178,13 @@ function Signup() {
       !confirmPassword
     ) {
       setError('All fields are required.');
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      setError(
+        'Password does not meet all the required conditions.'
+      );
       return;
     }
 
@@ -224,19 +287,25 @@ function Signup() {
               loading={loading}
             />
 
-            <InputField
-              id="password"
-              label="Password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Enter your password"
-              loading={loading}
-              show={showPassword}
-              onToggle={() =>
-                setShowPassword((show) => !show)
-              }
-            />
+            <div>
+              <InputField
+                id="password"
+                label="Password"
+                type="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Enter your password"
+                loading={loading}
+                show={showPassword}
+                onToggle={() =>
+                  setShowPassword((show) => !show)
+                }
+              />
+
+              <PasswordRequirements
+                password={formData.password}
+              />
+            </div>
 
             <InputField
               id="confirmPassword"

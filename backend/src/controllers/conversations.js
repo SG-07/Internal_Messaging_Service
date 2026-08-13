@@ -371,8 +371,6 @@ export const deleteConversation = async (req, res) => {
     }
 
     // Soft delete: mark as hidden for this user only.
-    // The conversation, its messages, and the other participant's
-    // access remain fully intact — this only affects this user's view.
     const { error: updateError } = await supabaseAdmin
       .from("conversation_participants")
       .update({ hidden_at: new Date().toISOString() })
@@ -391,6 +389,107 @@ export const deleteConversation = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Unable to remove conversation.",
+    });
+  }
+};
+
+// --- ADD MESSAGE TO EXISTING CONVERSATION (REPLY) ---
+export const addMessage = async (req, res) => {
+  const { conversationId } = req.params;
+  const { body } = req.body;
+  const sender_id = req.user.id;
+
+  const isDev = process.env.NODE_ENV === "development";
+
+  if (isDev) {
+    console.log("[addMessage] conversationId:", conversationId);
+    console.log("[addMessage] sender_id:", sender_id);
+    console.log("[addMessage] Request body:", JSON.stringify(req.body, null, 2));
+  }
+
+  if (!body) {
+    return res.status(400).json({
+      success: false,
+      message: "Message body is required.",
+    });
+  }
+
+  try {
+    // Verify sender is a participant in this conversation
+    const { data: isParticipant, error: participantError } = await supabaseAdmin
+      .from("conversation_participants")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", sender_id)
+      .single();
+
+    if (isDev) {
+      console.log("[addMessage] isParticipant:", isParticipant, "participantError:", participantError);
+    }
+
+    if (participantError || !isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation.",
+      });
+    }
+
+    // Insert the new message
+    const { data: newMessage, error: messageError } = await supabaseAdmin
+      .from("messages")
+      .insert({
+        conversation_id: conversationId,
+        sender_id,
+        content: body,
+      })
+      .select("id, content, created_at, sender_id")
+      .single();
+
+    if (messageError) {
+      console.error("[addMessage] Supabase insert error:", messageError);
+      throw new Error("Failed to create message");
+    }
+
+    // Bump conversation's updated_at so it sorts as most recently active
+    const { error: convUpdateError } = await supabaseAdmin
+      .from("conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId);
+
+    if (isDev && convUpdateError) {
+      console.log("[addMessage] Failed to bump conversation updated_at:", convUpdateError);
+    }
+
+    // Fetch sender's name for the response
+    const { data: senderProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("username, full_name")
+      .eq("id", sender_id)
+      .single();
+
+    const responsePayload = {
+      success: true,
+      message: "Message sent successfully.",
+      data: {
+        message_id: newMessage.id,
+        conversation_id: conversationId,
+        content: newMessage.content,
+        sender_id: newMessage.sender_id,
+        sender_name: senderProfile?.full_name || senderProfile?.username || null,
+        sent_at: newMessage.created_at,
+      },
+    };
+
+    if (isDev) {
+      console.log("[addMessage] Response payload sent to frontend:", JSON.stringify(responsePayload, null, 2));
+    }
+
+    res.status(201).json(responsePayload);
+  } catch (err) {
+    console.error("[addMessage] Add message error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Unable to send message.",
     });
   }
 };
