@@ -215,13 +215,12 @@ export const getConversations = async (req, res) => {
   }
 };
 
-// --- GET SINGLE CONVERSATION WITH PARTICIPANTS ---
+// --- GET SINGLE CONVERSATION WITH PARTICIPANTS AND MESSAGES ---
 export const getConversation = async (req, res) => {
   const { conversationId } = req.params;
   const user_id = req.user.id;
 
   try {
-    // Step 1: Verify membership (lightweight, indexed lookup — no profile data fetched)
     const { data: isParticipant, error: participantError } = await supabaseAdmin
       .from("conversation_participants")
       .select("id")
@@ -236,12 +235,11 @@ export const getConversation = async (req, res) => {
       });
     }
 
-    // Step 2: Fetch conversation + all participants' profiles in one query
     const { data: conversation, error: convError } = await supabaseAdmin
       .from("conversations")
       .select(
         `
-        id, name, subject, conversation_type, created_by, created_at, updated_at,
+        id, subject, conversation_type, category, created_by, created_at, updated_at,
         conversation_participants(
           profiles(id, username, full_name, email)
         )
@@ -257,6 +255,22 @@ export const getConversation = async (req, res) => {
       });
     }
 
+    // Fetch all messages in this conversation
+    const { data: messages, error: messagesError } = await supabaseAdmin
+      .from("messages")
+      .select(
+        `
+        id, content, created_at, sender_id,
+        profiles:sender_id(id, username, full_name)
+      `,
+      )
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (messagesError) {
+      throw new Error("Failed to fetch messages");
+    }
+
     const { conversation_participants, ...conversationData } = conversation;
 
     res.status(200).json({
@@ -264,6 +278,13 @@ export const getConversation = async (req, res) => {
       data: {
         ...conversationData,
         participants: conversation_participants.map((p) => p.profiles),
+        messages: messages.map((m) => ({
+          id: m.id,
+          content: m.content,
+          created_at: m.created_at,
+          sender_id: m.sender_id,
+          sender_name: m.profiles?.full_name || m.profiles?.username || null,
+        })),
       },
     });
   } catch (err) {
@@ -278,18 +299,17 @@ export const getConversation = async (req, res) => {
 // --- UPDATE CONVERSATION ---
 export const updateConversation = async (req, res) => {
   const { conversationId } = req.params;
-  const { name, subject } = req.body;
+  const { subject } = req.body;
   const user_id = req.user.id;
 
-  if (!name && !subject) {
+  if (!subject) {
     return res.status(400).json({
       success: false,
-      message: "At least one field (name or subject) is required.",
+      message: "Subject is required.",
     });
   }
 
   try {
-    // Check if user is part of this conversation
     const { data: isParticipant } = await supabaseAdmin
       .from("conversation_participants")
       .select("id")
@@ -304,17 +324,11 @@ export const updateConversation = async (req, res) => {
       });
     }
 
-    // Update conversation
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (subject) updateData.subject = subject;
-    updateData.updated_at = new Date().toISOString();
-
     const { data: updatedConv, error: updateError } = await supabaseAdmin
       .from("conversations")
-      .update(updateData)
+      .update({ subject, updated_at: new Date().toISOString() })
       .eq("id", conversationId)
-      .select("id, name, subject, updated_at")
+      .select("id, subject, updated_at")
       .single();
 
     if (updateError) {

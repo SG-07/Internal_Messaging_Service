@@ -2,22 +2,30 @@
 
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router';
+
 import Login from './pages/auth/login';
 import Signup from './pages/auth/signup';
 import Dashboard from './pages/dashboard/Dashboard';
 import Compose from './pages/compose/Compose';
+import Conversation from './pages/conversation/Conversation';
+
 import ProtectedRoute from './component/ProtectedRoute';
 
 function App() {
   return (
     <Routes>
+      {/* Default */}
       <Route
         path="/"
         element={
-          <Navigate to="/dashboard" replace />
+          <Navigate
+            to="/dashboard"
+            replace
+          />
         }
       />
 
+      {/* Authentication */}
       <Route
         path="/auth/login"
         element={<Login />}
@@ -28,6 +36,7 @@ function App() {
         element={<Signup />}
       />
 
+      {/* Dashboard */}
       <Route
         path="/dashboard"
         element={
@@ -37,11 +46,22 @@ function App() {
         }
       />
 
+      {/* Compose */}
       <Route
         path="/compose"
         element={
           <ProtectedRoute>
             <Compose />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Conversation */}
+      <Route
+        path="/conversation/:id"
+        element={
+          <ProtectedRoute>
+            <Conversation />
           </ProtectedRoute>
         }
       />

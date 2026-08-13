@@ -5,11 +5,16 @@ import { useNavigate, useParams } from 'react-router';
 
 import {
   getConversation,
-  getConversationMessages,
   markMessageAsRead,
-  deleteMessage,
 } from '../../api/conversations';
 
+import ConversationHeader from './ConversationHeader';
+import ConversationInfo from './ConversationInfo';
+import MessageThread from './MessageThread';
+import ActionSection from './ActionSection';
+import ApprovalSection from './ApprovalSection';
+import FollowUpSection from './FollowUpSection';
+import ReplyBox from './ReplyBox';
 
 function Conversation() {
   const { id } = useParams();
@@ -21,36 +26,48 @@ function Conversation() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [deletingMessageId, setDeletingMessageId] =
-    useState(null);
-
-
-  //Load conversation and messages
   useEffect(() => {
     async function loadConversation() {
       try {
         setLoading(true);
         setError('');
 
-        const conversationResult =
-          await getConversation(id);
+        if (import.meta.env.DEV) {
+          console.log(
+            '[Conversation] Loading conversation:',
+            id
+          );
+        }
 
-        const messagesResult =
-          await getConversationMessages(id);
+        const response = await getConversation(id);
 
-        setConversation(
-          conversationResult.conversation ||
-          conversationResult
-        );
+        if (import.meta.env.DEV) {
+          console.log(
+            '[Conversation] Conversation response:',
+            response
+          );
+        }
 
-        setMessages(
-          messagesResult.messages ||
-          messagesResult
-        );
+        const data =
+          response?.conversation ||
+          response?.data ||
+          response;
+
+        setConversation(data);
+
+        // Messages are included directly in the conversation response.
+        setMessages(data?.messages || []);
       } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error(
+            '[Conversation] Failed to load conversation:',
+            err
+          );
+        }
+
         setError(
           err.message ||
-          'Unable to load conversation.'
+            'Unable to load conversation. Please try again.'
         );
       } finally {
         setLoading(false);
@@ -62,8 +79,9 @@ function Conversation() {
     }
   }, [id]);
 
-
-  //Mark a message as read
+  /*
+   * Mark message as read.
+   */
   async function handleMarkAsRead(messageId) {
     try {
       await markMessageAsRead(messageId);
@@ -82,70 +100,68 @@ function Conversation() {
         })
       );
     } catch (err) {
-      console.error(
-        'Failed to mark message as read:',
-        err
+      if (import.meta.env.DEV) {
+        console.error(
+          '[Conversation] Failed to mark message as read:',
+          err
+        );
+      }
+    }
+  }
+
+  /*
+   * Reply API will be connected once the
+   * backend reply endpoint is confirmed.
+   */
+  async function handleSendReply(content) {
+    if (import.meta.env.DEV) {
+      console.log(
+        '[Conversation] Reply requested:',
+        content
       );
     }
   }
 
-
-  //Delete a message
-  async function handleDelete(messageId) {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this message?'
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setDeletingMessageId(messageId);
-
-      await deleteMessage(messageId);
-
-      /*
-       * Soft delete:
-       * Keep the message in the conversation,
-       * but mark it as deleted.
-       */
-      setMessages((previousMessages) =>
-        previousMessages.map((message) => {
-          if (message.id !== messageId) {
-            return message;
-          }
-
-          return {
-            ...message,
-            deleted_at: new Date().toISOString(),
-          };
-        })
+  /*
+   * Action Required status.
+   */
+  async function handleActionStatusChange(status) {
+    if (import.meta.env.DEV) {
+      console.log(
+        '[Conversation] Action status requested:',
+        status
       );
-    } catch (err) {
-      setError(
-        err.message ||
-        'Unable to delete the message.'
-      );
-    } finally {
-      setDeletingMessageId(null);
     }
   }
 
+  /*
+   * Approval Required decision.
+   */
+  async function handleDecisionChange(status) {
+    if (import.meta.env.DEV) {
+      console.log(
+        '[Conversation] Decision status requested:',
+        status
+      );
+    }
+  }
 
-  //Loading state
+  /*
+   * Loading state.
+   */
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <p className="text-gray-600">
+        <p className="text-sm text-gray-500">
           Loading conversation...
         </p>
       </div>
     );
   }
 
-
-  //Error state/
+  /*
+   * Error state.
+   */
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
@@ -161,7 +177,7 @@ function Conversation() {
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+            className="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
           >
             Back to Dashboard
           </button>
@@ -170,176 +186,100 @@ function Conversation() {
     );
   }
 
-
-  //Conversation not found
+  /*
+   * Conversation not found.
+   */
   if (!conversation) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <p className="text-gray-600">
+        <p className="text-sm text-gray-500">
           Conversation not found.
         </p>
       </div>
     );
   }
 
+  const category = (
+    conversation.category ||
+    conversation.conversation_type ||
+    ''
+  ).toLowerCase();
+
+  /*
+   * Permission handling will be connected
+   * when authenticated user information is available.
+   */
+  const canRespond = false;
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col bg-white shadow-sm">
 
-        {/* Back button */}
-        <button
-          type="button"
-          onClick={() => navigate('/dashboard')}
-          className="mb-6 text-sm font-medium text-blue-600 hover:text-blue-700"
-        >
-          ← Back to Dashboard
-        </button>
+        {/* Header */}
+        <ConversationHeader
+          subject={conversation.subject}
+          category={category}
+        />
 
+        {/* Conversation Information */}
+        <ConversationInfo
+          conversation={conversation}
+        />
 
-        {/* Conversation container */}
-        <div className="overflow-hidden rounded-2xl bg-white shadow">
+        {/* Action Required */}
+        {category === 'action_required' && (
+          <ActionSection
+            status={
+              conversation.action_status ||
+              'PENDING'
+            }
+            canRespond={canRespond}
+            onStatusChange={
+              handleActionStatusChange
+            }
+          />
+        )}
 
-          {/* Conversation header */}
-          <div className="border-b border-gray-200 px-6 py-5">
-            <h1 className="text-2xl font-semibold text-gray-900">
-              {conversation.subject ||
-                'Conversation'}
-            </h1>
+        {/* Approval Required */}
+        {category === 'approval_required' && (
+          <ApprovalSection
+            status={
+              conversation.decision_status ||
+              'PENDING'
+            }
+            canRespond={canRespond}
+            onDecisionChange={
+              handleDecisionChange
+            }
+          />
+        )}
 
-            <div className="mt-3 flex flex-wrap gap-3 text-sm text-gray-600">
+        {/* Follow-up */}
+        <FollowUpSection
+          followUpAfter={
+            conversation.follow_up_after
+          }
+          status={
+            conversation.follow_up_status ||
+            'Waiting for response'
+          }
+        />
 
-              {conversation.status && (
-                <span className="rounded-full bg-gray-100 px-3 py-1">
-                  {conversation.status}
-                </span>
-              )}
+        {/* Message Thread */}
+        <main className="flex-1">
+          <MessageThread
+            messages={messages}
+            onMarkAsRead={handleMarkAsRead}
+          />
+        </main>
 
-              {conversation.type && (
-                <span className="rounded-full bg-gray-100 px-3 py-1">
-                  {conversation.type}
-                </span>
-              )}
-
-            </div>
-          </div>
-
-
-          {/* Messages */}
-          <div className="divide-y divide-gray-200">
-
-            {messages.length === 0 ? (
-              <div className="px-6 py-10 text-center text-sm text-gray-500">
-                No messages in this conversation.
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className="px-6 py-6"
-                >
-
-                  {/* Message header */}
-                  <div className="flex items-start justify-between gap-4">
-
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {message.sender?.fullName ||
-                          message.sender?.fullname ||
-                          message.fullName ||
-                          message.fullname ||
-                          message.sender_name ||
-                          'Unknown User'}
-                      </p>
-
-                      {message.sender?.email && (
-                        <p className="text-sm text-gray-500">
-                          {message.sender.email}
-                        </p>
-                      )}
-                    </div>
-
-
-                    {message.created_at && (
-                      <time className="text-xs text-gray-500">
-                        {new Date(
-                          message.created_at
-                        ).toLocaleString()}
-                      </time>
-                    )}
-
-                  </div>
-
-
-                  {/* Message body */}
-                  <div className="mt-4">
-
-                    {message.deleted_at ? (
-                      <p className="text-sm italic text-gray-500">
-                        This message was deleted.
-                      </p>
-                    ) : (
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                        {message.body}
-                      </p>
-                    )}
-
-                  </div>
-
-
-                  {/* Message actions */}
-                  {!message.deleted_at && (
-                    <div className="mt-4 flex gap-4">
-
-                      {!message.is_read && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleMarkAsRead(
-                              message.id
-                            )
-                          }
-                          className="text-xs font-medium text-blue-600 hover:text-blue-700"
-                        >
-                          Mark as read
-                        </button>
-                      )}
-
-
-                      <button
-                        type="button"
-                        disabled={
-                          deletingMessageId ===
-                          message.id
-                        }
-                        onClick={() =>
-                          handleDelete(
-                            message.id
-                          )
-                        }
-                        className="text-xs font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {deletingMessageId ===
-                        message.id
-                          ? 'Deleting...'
-                          : 'Delete'}
-                      </button>
-
-                    </div>
-                  )}
-
-                </div>
-              ))
-            )}
-
-          </div>
-
-        </div>
-
+        {/* Reply */}
+        <ReplyBox
+          onSendReply={handleSendReply}
+        />
       </div>
     </div>
   );
 }
-
 
 export default Conversation;
