@@ -132,7 +132,8 @@ export const getConversations = async (req, res) => {
           category,
           created_by,
           created_at,
-          updated_at
+          updated_at,
+          creator:profiles!conversations_created_by_fkey(id, username, full_name, email)
         )
       `,
         { count: "exact" },
@@ -177,6 +178,8 @@ export const getConversations = async (req, res) => {
           type: conv.conversation_type,
           category: conv.category,
           created_by: conv.created_by,
+          created_by_name: conv.creator?.full_name || conv.creator?.username || null,
+          created_by_email: conv.creator?.email || null,
           is_sender: conv.created_by === user_id,
           other_user_name:
             otherParticipant?.profiles?.full_name ||

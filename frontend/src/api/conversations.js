@@ -3,13 +3,17 @@
 import { request } from './client';
 
 // Get all conversations for the logged-in user
-export function getConversations() {
-  return request('/api/conversations');
+export async function getConversations() {
+  const response = await request('/api/conversations');
+
+  return response.data || [];
 }
 
 // Get one conversation
-export function getConversation(conversationId) {
-  return request(`/api/conversations/${conversationId}`);
+export async function getConversation(conversationId) {
+  const response = await request(`/api/conversations/${conversationId}`);
+
+  return response.data;
 }
 
 // Get all messages in a conversation
