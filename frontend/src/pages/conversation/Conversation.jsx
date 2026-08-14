@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router';
 import {
   getConversation,
   markMessageAsRead,
+  sendMessage,
 } from '../../api/conversations';
 
 import ConversationHeader from './ConversationHeader';
@@ -54,8 +55,6 @@ function Conversation() {
           response;
 
         setConversation(data);
-
-        // Messages are included directly in the conversation response.
         setMessages(data?.messages || []);
       } catch (err) {
         if (import.meta.env.DEV) {
@@ -79,9 +78,6 @@ function Conversation() {
     }
   }, [id]);
 
-  /*
-   * Mark message as read.
-   */
   async function handleMarkAsRead(messageId) {
     try {
       await markMessageAsRead(messageId);
@@ -109,22 +105,69 @@ function Conversation() {
     }
   }
 
-  /*
-   * Reply API will be connected once the
-   * backend reply endpoint is confirmed.
-   */
   async function handleSendReply(content) {
+    const payload = {
+      body: content,
+    };
+
     if (import.meta.env.DEV) {
       console.log(
-        '[Conversation] Reply requested:',
+        '[Conversation] Sending reply:',
+        {
+          endpoint: `/api/conversations/${id}/messages`,
+          method: 'POST',
+          payload,
+        }
+      );
+    }
+
+    try {
+      const response = await sendMessage(
+        id,
         content
       );
+
+      if (import.meta.env.DEV) {
+        console.log(
+          '[Conversation] Reply response:',
+          response
+        );
+      }
+
+      const sentMessage = response?.data;
+
+      if (sentMessage) {
+        setMessages((previousMessages) => [
+          ...previousMessages,
+          {
+            id: sentMessage.message_id,
+            content: sentMessage.content,
+            body: sentMessage.content,
+            sender_id: sentMessage.sender_id,
+            sender_name: sentMessage.sender_name,
+            created_at: sentMessage.sent_at,
+          },
+        ]);
+      }
+
+      return response;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error(
+          '[Conversation] Failed to send reply:',
+          {
+            error: err,
+            endpoint: `/api/conversations/${id}/messages`,
+            method: 'POST',
+            payload,
+          }
+        );
+      }
+
+      throw err;
     }
   }
 
-  /*
-   * Action Required status.
-   */
   async function handleActionStatusChange(status) {
     if (import.meta.env.DEV) {
       console.log(
@@ -134,9 +177,6 @@ function Conversation() {
     }
   }
 
-  /*
-   * Approval Required decision.
-   */
   async function handleDecisionChange(status) {
     if (import.meta.env.DEV) {
       console.log(
@@ -146,9 +186,6 @@ function Conversation() {
     }
   }
 
-  /*
-   * Loading state.
-   */
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -159,9 +196,6 @@ function Conversation() {
     );
   }
 
-  /*
-   * Error state.
-   */
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
@@ -186,9 +220,6 @@ function Conversation() {
     );
   }
 
-  /*
-   * Conversation not found.
-   */
   if (!conversation) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -205,28 +236,21 @@ function Conversation() {
     ''
   ).toLowerCase();
 
-  /*
-   * Permission handling will be connected
-   * when authenticated user information is available.
-   */
   const canRespond = false;
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col bg-white shadow-sm">
 
-        {/* Header */}
         <ConversationHeader
           subject={conversation.subject}
           category={category}
         />
 
-        {/* Conversation Information */}
         <ConversationInfo
           conversation={conversation}
         />
 
-        {/* Action Required */}
         {category === 'action_required' && (
           <ActionSection
             status={
@@ -240,7 +264,6 @@ function Conversation() {
           />
         )}
 
-        {/* Approval Required */}
         {category === 'approval_required' && (
           <ApprovalSection
             status={
@@ -254,7 +277,6 @@ function Conversation() {
           />
         )}
 
-        {/* Follow-up */}
         <FollowUpSection
           followUpAfter={
             conversation.follow_up_after
@@ -265,7 +287,6 @@ function Conversation() {
           }
         />
 
-        {/* Message Thread */}
         <main className="flex-1">
           <MessageThread
             messages={messages}
@@ -273,7 +294,6 @@ function Conversation() {
           />
         </main>
 
-        {/* Reply */}
         <ReplyBox
           onSendReply={handleSendReply}
         />
