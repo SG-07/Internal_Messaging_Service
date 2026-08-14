@@ -71,21 +71,57 @@ export const signup = async (req, res) => {
         role: 'user',
         is_email_confirmed: false,
       })
-      .select('id, email, username, full_name, role, is_email_confirmed')
+      .select('id, email, username, full_name, role')
       .single();
 
     if (createError) {
       return res.status(500).json({ error: 'Failed to create user' });
     }
 
-    // TODO: Send email confirmation link
-    // For now, just return success message
+    // Generate access token (short-lived)
+    const accessToken = jwt.sign(
+      {
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.username,
+        role: newUser.role,
+      },
+      process.env.JWT_ACCESS_SECRET,
+      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+    );
+
+    // Generate refresh token (long-lived)
+    const refreshToken = jwt.sign(
+      { id: newUser.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
+    );
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    };
+
+    res.cookie('access_token', accessToken, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie('refresh_token', refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     res.status(201).json({
-      message: 'Signup successful. Please check your email to confirm your account.',
+      message: 'Signup successful.',
       user: {
         id: newUser.id,
         email: newUser.email,
         username: newUser.username,
+        full_name: newUser.full_name,
+        role: newUser.role,
       },
     });
   } catch (err) {

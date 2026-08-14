@@ -10,7 +10,7 @@ import Signup from './pages/auth/signup';
 import Dashboard from './pages/dashboard/Dashboard';
 import Compose from './pages/compose/Compose';
 import Conversation from './pages/conversation/Conversation';
-
+import Sent from './pages/Sent';
 import Navbar from './component/navbar/Navbar';
 import ProtectedRoute from './component/ProtectedRoute';
 
@@ -49,6 +49,16 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Sent */}
+        <Route
+          path="/dashboard/sent"
+          element={
+            <ProtectedRoute>
+              <Sent />
             </ProtectedRoute>
           }
         />
