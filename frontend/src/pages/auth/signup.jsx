@@ -1,8 +1,8 @@
-// frontend/src/pages/auth/signup.jsx
+import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
-import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router';
 import { signup } from '../../api/auth';
+import { useAuth } from '../../context/AuthContext';
 
 function InputField({
   id,
@@ -99,6 +99,7 @@ function PasswordRequirements({ password }) {
 
 function Signup() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -113,62 +114,7 @@ function Signup() {
     useState(false);
 
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [redirectCountdown, setRedirectCountdown] =
-    useState(null);
-
-  /*
-   * Password requirements
-   */
-  const passwordValid =
-    formData.password.length >= 6 &&
-    /\d/.test(formData.password) &&
-    /[A-Z]/.test(formData.password) &&
-    /[a-z]/.test(formData.password);
-
-  /*
-   * Confirm password
-   */
-  const passwordsMatch =
-    formData.password === formData.confirmPassword &&
-    formData.confirmPassword.length > 0;
-
-  /*
-   * Enable Sign Up only when:
-   * - all fields have values
-   * - password satisfies all requirements
-   * - confirm password matches
-   */
-  const canSubmit =
-    formData.fullName.trim() !== '' &&
-    formData.email.trim() !== '' &&
-    formData.username.trim() !== '' &&
-    formData.password !== '' &&
-    formData.confirmPassword !== '' &&
-    passwordValid &&
-    passwordsMatch;
-
-  useEffect(() => {
-    if (redirectCountdown === null) {
-      return;
-    }
-
-    if (redirectCountdown === 0) {
-      navigate('/auth/login', {
-        replace: true,
-      });
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setRedirectCountdown(
-        (count) => count - 1
-      );
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [redirectCountdown, navigate]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -179,7 +125,6 @@ function Signup() {
     }));
 
     setError('');
-    setSuccess('');
   }
 
   function isValidPassword(password) {
@@ -195,8 +140,6 @@ function Signup() {
     event.preventDefault();
 
     setError('');
-    setSuccess('');
-    setRedirectCountdown(null);
 
     const {
       fullName,
@@ -206,13 +149,10 @@ function Signup() {
       confirmPassword,
     } = formData;
 
-    /*
-     * Keep validation here as a final safety check.
-     */
     if (
-      !fullName.trim() ||
-      !email.trim() ||
-      !username.trim() ||
+      !fullName ||
+      !email ||
+      !username ||
       !password ||
       !confirmPassword
     ) {
@@ -228,38 +168,48 @@ function Signup() {
     }
 
     if (password !== confirmPassword) {
-      setError(
-        'Password and Confirm Password must match.'
-      );
+      setError('Password and Confirm Password must match.');
       return;
     }
 
     try {
       setLoading(true);
 
-      await signup({
+      const response = await signup({
         fullName,
         email,
         username,
         password,
       });
 
-      setSuccess(
-        'Account created successfully! Please check your email and verify your account before logging in.'
-      );
+      /*
+       * Backend response:
+       *
+       * {
+       *   "message": "Signup successful.",
+       *   "user": {
+       *     "id": "uuid",
+       *     "email": "user@example.com",
+       *     "username": "theirusername",
+       *     "full_name": "Their Full Name",
+       *     "role": "user"
+       *   }
+       * }
+       */
 
-      setRedirectCountdown(10);
+      if (!response?.user) {
+        throw new Error(
+          'Signup succeeded, but the user information was not returned.'
+        );
+      }
 
-      setFormData({
-        fullName: '',
-        email: '',
-        username: '',
-        password: '',
-        confirmPassword: '',
+      // Store the newly created authenticated user.
+      setUser(response.user);
+
+      // Go directly to the protected dashboard.
+      navigate('/dashboard', {
+        replace: true,
       });
-
-      setShowPassword(false);
-      setShowConfirmPassword(false);
     } catch (err) {
       setError(
         err.message ||
@@ -270,11 +220,23 @@ function Signup() {
     }
   }
 
+  const passwordValid = isValidPassword(formData.password);
+  const passwordsMatch =
+    formData.password === formData.confirmPassword &&
+    formData.confirmPassword.length > 0;
+
+  const canSubmit =
+    !loading &&
+    formData.fullName.trim() &&
+    formData.email.trim() &&
+    formData.username.trim() &&
+    passwordValid &&
+    passwordsMatch;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-10">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
 
-        {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900">
             Create Account
@@ -285,143 +247,112 @@ function Signup() {
           </p>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
-        {/* Success */}
-        {success ? (
-          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-700">
-            <p>{success}</p>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5"
+        >
+          <InputField
+            id="fullName"
+            label="Full Name"
+            value={formData.fullName}
+            onChange={handleChange}
+            placeholder="Enter your full name"
+            loading={loading}
+          />
 
-            <p className="mt-2 font-medium">
-              Redirecting to login in{' '}
-              {redirectCountdown} seconds...
-            </p>
-          </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5"
-          >
+          <InputField
+            id="email"
+            label="Email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="Enter your email"
+            loading={loading}
+          />
 
-            {/* Full Name */}
+          <InputField
+            id="username"
+            label="Username"
+            value={formData.username}
+            onChange={handleChange}
+            placeholder="Choose a username"
+            loading={loading}
+          />
+
+          <div>
             <InputField
-              id="fullName"
-              label="Full Name"
-              value={formData.fullName}
-              onChange={handleChange}
-              placeholder="Enter your full name"
-              loading={loading}
-            />
-
-            {/* Email */}
-            <InputField
-              id="email"
-              label="Email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter your email"
-              loading={loading}
-            />
-
-            {/* Username */}
-            <InputField
-              id="username"
-              label="Username"
-              value={formData.username}
-              onChange={handleChange}
-              placeholder="Choose a username"
-              loading={loading}
-            />
-
-            {/* Password */}
-            <div>
-              <InputField
-                id="password"
-                label="Password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Enter your password"
-                loading={loading}
-                show={showPassword}
-                onToggle={() =>
-                  setShowPassword(
-                    (show) => !show
-                  )
-                }
-              />
-
-              <PasswordRequirements
-                password={formData.password}
-              />
-            </div>
-
-            {/* Confirm Password */}
-            <InputField
-              id="confirmPassword"
-              label="Confirm Password"
+              id="password"
+              label="Password"
               type="password"
-              value={formData.confirmPassword}
+              value={formData.password}
               onChange={handleChange}
-              placeholder="Confirm your password"
+              placeholder="Enter your password"
               loading={loading}
-              show={showConfirmPassword}
+              show={showPassword}
               onToggle={() =>
-                setShowConfirmPassword(
-                  (show) => !show
-                )
+                setShowPassword((show) => !show)
               }
             />
 
-            {/* Password Match Message */}
-            {formData.confirmPassword && (
-              <p
-                className={`-mt-3 text-xs ${
-                  passwordsMatch
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {passwordsMatch
-                  ? '✓ Passwords match'
-                  : '✗ Passwords do not match'}
-              </p>
-            )}
+            <PasswordRequirements
+              password={formData.password}
+            />
+          </div>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading || !canSubmit}
-              className={`w-full rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${
-                canSubmit && !loading
-                  ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'cursor-not-allowed bg-gray-400'
+          <InputField
+            id="confirmPassword"
+            label="Confirm Password"
+            type="password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            placeholder="Confirm your password"
+            loading={loading}
+            show={showConfirmPassword}
+            onToggle={() =>
+              setShowConfirmPassword((show) => !show)
+            }
+          />
+
+          {formData.confirmPassword && (
+            <p
+              className={`-mt-3 text-xs ${
+                passwordsMatch
+                  ? 'text-green-600'
+                  : 'text-red-600'
               }`}
             >
-              {loading
-                ? 'Creating Account...'
-                : 'Sign Up'}
-            </button>
+              {passwordsMatch
+                ? '✓ Passwords match'
+                : '✗ Passwords do not match'}
+            </p>
+          )}
 
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            {loading
+              ? 'Creating Account...'
+              : 'Sign Up'}
+          </button>
+        </form>
 
-        {/* Login Link */}
         <div className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
 
-          <Link
-            to="/auth/login"
+          <a
+            href="/auth/login"
             className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
           >
             Log in
-          </Link>
+          </a>
         </div>
 
       </div>
