@@ -1,7 +1,7 @@
 // frontend/src/pages/auth/signup.jsx
 
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import { signup } from '../../api/auth';
 
 function InputField({
@@ -115,7 +115,39 @@ function Signup() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [redirectCountdown, setRedirectCountdown] = useState(null);
+  const [redirectCountdown, setRedirectCountdown] =
+    useState(null);
+
+  /*
+   * Password requirements
+   */
+  const passwordValid =
+    formData.password.length >= 6 &&
+    /\d/.test(formData.password) &&
+    /[A-Z]/.test(formData.password) &&
+    /[a-z]/.test(formData.password);
+
+  /*
+   * Confirm password
+   */
+  const passwordsMatch =
+    formData.password === formData.confirmPassword &&
+    formData.confirmPassword.length > 0;
+
+  /*
+   * Enable Sign Up only when:
+   * - all fields have values
+   * - password satisfies all requirements
+   * - confirm password matches
+   */
+  const canSubmit =
+    formData.fullName.trim() !== '' &&
+    formData.email.trim() !== '' &&
+    formData.username.trim() !== '' &&
+    formData.password !== '' &&
+    formData.confirmPassword !== '' &&
+    passwordValid &&
+    passwordsMatch;
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -123,12 +155,16 @@ function Signup() {
     }
 
     if (redirectCountdown === 0) {
-      navigate('/auth/login');
+      navigate('/auth/login', {
+        replace: true,
+      });
       return;
     }
 
     const timer = setTimeout(() => {
-      setRedirectCountdown((count) => count - 1);
+      setRedirectCountdown(
+        (count) => count - 1
+      );
     }, 1000);
 
     return () => clearTimeout(timer);
@@ -170,10 +206,13 @@ function Signup() {
       confirmPassword,
     } = formData;
 
+    /*
+     * Keep validation here as a final safety check.
+     */
     if (
-      !fullName ||
-      !email ||
-      !username ||
+      !fullName.trim() ||
+      !email.trim() ||
+      !username.trim() ||
       !password ||
       !confirmPassword
     ) {
@@ -189,7 +228,9 @@ function Signup() {
     }
 
     if (password !== confirmPassword) {
-      setError('Password and Confirm Password must match.');
+      setError(
+        'Password and Confirm Password must match.'
+      );
       return;
     }
 
@@ -221,7 +262,8 @@ function Signup() {
       setShowConfirmPassword(false);
     } catch (err) {
       setError(
-        err.message || 'Something went wrong. Please try again.'
+        err.message ||
+          'Something went wrong. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -232,6 +274,7 @@ function Signup() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-10">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
 
+        {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900">
             Create Account
@@ -242,23 +285,30 @@ function Signup() {
           </p>
         </div>
 
+        {/* Error */}
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
+        {/* Success */}
         {success ? (
           <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-700">
             <p>{success}</p>
 
             <p className="mt-2 font-medium">
-              Redirecting to login in {redirectCountdown} seconds...
+              Redirecting to login in{' '}
+              {redirectCountdown} seconds...
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-5"
+          >
 
+            {/* Full Name */}
             <InputField
               id="fullName"
               label="Full Name"
@@ -268,6 +318,7 @@ function Signup() {
               loading={loading}
             />
 
+            {/* Email */}
             <InputField
               id="email"
               label="Email"
@@ -278,6 +329,7 @@ function Signup() {
               loading={loading}
             />
 
+            {/* Username */}
             <InputField
               id="username"
               label="Username"
@@ -287,6 +339,7 @@ function Signup() {
               loading={loading}
             />
 
+            {/* Password */}
             <div>
               <InputField
                 id="password"
@@ -298,7 +351,9 @@ function Signup() {
                 loading={loading}
                 show={showPassword}
                 onToggle={() =>
-                  setShowPassword((show) => !show)
+                  setShowPassword(
+                    (show) => !show
+                  )
                 }
               />
 
@@ -307,6 +362,7 @@ function Signup() {
               />
             </div>
 
+            {/* Confirm Password */}
             <InputField
               id="confirmPassword"
               label="Confirm Password"
@@ -317,29 +373,55 @@ function Signup() {
               loading={loading}
               show={showConfirmPassword}
               onToggle={() =>
-                setShowConfirmPassword((show) => !show)
+                setShowConfirmPassword(
+                  (show) => !show
+                )
               }
             />
 
+            {/* Password Match Message */}
+            {formData.confirmPassword && (
+              <p
+                className={`-mt-3 text-xs ${
+                  passwordsMatch
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {passwordsMatch
+                  ? '✓ Passwords match'
+                  : '✗ Passwords do not match'}
+              </p>
+            )}
+
+            {/* Submit */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+              disabled={loading || !canSubmit}
+              className={`w-full rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${
+                canSubmit && !loading
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'cursor-not-allowed bg-gray-400'
+              }`}
             >
-              {loading ? 'Creating Account...' : 'Sign Up'}
+              {loading
+                ? 'Creating Account...'
+                : 'Sign Up'}
             </button>
+
           </form>
         )}
 
+        {/* Login Link */}
         <div className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
 
-          <a
-            href="/auth/login"
+          <Link
+            to="/auth/login"
             className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
           >
             Log in
-          </a>
+          </Link>
         </div>
 
       </div>
