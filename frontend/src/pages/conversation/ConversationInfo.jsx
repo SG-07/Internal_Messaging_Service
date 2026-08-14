@@ -32,41 +32,12 @@ function ConversationInfo({ conversation }) {
     created_by,
     participants = [],
     created_at,
-    updated_at,
     category,
   } = conversation || {};
 
-  /*
-   * Find the participant who created the conversation.
-   *
-   * Backend provides:
-   *
-   * created_by: "user-id"
-   *
-   * participants: [
-   *   {
-   *     id: "user-id",
-   *     full_name: "...",
-   *     email: "...",
-   *     username: "..."
-   *   }
-   * ]
-   */
   const creator = participants.find(
     (participant) =>
       participant.id === created_by
-  );
-
-  /*
-   * The other participant is the participant
-   * who did not create the conversation.
-   *
-   * This currently assumes a direct conversation
-   * with two participants.
-   */
-  const otherParticipant = participants.find(
-    (participant) =>
-      participant.id !== created_by
   );
 
   const creatorName =
@@ -74,16 +45,7 @@ function ConversationInfo({ conversation }) {
     creator?.username ||
     'Unknown';
 
-  const creatorEmail =
-    creator?.email || '';
-
-  const otherParticipantName =
-    otherParticipant?.full_name ||
-    otherParticipant?.username ||
-    'Unknown';
-
-  const otherParticipantEmail =
-    otherParticipant?.email || '';
+  const creatorEmail = creator?.email || '';
 
   const purpose =
     PURPOSES[category] || {
@@ -108,72 +70,33 @@ function ConversationInfo({ conversation }) {
 
   return (
     <>
-      <section className="border-b bg-white px-6 py-5">
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="border-b border-gray-200 bg-gray-50 px-6 py-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
           {/* Created By */}
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               Created By
             </p>
 
-            <p className="mt-1 text-sm font-medium text-gray-900">
+            <p className="mt-2 text-sm font-semibold text-gray-900">
               {creatorName}
             </p>
 
             {creatorEmail && (
-              <p className="mt-0.5 break-all text-xs text-gray-500">
+              <p className="mt-1 break-all text-xs text-gray-500">
                 {creatorEmail}
               </p>
             )}
           </div>
 
-          {/* Recipient / Other Participant */}
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Recipient
-            </p>
-
-            <p className="mt-1 text-sm font-medium text-gray-900">
-              {otherParticipantName}
-            </p>
-
-            {otherParticipantEmail && (
-              <p className="mt-0.5 break-all text-xs text-gray-500">
-                {otherParticipantEmail}
-              </p>
-            )}
-          </div>
-
-          {/* Created */}
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Created
-            </p>
-
-            <p className="mt-1 text-sm text-gray-900">
-              {formatDate(created_at)}
-            </p>
-          </div>
-
-          {/* Last Activity */}
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Last Activity
-            </p>
-
-            <p className="mt-1 text-sm text-gray-900">
-              {formatDate(updated_at)}
-            </p>
-          </div>
-
           {/* Conversation Type */}
-          <div className="sm:col-span-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               Conversation Type
             </p>
 
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2">
               <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
                 {purpose.label}
               </span>
@@ -181,15 +104,24 @@ function ConversationInfo({ conversation }) {
               <button
                 type="button"
                 onClick={() => setShowPurpose(true)}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+                className="flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-xs font-bold text-gray-500 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
                 aria-label={`Information about ${purpose.label}`}
                 title={`About ${purpose.label}`}
               >
-                <span className="text-xs font-bold">
-                  i
-                </span>
+                i
               </button>
             </div>
+          </div>
+
+          {/* Created */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Created
+            </p>
+
+            <p className="mt-2 text-sm font-medium text-gray-900">
+              {formatDate(created_at)}
+            </p>
           </div>
 
         </div>
@@ -198,7 +130,7 @@ function ConversationInfo({ conversation }) {
       {/* Purpose Modal */}
       {showPurpose && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="purpose-modal-title"
@@ -211,54 +143,46 @@ function ConversationInfo({ conversation }) {
             }
           }}
         >
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-            <div className="flex items-start justify-between gap-4">
-
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
               <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Conversation Type
+                </p>
+
                 <h2
                   id="purpose-modal-title"
-                  className="text-lg font-semibold text-gray-900"
+                  className="mt-1 text-xl font-semibold text-gray-900"
                 >
                   {purpose.label}
                 </h2>
-
-                <p className="mt-3 text-sm leading-6 text-gray-600">
-                  {purpose.description}
-                </p>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowPurpose(false)
-                }
-                className="rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+                onClick={() => setShowPurpose(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-xl leading-none text-gray-400 transition hover:bg-gray-100 hover:text-gray-900"
                 aria-label="Close"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+                ×
               </button>
-
             </div>
 
-            <div className="mt-6 flex justify-end">
+            {/* Modal Content */}
+            <div className="px-6 py-5">
+              <p className="text-sm leading-6 text-gray-600">
+                {purpose.description}
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end border-t border-gray-200 bg-gray-50 px-6 py-4">
               <button
                 type="button"
-                onClick={() =>
-                  setShowPurpose(false)
-                }
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+                onClick={() => setShowPurpose(false)}
+                className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
               >
                 Close
               </button>
