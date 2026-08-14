@@ -1,11 +1,12 @@
-// frontend/src/pages/auth/login.jsx
-
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router';
+
 import { login } from '../../api/auth';
+import { useAuth } from '../../context/AuthContext';
 
 function Login() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -41,9 +42,19 @@ function Login() {
     try {
       setLoading(true);
 
-      await login({ email, password });
+      // Login with backend
+      await login({
+        email,
+        password,
+      });
 
-      navigate('/dashboard');
+      // Update AuthContext with the authenticated user
+      await refreshUser();
+
+      // Go to dashboard
+      navigate('/dashboard', {
+        replace: true,
+      });
     } catch (err) {
       setError(
         err.message ||
@@ -77,7 +88,10 @@ function Login() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5"
+        >
 
           {/* Email */}
           <div>
@@ -112,10 +126,15 @@ function Login() {
             </label>
 
             <div className="relative">
+
               <input
                 id="password"
                 name="password"
-                type={showPassword ? 'text' : 'password'}
+                type={
+                  showPassword
+                    ? 'text'
+                    : 'password'
+                }
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -128,13 +147,18 @@ function Login() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowPassword((show) => !show)
+                  setShowPassword(
+                    (show) => !show
+                  )
                 }
                 disabled={loading}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500 hover:text-gray-900 disabled:opacity-50"
               >
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword
+                  ? 'Hide'
+                  : 'Show'}
               </button>
+
             </div>
           </div>
 
@@ -144,8 +168,11 @@ function Login() {
             disabled={loading}
             className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
           >
-            {loading ? 'Logging in...' : 'Log In'}
+            {loading
+              ? 'Logging in...'
+              : 'Log In'}
           </button>
+
         </form>
 
         {/* Signup Link */}

@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router';
 
 import { getConversations } from '../../api/conversations';
 
-import DashboardHeader from './DashboardHeader';
 import DashboardSidebar from './DashboardSidebar';
 import ConversationList from './ConversationList';
 
@@ -69,7 +68,6 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <DashboardHeader />
 
       <main className="mx-auto flex max-w-7xl gap-6 px-6 py-6 pb-8">
         <DashboardSidebar onCompose={openCompose} />

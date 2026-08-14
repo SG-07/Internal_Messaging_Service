@@ -1,7 +1,9 @@
-// frontend/src/App.jsx
-
 import React from 'react';
-import { Navigate, Route, Routes } from 'react-router';
+import {
+  Navigate,
+  Route,
+  Routes,
+} from 'react-router';
 
 import Login from './pages/auth/login';
 import Signup from './pages/auth/signup';
@@ -9,63 +11,70 @@ import Dashboard from './pages/dashboard/Dashboard';
 import Compose from './pages/compose/Compose';
 import Conversation from './pages/conversation/Conversation';
 
+import Navbar from './component/navbar/Navbar';
 import ProtectedRoute from './component/ProtectedRoute';
 
 function App() {
   return (
-    <Routes>
-      {/* Default */}
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
-        }
-      />
+    <>
+      <Navbar />
 
-      {/* Authentication */}
-      <Route
-        path="/auth/login"
-        element={<Login />}
-      />
+      <Routes>
 
-      <Route
-        path="/auth/signup"
-        element={<Signup />}
-      />
+        {/* Default */}
+        <Route
+          path="/"
+          element={
+            <Navigate
+              to="/dashboard"
+              replace
+            />
+          }
+        />
 
-      {/* Dashboard */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
+        {/* Authentication */}
+        <Route
+          path="/auth/login"
+          element={<Login />}
+        />
 
-      {/* Compose */}
-      <Route
-        path="/compose"
-        element={
-          <ProtectedRoute>
-            <Compose />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/auth/signup"
+          element={<Signup />}
+        />
 
-      {/* Conversation */}
-      <Route
-        path="/conversation/:id"
-        element={
-          <ProtectedRoute>
-            <Conversation />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+        {/* Dashboard */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Compose */}
+        <Route
+          path="/compose"
+          element={
+            <ProtectedRoute>
+              <Compose />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Conversation */}
+        <Route
+          path="/conversation/:id"
+          element={
+            <ProtectedRoute>
+              <Conversation />
+            </ProtectedRoute>
+          }
+        />
+
+      </Routes>
+    </>
   );
 }
 
