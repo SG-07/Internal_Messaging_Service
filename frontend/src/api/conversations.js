@@ -11,26 +11,46 @@ export async function getConversations() {
 
 // Get one conversation
 export async function getConversation(conversationId) {
-  const response = await request(`/api/conversations/${conversationId}`);
+  const response = await request(
+    `/api/conversations/${conversationId}`
+  );
 
   return response.data;
 }
 
 // Get all messages in a conversation
-export function getConversationMessages(conversationId) {
-  return request(`/api/conversations/${conversationId}/messages`);
+export async function getConversationMessages(conversationId) {
+  return request(
+    `/api/conversations/${conversationId}/messages`
+  );
 }
 
 // Create a new conversation and its first message
-export function createConversation(payload) {
+export async function createConversation(payload) {
   return request('/api/conversations', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
+// Send a reply/message in an existing conversation
+export async function sendMessage(conversationId, body) {
+  return request(
+    `/api/conversations/${conversationId}/messages`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        body,
+      }),
+    }
+  );
+}
+
 // Update conversation status
-export function updateConversationStatus(conversationId, payload) {
+export async function updateConversationStatus(
+  conversationId,
+  payload
+) {
   return request(
     `/api/conversations/${conversationId}/status`,
     {
@@ -41,7 +61,10 @@ export function updateConversationStatus(conversationId, payload) {
 }
 
 // Update conversation decision
-export function updateConversationDecision(conversationId, payload) {
+export async function updateConversationDecision(
+  conversationId,
+  payload
+) {
   return request(
     `/api/conversations/${conversationId}/decision`,
     {
@@ -52,7 +75,10 @@ export function updateConversationDecision(conversationId, payload) {
 }
 
 // Update follow-up settings
-export function updateConversationFollowUp(conversationId, payload) {
+export async function updateConversationFollowUp(
+  conversationId,
+  payload
+) {
   return request(
     `/api/conversations/${conversationId}/follow-up`,
     {
@@ -62,16 +88,8 @@ export function updateConversationFollowUp(conversationId, payload) {
   );
 }
 
-// Send a new message or reply
-export function sendMessage(payload) {
-  return request('/api/messages', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
 // Mark a message as read
-export function markMessageAsRead(messageId) {
+export async function markMessageAsRead(messageId) {
   return request(
     `/api/messages/${messageId}/read`,
     {
@@ -81,7 +99,7 @@ export function markMessageAsRead(messageId) {
 }
 
 // Delete a message
-export function deleteMessage(messageId) {
+export async function deleteMessage(messageId) {
   return request(
     `/api/messages/${messageId}`,
     {
