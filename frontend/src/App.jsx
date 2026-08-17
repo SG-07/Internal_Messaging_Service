@@ -1,18 +1,16 @@
-import React from 'react';
-import {
-  Navigate,
-  Route,
-  Routes,
-} from 'react-router';
+import React from "react";
+import { Navigate, Route, Routes } from "react-router";
 
-import Login from './pages/auth/login';
-import Signup from './pages/auth/signup';
-import Dashboard from './pages/dashboard/Dashboard';
-import Compose from './pages/compose/Compose';
-import Conversation from './pages/conversation/Conversation';
-import Sent from './pages/Sent';
-import Navbar from './component/navbar/Navbar';
-import ProtectedRoute from './component/ProtectedRoute';
+import Login from "./pages/auth/login";
+import Signup from "./pages/auth/signup";
+import Dashboard from "./pages/dashboard/Dashboard";
+import Compose from "./pages/compose/Compose";
+import Conversation from "./pages/conversation/Conversation";
+import Sent from "./pages/Sent";
+import Navbar from "./component/navbar/Navbar";
+import ProtectedRoute from "./component/ProtectedRoute";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminTeams from "./pages/admin/AdminTeams";
 
 function App() {
   return (
@@ -20,28 +18,13 @@ function App() {
       <Navbar />
 
       <Routes>
-
         {/* Default */}
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         {/* Authentication */}
-        <Route
-          path="/auth/login"
-          element={<Login />}
-        />
+        <Route path="/auth/login" element={<Login />} />
 
-        <Route
-          path="/auth/signup"
-          element={<Signup />}
-        />
+        <Route path="/auth/signup" element={<Signup />} />
 
         {/* Dashboard */}
         <Route
@@ -83,6 +66,25 @@ function App() {
           }
         />
 
+        {/* Admin Users */}
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute>
+              <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin Teams */}
+        <Route
+          path="/admin/teams"
+          element={
+            <ProtectedRoute>
+              <AdminTeams />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </>
   );

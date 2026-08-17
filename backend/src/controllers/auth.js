@@ -69,7 +69,6 @@ export const signup = async (req, res) => {
         full_name: fullName || null,
         password_hash: passwordHash,
         role: 'user',
-        is_email_confirmed: false,
       })
       .select('id, email, username, full_name, role')
       .single();
@@ -142,7 +141,7 @@ export const login = async (req, res) => {
     // Fetch user from database
     const { data: user, error: userError } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, username, full_name, password_hash, role, is_email_confirmed')
+      .select('id, email, username, full_name, password_hash, role')
       .eq('email', email)
       .single();
 
@@ -275,7 +274,7 @@ export const getCurrentUser = async (req, res) => {
   try {
     const { data: user, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, username, full_name, role, is_email_confirmed')
+      .select('id, email, username, full_name, role')
       .eq('id', req.user.id)
       .single();
 
