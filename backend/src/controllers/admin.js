@@ -2,12 +2,12 @@ import supabaseAdmin from '../config/supabaseClient.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-// --- LIST ALL USERS (PAGINATED, WITH DEPARTMENT FILTER) ---
+/// --- LIST ALL USERS (PAGINATED, WITH DEPARTMENT FILTER) ---
 export const listUsers = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 20;
   const offset = (page - 1) * limit;
-  const { department } = req.query; // optional filter
+  const { department } = req.query; // string, comma-separated string, or array
 
   try {
     let query = supabaseAdmin
@@ -17,7 +17,16 @@ export const listUsers = async (req, res) => {
       .range(offset, offset + limit - 1);
 
     if (department) {
-      query = query.eq('department', department);
+      // Normalize to an array regardless of how it arrived
+      const departments = Array.isArray(department)
+        ? department
+        : department.split(',').map((d) => d.trim()).filter(Boolean);
+
+      if (departments.length === 1) {
+        query = query.eq('department', departments[0]);
+      } else if (departments.length > 1) {
+        query = query.in('department', departments);
+      }
     }
 
     const { data: users, error, count } = await query;
