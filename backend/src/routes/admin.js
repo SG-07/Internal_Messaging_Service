@@ -12,6 +12,7 @@ import {
   updateUserTeamStatus,
   getUserConversations,
   getAnyConversation,
+  getTeamById,
 } from '../controllers/admin.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
@@ -34,6 +35,8 @@ router.post('/teams', createTeam);
 router.patch('/teams/:teamId/review', reviewTeamRequest);
 router.delete('/teams/:teamId', deleteTeam);
 router.post('/teams/:teamId/members', addUserToTeam);
+// router.patch('/teams/:teamId/members/:userId', updateUserTeamStatus);
+router.get('/teams/:teamId/edit', getTeamById);
 
 // Conversation oversight
 router.get('/conversations/:conversationId', getAnyConversation);

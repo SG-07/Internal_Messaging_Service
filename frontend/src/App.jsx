@@ -10,7 +10,8 @@ import Sent from "./pages/Sent";
 import Navbar from "./component/navbar/Navbar";
 import ProtectedRoute from "./component/ProtectedRoute";
 import AdminUsers from "./pages/admin/AdminUsers";
-import AdminTeams from "./pages/admin/AdminTeams";
+import AdminTeams from "./pages/admin/teams/AdminTeams";
+import TeamEdit from "./pages/admin/teams/TeamEdit";
 
 function App() {
   return (
@@ -82,6 +83,16 @@ function App() {
           element={
             <ProtectedRoute>
               <AdminTeams />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin Team Edit */}
+        <Route
+          path="/admin/teams/:teamId/edit"
+          element={
+            <ProtectedRoute>
+              <TeamEdit />
             </ProtectedRoute>
           }
         />

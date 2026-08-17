@@ -687,3 +687,33 @@ export const getAnyConversation = async (req, res) => {
     });
   }
 };
+
+// Fetch Team information by ID (used in Admin/Manager panel for team management)
+export const getTeamById = async (req, res) => {
+  const { teamId } = req.params;  
+  try {
+    const { data: team, error } = await supabaseAdmin
+      .from('teams')
+      .select('*')
+      .eq('id', teamId)
+      .single();
+
+    if (error || !team) {
+      return res.status(404).json({
+        success: false,
+        message: 'Team not found.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: team,
+    });
+  } catch (err) {
+    console.error('[getTeamById] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch team information.',
+    });
+  }
+};

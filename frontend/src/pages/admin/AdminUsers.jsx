@@ -1,7 +1,10 @@
+// frontend/src/pages/admin/AdminUsers.jsx
+
 import { useEffect, useState } from 'react';
 
 import { getAdminUsers } from '../../api/admin';
-import DepartmentFilter from './DepartmentFilter';
+import DepartmentFilter from './common/DepartmentFilter';
+import DashboardLayout from '../dashboard/DashboardLayout';
 
 function AdminUsers() {
   const [departments, setDepartments] = useState([]);
@@ -110,249 +113,236 @@ function AdminUsers() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <DashboardLayout>
 
-      <main className="mx-auto max-w-7xl px-6 py-6 pb-8">
+      <section className="rounded-xl bg-white shadow">
 
-        <section className="rounded-xl bg-white shadow">
+        {/* Header */}
+        <div className="border-b px-6 py-5">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              Users
+            </h1>
 
-          {/* Header */}
-          <div className="border-b px-6 py-5">
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Users
-              </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Manage users, roles, managers, and account status.
+            </p>
+          </div>
+        </div>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Manage users, roles, managers, and account status.
+        {/* Filters */}
+        <div className="border-b bg-gray-50 px-6 py-4">
+          <div className="flex flex-wrap items-end gap-4">
+
+            <DepartmentFilter
+              value={departments}
+              onChange={handleDepartmentsChange}
+              disabled={loading}
+            />
+
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="border-b px-6 py-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm text-red-700">
+                {error}
               </p>
             </div>
           </div>
+        )}
 
-          {/* Filters */}
-          <div className="border-b bg-gray-50 px-6 py-4">
+        {/* Users table */}
+        <div className="overflow-x-auto">
 
-            <div className="flex flex-wrap items-end gap-4">
+          <table className="w-full min-w-[900px]">
 
-              <DepartmentFilter
-                value={departments}
-                onChange={handleDepartmentsChange}
-                disabled={loading}
-              />
+            <thead>
+              <tr className="border-b bg-white text-left">
 
-            </div>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  User
+                </th>
 
-          </div>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Email
+                </th>
 
-          {/* Error */}
-          {error && (
-            <div className="border-b px-6 py-4">
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-sm text-red-700">
-                  {error}
-                </p>
-              </div>
-            </div>
-          )}
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Role
+                </th>
 
-          {/* Users table */}
-          <div className="overflow-x-auto">
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Department
+                </th>
 
-            <table className="w-full min-w-[900px]">
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Manager
+                </th>
 
-              <thead>
-                <tr className="border-b bg-white text-left">
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Status
+                </th>
 
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    User
-                  </th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Actions
+                </th>
 
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Email
-                  </th>
+              </tr>
+            </thead>
 
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Role
-                  </th>
+            <tbody>
 
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Department
-                  </th>
-
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Manager
-                  </th>
-
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Status
-                  </th>
-
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Actions
-                  </th>
-
+              {/* Loading */}
+              {loading && (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-6 py-16 text-center"
+                  >
+                    <p className="text-sm text-gray-500">
+                      Loading users...
+                    </p>
+                  </td>
                 </tr>
-              </thead>
+              )}
 
-              <tbody>
+              {/* Empty */}
+              {!loading && users.length === 0 && (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-6 py-16 text-center"
+                  >
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        No users found
+                      </h3>
 
-                {/* Loading */}
-                {loading && (
-                  <tr>
-                    <td
-                      colSpan="7"
-                      className="px-6 py-16 text-center"
-                    >
-                      <p className="text-sm text-gray-500">
-                        Loading users...
+                      <p className="mt-2 text-sm text-gray-500">
+                        {departments.length > 0
+                          ? `No users found in ${departments.join(
+                              ', '
+                            )}.`
+                          : 'There are no users to display.'}
                       </p>
-                    </td>
-                  </tr>
-                )}
+                    </div>
+                  </td>
+                </tr>
+              )}
 
-                {/* Empty */}
-                {!loading && users.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="7"
-                      className="px-6 py-16 text-center"
-                    >
+              {/* Users */}
+              {!loading &&
+                users.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="border-b last:border-b-0 hover:bg-gray-50"
+                  >
+
+                    <td className="px-6 py-4">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          No users found
-                        </h3>
-
-                        <p className="mt-2 text-sm text-gray-500">
-                          {departments.length > 0
-                            ? `No users found in ${departments.join(
-                                ', '
-                              )}.`
-                            : 'There are no users to display.'}
+                        <p className="font-medium text-gray-900">
+                          {user.full_name ||
+                            user.username ||
+                            '—'}
                         </p>
+
+                        {user.username && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            @{user.username}
+                          </p>
+                        )}
                       </div>
                     </td>
-                  </tr>
-                )}
 
-                {/* Users */}
-                {!loading &&
-                  users.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="border-b last:border-b-0 hover:bg-gray-50"
-                    >
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {user.email || '—'}
+                    </td>
 
-                      {/* User */}
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {user.full_name ||
-                              user.username ||
-                              '—'}
-                          </p>
+                    <td className="px-6 py-4">
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700">
+                        {user.role || '—'}
+                      </span>
+                    </td>
 
-                          {user.username && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              @{user.username}
-                            </p>
-                          )}
-                        </div>
-                      </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {user.department || '—'}
+                    </td>
 
-                      {/* Email */}
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {user.email || '—'}
-                      </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {user.manager ||
+                        user.manager_username ||
+                        '—'}
+                    </td>
 
-                      {/* Role */}
-                      <td className="px-6 py-4">
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700">
-                          {user.role || '—'}
+                    <td className="px-6 py-4">
+                      {user.is_active === false ? (
+                        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                          Inactive
                         </span>
-                      </td>
+                      ) : (
+                        <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                          Active
+                        </span>
+                      )}
+                    </td>
 
-                      {/* Department */}
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {user.department || '—'}
-                      </td>
+                    <td className="px-6 py-4">
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        Manage
+                      </button>
+                    </td>
 
-                      {/* Manager */}
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {user.manager ||
-                          user.manager_username ||
-                          '—'}
-                      </td>
+                  </tr>
+                ))}
 
-                      {/* Status */}
-                      <td className="px-6 py-4">
-                        {user.is_active === false ? (
-                          <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-                            Inactive
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                            Active
-                          </span>
-                        )}
-                      </td>
+            </tbody>
 
-                      {/* Actions */}
-                      <td className="px-6 py-4">
-                        <button
-                          type="button"
-                          className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
-                        >
-                          Manage
-                        </button>
-                      </td>
+          </table>
 
-                    </tr>
-                  ))}
+        </div>
 
-              </tbody>
+        {/* Pagination */}
+        {!loading && users.length > 0 && (
+          <div className="flex items-center justify-between border-t px-6 py-4">
 
-            </table>
+            <p className="text-sm text-gray-500">
+              Page {page} of {totalPages}
+            </p>
 
-          </div>
+            <div className="flex items-center gap-2">
 
-          {/* Pagination */}
-          {!loading && users.length > 0 && (
-            <div className="flex items-center justify-between border-t px-6 py-4">
+              <button
+                type="button"
+                onClick={handlePreviousPage}
+                disabled={page <= 1}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Previous
+              </button>
 
-              <p className="text-sm text-gray-500">
-                Page {page} of {totalPages}
-              </p>
-
-              <div className="flex items-center gap-2">
-
-                <button
-                  type="button"
-                  onClick={handlePreviousPage}
-                  disabled={page <= 1}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Previous
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleNextPage}
-                  disabled={page >= totalPages}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Next
-                </button>
-
-              </div>
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
 
             </div>
-          )}
 
-        </section>
+          </div>
+        )}
 
-      </main>
+      </section>
 
-    </div>
+    </DashboardLayout>
   );
 }
 
