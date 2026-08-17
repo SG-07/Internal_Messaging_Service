@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
 import { getAdminUsers } from '../../api/admin';
+import DepartmentFilter from './DepartmentFilter';
 
 function AdminUsers() {
-  const [department, setDepartment] = useState('');
+  const [departments, setDepartments] = useState([]);
 
   const [users, setUsers] = useState([]);
 
@@ -20,8 +21,8 @@ function AdminUsers() {
       const payload = {
         page,
         limit,
-        ...(department && {
-          department: department.trim(),
+        ...(departments.length > 0 && {
+          department: departments,
         }),
       };
 
@@ -38,18 +39,13 @@ function AdminUsers() {
         const response = await getAdminUsers(payload);
 
         if (import.meta.env.DEV) {
-          console.group('[AdminUsers] Fetch Users Response');
+          console.group(
+            '[AdminUsers] Fetch Users Response'
+          );
           console.log('Request payload:', payload);
           console.log('Received response:', response);
           console.groupEnd();
         }
-
-        /*
-         * Handle common response structures.
-         *
-         * Adjust this once the exact backend
-         * response structure is confirmed.
-         */
 
         const responseUsers =
           response?.users ||
@@ -73,7 +69,9 @@ function AdminUsers() {
         setTotalPages(Number(pages) || 1);
       } catch (err) {
         if (import.meta.env.DEV) {
-          console.group('[AdminUsers] Fetch Users Error');
+          console.group(
+            '[AdminUsers] Fetch Users Error'
+          );
           console.log('Request payload:', payload);
           console.error('Error:', err);
           console.log('Error message:', err.message);
@@ -92,15 +90,10 @@ function AdminUsers() {
     }
 
     loadUsers();
-  }, [page, limit, department]);
+  }, [page, limit, departments]);
 
-  function handleFilter(event) {
-    setDepartment(event.target.value);
-    setPage(1);
-  }
-
-  function handleClearFilter() {
-    setDepartment('');
+  function handleDepartmentsChange(value) {
+    setDepartments(value);
     setPage(1);
   }
 
@@ -141,35 +134,11 @@ function AdminUsers() {
 
             <div className="flex flex-wrap items-end gap-4">
 
-              <div className="w-full max-w-xs">
-                <label
-                  htmlFor="department"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Department
-                </label>
-
-                <input
-                  id="department"
-                  type="text"
-                  value={department}
-                  onChange={handleFilter}
-                  placeholder="e.g. Engineering"
-                  disabled={loading}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
-                />
-              </div>
-
-              {department && (
-                <button
-                  type="button"
-                  onClick={handleClearFilter}
-                  disabled={loading}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Clear
-                </button>
-              )}
+              <DepartmentFilter
+                value={departments}
+                onChange={handleDepartmentsChange}
+                disabled={loading}
+              />
 
             </div>
 
@@ -254,8 +223,10 @@ function AdminUsers() {
                         </h3>
 
                         <p className="mt-2 text-sm text-gray-500">
-                          {department
-                            ? `No users found in ${department}.`
+                          {departments.length > 0
+                            ? `No users found in ${departments.join(
+                                ', '
+                              )}.`
                             : 'There are no users to display.'}
                         </p>
                       </div>
