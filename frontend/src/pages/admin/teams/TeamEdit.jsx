@@ -1,59 +1,66 @@
 // frontend/src/pages/admin/teams/TeamEdit.jsx
 
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
-import { getAdminTeam, updateAdminTeam } from '../../../api/admin';
+import {
+  getAdminTeam,
+  updateAdminTeam,
+} from "../../../api/admin";
 
-import DashboardLayout from '../../dashboard/DashboardLayout';
+import DashboardLayout from "../../dashboard/DashboardLayout";
+import AddTeamMemberModal from "./AddTeamMemberModal";
 
 function TeamEdit() {
   const { teamId } = useParams();
   const navigate = useNavigate();
 
   const [team, setTeam] = useState(null);
-
-  const [name, setName] = useState('');
-  const [description, setDescription] =
-    useState('');
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [saving, setSaving] =
+  const [addMemberOpen, setAddMemberOpen] =
     useState(false);
 
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [name, setName] = useState("");
+  const [description, setDescription] =
+    useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // ============================================================
+  // LOAD TEAM
+  // ============================================================
 
   useEffect(() => {
     async function loadTeam() {
       if (!teamId) {
-        setError('Team ID is missing.');
+        setError("Team ID is missing.");
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        setError('');
-        setSuccess('');
+        setError("");
+        setSuccess("");
 
         const response =
           await getAdminTeam(teamId);
 
         if (import.meta.env.DEV) {
           console.group(
-            '[TeamEdit] Fetch Team Response'
+            "[TeamEdit] Fetch Team Response"
           );
 
           console.log(
-            'Team ID:',
+            "Team ID:",
             teamId
           );
 
           console.log(
-            'Received response:',
+            "Received response:",
             response
           );
 
@@ -72,7 +79,7 @@ function TeamEdit() {
 
         if (!responseTeam) {
           throw new Error(
-            'Team information was not returned.'
+            "Team information was not returned."
           );
         }
 
@@ -81,27 +88,26 @@ function TeamEdit() {
         setName(
           responseTeam.name ||
             responseTeam.team_name ||
-            ''
+            ""
         );
 
         setDescription(
           responseTeam.description ||
-            ''
+            ""
         );
-
       } catch (err) {
         if (import.meta.env.DEV) {
           console.group(
-            '[TeamEdit] Fetch Team Error'
+            "[TeamEdit] Fetch Team Error"
           );
 
           console.error(
-            'Error:',
+            "Error:",
             err
           );
 
           console.log(
-            'Error message:',
+            "Error message:",
             err.message
           );
 
@@ -110,9 +116,8 @@ function TeamEdit() {
 
         setError(
           err.message ||
-            'Unable to load team. Please try again.'
+            "Unable to load team. Please try again."
         );
-
       } finally {
         setLoading(false);
       }
@@ -120,6 +125,10 @@ function TeamEdit() {
 
     loadTeam();
   }, [teamId]);
+
+  // ============================================================
+  // UPDATE TEAM
+  // ============================================================
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -131,8 +140,12 @@ function TeamEdit() {
       description.trim();
 
     if (!trimmedName) {
-      setError('Team name is required.');
-      setSuccess('');
+      setError(
+        "Team name is required."
+      );
+
+      setSuccess("");
+
       return;
     }
 
@@ -147,16 +160,16 @@ function TeamEdit() {
 
     if (import.meta.env.DEV) {
       console.group(
-        '[TeamEdit] Update Team'
+        "[TeamEdit] Update Team"
       );
 
       console.log(
-        'Team ID:',
+        "Team ID:",
         teamId
       );
 
       console.log(
-        'Request payload:',
+        "Request payload:",
         payload
       );
 
@@ -165,8 +178,8 @@ function TeamEdit() {
 
     try {
       setSaving(true);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
 
       const response =
         await updateAdminTeam(
@@ -176,21 +189,21 @@ function TeamEdit() {
 
       if (import.meta.env.DEV) {
         console.group(
-          '[TeamEdit] Update Team Response'
+          "[TeamEdit] Update Team Response"
         );
 
         console.log(
-          'Team ID:',
+          "Team ID:",
           teamId
         );
 
         console.log(
-          'Request payload:',
+          "Request payload:",
           payload
         );
 
         console.log(
-          'Received response:',
+          "Received response:",
           response
         );
 
@@ -198,30 +211,31 @@ function TeamEdit() {
       }
 
       /*
-       * Update the local team data.
+       * Update local team state.
        */
-      setTeam((currentTeam) => ({
-        ...(currentTeam || {}),
-        ...payload,
-      }));
-
-      setSuccess(
-        'Team details updated successfully.'
+      setTeam(
+        (currentTeam) => ({
+          ...(currentTeam || {}),
+          ...payload,
+        })
       );
 
+      setSuccess(
+        "Team details updated successfully."
+      );
     } catch (err) {
       if (import.meta.env.DEV) {
         console.group(
-          '[TeamEdit] Update Team Error'
+          "[TeamEdit] Update Team Error"
         );
 
         console.error(
-          'Error:',
+          "Error:",
           err
         );
 
         console.log(
-          'Error message:',
+          "Error message:",
           err.message
         );
 
@@ -230,22 +244,104 @@ function TeamEdit() {
 
       setError(
         err.message ||
-          'Unable to update team. Please try again.'
+          "Unable to update team. Please try again."
       );
-
     } finally {
       setSaving(false);
     }
   }
 
-  function handleBack() {
-    navigate('/admin/teams');
+  // ============================================================
+  // MEMBER ADDED
+  // ============================================================
+
+  async function handleMemberAdded(
+    response,
+    user
+  ) {
+    const userId =
+      user?.id ||
+      user?.user_id;
+
+    if (!userId) {
+      return;
+    }
+
+    const newMember = {
+      ...user,
+      id: userId,
+    };
+
+    setTeam(
+      (currentTeam) => {
+        if (!currentTeam) {
+          return currentTeam;
+        }
+
+        const currentMembers =
+          Array.isArray(
+            currentTeam.members
+          )
+            ? currentTeam.members
+            : [];
+
+        const alreadyExists =
+          currentMembers.some(
+            (member) =>
+              String(
+                member?.id ||
+                  member?.user_id
+              ) ===
+              String(userId)
+          );
+
+        if (alreadyExists) {
+          return currentTeam;
+        }
+
+        return {
+          ...currentTeam,
+
+          members: [
+            ...currentMembers,
+            newMember,
+          ],
+
+          member_count:
+            currentMembers.length + 1,
+        };
+      }
+    );
+
+    setSuccess(
+      `${
+        user?.name ||
+        user?.email ||
+        "User"
+      } was added to the team.`
+    );
+
+    /*
+     * Close the modal after successful addition.
+     */
+    setAddMemberOpen(false);
   }
+
+  // ============================================================
+  // BACK
+  // ============================================================
+
+  function handleBack() {
+    navigate("/admin/teams");
+  }
+
+  // ============================================================
+  // LOADING
+  // ============================================================
 
   if (loading) {
     return (
       <DashboardLayout>
-
         <div className="min-h-screen bg-gray-100">
 
           <main className="mx-auto max-w-7xl px-6 py-6">
@@ -261,10 +357,13 @@ function TeamEdit() {
           </main>
 
         </div>
-
       </DashboardLayout>
     );
   }
+
+  // ============================================================
+  // ERROR / TEAM NOT FOUND
+  // ============================================================
 
   if (error && !team) {
     return (
@@ -277,7 +376,7 @@ function TeamEdit() {
             <button
               type="button"
               onClick={handleBack}
-              className="mb-4 text-sm font-medium text-gray-600 hover:text-gray-900 hover:underline"
+              className="mb-4 text-sm font-medium text-gray-600 transition hover:text-gray-900 hover:underline"
             >
               ← Back to Teams
             </button>
@@ -302,31 +401,47 @@ function TeamEdit() {
     );
   }
 
+  // ============================================================
+  // TEAM DATA
+  // ============================================================
+
   const teamName =
     team?.name ||
     team?.team_name ||
-    'Team';
+    "Team";
 
   const status =
     team?.status ||
     team?.team_status ||
-    '—';
+    "—";
 
   const manager =
     team?.manager ||
     team?.manager_name ||
     team?.manager_username ||
     team?.manager_email ||
-    '—';
+    "—";
 
   const members =
-    team?.members ||
-    [];
+    Array.isArray(team?.members)
+      ? team.members
+      : [];
 
   const memberCount =
-    Array.isArray(members)
-      ? members.length
-      : team?.member_count || 0;
+    members.length ||
+    team?.member_count ||
+    0;
+
+  const managerInitial =
+    manager !== "—"
+      ? String(manager)
+          .charAt(0)
+          .toUpperCase()
+      : "—";
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <DashboardLayout>
@@ -335,29 +450,50 @@ function TeamEdit() {
 
         <main className="mx-auto max-w-5xl px-6 py-6 pb-8">
 
-          {/* Back */}
+          {/* ================================================== */}
+          {/* BACK */}
+          {/* ================================================== */}
+
           <button
             type="button"
             onClick={handleBack}
-            className="mb-5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:underline"
+            className="mb-5 text-sm font-medium text-gray-600 transition hover:text-gray-900 hover:underline"
           >
             ← Back to Teams
           </button>
 
-          {/* Page header */}
+          {/* ================================================== */}
+          {/* PAGE HEADER */}
+          {/* ================================================== */}
+
           <div className="mb-6">
 
-            <h1 className="text-2xl font-semibold text-gray-900">
-              Manage Team
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Manage Team
+              </h1>
+
+              <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold capitalize text-green-700">
+                {status}
+              </span>
+
+            </div>
 
             <p className="mt-1 text-sm text-gray-500">
-              Manage team details and members.
+              Manage the details and members of{" "}
+              <span className="font-medium text-gray-700">
+                {teamName}
+              </span>
+              .
             </p>
 
           </div>
 
-          {/* Error */}
+          {/* ================================================== */}
+          {/* ERROR */}
+          {/* ================================================== */}
+
           {error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
 
@@ -368,7 +504,10 @@ function TeamEdit() {
             </div>
           )}
 
-          {/* Success */}
+          {/* ================================================== */}
+          {/* SUCCESS */}
+          {/* ================================================== */}
+
           {success && (
             <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
 
@@ -381,9 +520,13 @@ function TeamEdit() {
 
           <div className="space-y-6">
 
-            {/* Team Details */}
-            <section className="rounded-xl bg-white shadow">
+            {/* ================================================== */}
+            {/* TEAM DETAILS */}
+            {/* ================================================== */}
 
+            <section className="overflow-hidden rounded-xl bg-white shadow">
+
+              {/* Header */}
               <div className="border-b px-6 py-5">
 
                 <h2 className="text-lg font-semibold text-gray-900">
@@ -391,16 +534,92 @@ function TeamEdit() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Update the team's basic information.
+                  View and update the team's basic information.
                 </p>
 
               </div>
+
+              {/* ================================================== */}
+              {/* MANAGER / MEMBERS */}
+              {/* ================================================== */}
+
+              <div className="grid grid-cols-1 border-b sm:grid-cols-2">
+
+                {/* Manager */}
+                <div className="border-b px-6 py-5 sm:border-b-0 sm:border-r">
+
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Manager
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-3">
+
+                    {/* Manager Avatar */}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold text-blue-700">
+                      {managerInitial}
+                    </div>
+
+                    {/* Manager Details */}
+                    <div className="min-w-0">
+
+                      <p className="truncate text-sm font-semibold text-gray-900">
+                        {manager}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        Team manager
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                {/* Members */}
+                <div className="px-6 py-5">
+
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Members
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-3">
+
+                    {/* Member Count */}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
+                      {memberCount}
+                    </div>
+
+                    {/* Member Details */}
+                    <div>
+
+                      <p className="text-sm font-semibold text-gray-900">
+                        {memberCount === 1
+                          ? "1 member"
+                          : `${memberCount} members`}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        Users assigned to this team
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* ================================================== */}
+              {/* EDITABLE DETAILS */}
+              {/* ================================================== */}
 
               <form onSubmit={handleSubmit}>
 
                 <div className="space-y-5 px-6 py-6">
 
-                  {/* Team name */}
+                  {/* Team Name */}
                   <div>
 
                     <label
@@ -454,7 +673,7 @@ function TeamEdit() {
 
                 </div>
 
-                {/* Form footer */}
+                {/* Form Footer */}
                 <div className="flex justify-end border-t bg-gray-50 px-6 py-4">
 
                   <button
@@ -463,8 +682,8 @@ function TeamEdit() {
                     className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving
-                      ? 'Saving...'
-                      : 'Save Changes'}
+                      ? "Saving..."
+                      : "Save Changes"}
                   </button>
 
                 </div>
@@ -473,148 +692,168 @@ function TeamEdit() {
 
             </section>
 
-            {/* Team Information */}
-            <section className="rounded-xl bg-white shadow">
+            {/* ================================================== */}
+            {/* TEAM MEMBERS */}
+            {/* ================================================== */}
 
-              <div className="border-b px-6 py-5">
+            <section className="overflow-hidden rounded-xl bg-white shadow">
 
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Team Information
-                </h2>
-
-              </div>
-
-              <div className="grid grid-cols-1 gap-5 px-6 py-6 sm:grid-cols-3">
-
-                {/* Status */}
-                <div>
-
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Status
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium capitalize text-gray-900">
-                    {status}
-                  </p>
-
-                </div>
-
-                {/* Manager */}
-                <div>
-
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Manager
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium text-gray-900">
-                    {manager}
-                  </p>
-
-                </div>
-
-                {/* Members */}
-                <div>
-
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Members
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium text-gray-900">
-                    {memberCount}
-                  </p>
-
-                </div>
-
-              </div>
-
-            </section>
-
-            {/* Members */}
-            <section className="rounded-xl bg-white shadow">
-
+              {/* Members Header */}
               <div className="flex items-center justify-between border-b px-6 py-5">
 
                 <div>
 
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Members
-                  </h2>
+                  <div className="flex items-center gap-2">
+
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Team Members
+                    </h2>
+
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
+                      {memberCount}
+                    </span>
+
+                  </div>
 
                   <p className="mt-1 text-sm text-gray-500">
-                    Add or remove users from this team.
+                    Manage the users assigned to this team.
                   </p>
 
                 </div>
 
+                {/* Add Member */}
                 <button
                   type="button"
-                  className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  onClick={() => {
+                    setError("");
+                    setSuccess("");
+                    setAddMemberOpen(true);
+                  }}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 >
+                  <span className="text-base leading-none">
+                    +
+                  </span>
+
                   Add Member
                 </button>
 
               </div>
 
-              {/* Members placeholder */}
-              <div className="px-6 py-8">
+              {/* ================================================== */}
+              {/* MEMBERS LIST */}
+              {/* ================================================== */}
+
+              <div>
 
                 {Array.isArray(members) &&
                 members.length > 0 ? (
+
                   <div className="divide-y">
 
-                    {members.map((member) => {
+                    {members.map(
+                      (member) => {
 
-                      const memberId =
-                        member.id ||
-                        member.user_id;
+                        const memberId =
+                          member.id ||
+                          member.user_id;
 
-                      const memberName =
-                        member.name ||
-                        member.username ||
-                        '—';
+                        const memberName =
+                          member.name ||
+                          member.username ||
+                          "Unknown User";
 
-                      const memberEmail =
-                        member.email ||
-                        '—';
+                        const memberEmail =
+                          member.email ||
+                          "—";
 
-                      return (
-                        <div
-                          key={memberId}
-                          className="flex items-center justify-between py-4"
-                        >
+                        const memberInitial =
+                          String(
+                            memberName
+                          )
+                            .charAt(0)
+                            .toUpperCase();
 
-                          <div>
+                        return (
+                          <div
+                            key={memberId}
+                            className="flex items-center justify-between px-6 py-4 transition hover:bg-gray-50"
+                          >
 
-                            <p className="text-sm font-medium text-gray-900">
-                              {memberName}
-                            </p>
+                            {/* User */}
+                            <div className="flex min-w-0 items-center gap-3">
 
-                            <p className="mt-1 text-sm text-gray-500">
-                              {memberEmail}
-                            </p>
+                              {/* Avatar */}
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600">
+                                {memberInitial}
+                              </div>
+
+                              {/* User Information */}
+                              <div className="min-w-0">
+
+                                <p className="truncate text-sm font-medium text-gray-900">
+                                  {memberName}
+                                </p>
+
+                                <p className="mt-0.5 truncate text-sm text-gray-500">
+                                  {memberEmail}
+                                </p>
+
+                              </div>
+
+                            </div>
+
+                            {/* Remove */}
+                            <button
+                              type="button"
+                              className="ml-4 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
 
                           </div>
-
-                          <button
-                            type="button"
-                            className="text-sm font-medium text-red-600 hover:text-red-700 hover:underline"
-                          >
-                            Remove
-                          </button>
-
-                        </div>
-                      );
-                    })}
+                        );
+                      }
+                    )}
 
                   </div>
-                ) : (
-                  <div className="py-8 text-center">
 
-                    <p className="text-sm text-gray-500">
-                      No members in this team.
+                ) : (
+
+                  /* ================================================== */
+                  /* EMPTY STATE */
+                  /* ================================================== */
+
+                  <div className="px-6 py-12 text-center">
+
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                      <span className="text-lg text-gray-400">
+                        👥
+                      </span>
+                    </div>
+
+                    <h3 className="mt-4 text-sm font-semibold text-gray-900">
+                      No members yet
+                    </h3>
+
+                    <p className="mx-auto mt-1 max-w-sm text-sm text-gray-500">
+                      Add users to this team using the Add Member button above.
                     </p>
 
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setSuccess("");
+                        setAddMemberOpen(true);
+                      }}
+                      className="mt-4 text-sm font-semibold text-blue-600 transition hover:text-blue-700 hover:underline"
+                    >
+                      Add the first member
+                    </button>
+
                   </div>
+
                 )}
 
               </div>
@@ -624,6 +863,24 @@ function TeamEdit() {
           </div>
 
         </main>
+
+        {/* ================================================== */}
+        {/* ADD MEMBER MODAL */}
+        {/* ================================================== */}
+
+        <AddTeamMemberModal
+          open={addMemberOpen}
+          teamId={teamId}
+          existingMembers={
+            Array.isArray(members)
+              ? members
+              : []
+          }
+          onClose={() =>
+            setAddMemberOpen(false)
+          }
+          onAdded={handleMemberAdded}
+        />
 
       </div>
 

@@ -190,11 +190,11 @@ function Compose() {
                   Discussion
                 </option>
 
-                <option value="action">
+                <option value="action_required">
                   Action Required
                 </option>
 
-                <option value="approval">
+                <option value="approval_required">
                   Approval Required
                 </option>
               </select>
