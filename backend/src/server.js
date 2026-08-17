@@ -10,6 +10,8 @@ dotenv.config();
 import authRoutes from './routes/auth.js';
 import conversationsRoutes from './routes/conversations.js';
 import { getLandingPageHtml } from '../view/landingPage.js';
+import adminRoutes from './routes/admin.js';
+import teamsRoutes from './routes/teams.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,17 +33,16 @@ app.get('/', (req, res) => {
   res.send(getLandingPageHtml(process.env.FRONTEND_URL));
 });
 
-
-// Routes 
+// Routes
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });
 });
 
-
-
 // Use imported routes
 app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationsRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/teams', teamsRoutes);
 
 // 404 handler
 app.use((req, res) => {
