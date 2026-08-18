@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 
-import { logout } from '../../api/auth';
-import { useAuth } from '../../context/AuthContext';
+import { logout } from "../../api/auth";
+import { useAuth } from "../../context/AuthContext";
 
 function UserMenu({ user }) {
   const { setUser } = useAuth();
@@ -29,15 +29,12 @@ function UserMenu({ user }) {
       setOpen(false);
 
       // Go to login
-      navigate('/auth/login', {
+      navigate("/auth/login", {
         replace: true,
       });
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error(
-          '[UserMenu] Logout failed:',
-          error
-        );
+        console.error("[UserMenu] Logout failed:", error);
       }
     } finally {
       setLoggingOut(false);
@@ -47,16 +44,18 @@ function UserMenu({ user }) {
   if (!user) {
     return (
       <div className="flex items-center gap-2">
+        {/* Login */}
         <Link
           to="/auth/login"
-          className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+          className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
         >
           Login
         </Link>
 
+        {/* Sign Up */}
         <Link
           to="/auth/signup"
-          className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
         >
           Sign Up
         </Link>
@@ -64,15 +63,10 @@ function UserMenu({ user }) {
     );
   }
 
-  const username =
-    user.username ||
-    user.full_name ||
-    user.email ||
-    'User';
+  const username = user.username || user.full_name || user.email || "User";
 
   return (
     <div className="relative">
-
       {/* User button */}
       <button
         type="button"
@@ -80,16 +74,12 @@ function UserMenu({ user }) {
         disabled={loggingOut}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span>
-          {username}
-        </span>
+        <span>{username}</span>
 
         <span
-          className={`text-xs transition-transform ${
-            open ? 'rotate-180' : ''
-          }`}
+          className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}
         >
           ▾
         </span>
@@ -101,7 +91,6 @@ function UserMenu({ user }) {
           className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1 shadow-lg"
           role="menu"
         >
-
           {/* User information */}
           <div className="border-b border-gray-100 px-3 py-2">
             <p className="truncate text-sm font-medium text-gray-900">
@@ -120,7 +109,7 @@ function UserMenu({ user }) {
             to="/change-password"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="mt-1 block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="mt-1 block rounded-lg px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 hover:text-blue-700"
           >
             Update Password
           </Link>
@@ -131,13 +120,10 @@ function UserMenu({ user }) {
             onClick={handleLogout}
             disabled={loggingOut}
             role="menuitem"
-            className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loggingOut
-              ? 'Logging out...'
-              : 'Logout'}
+            {loggingOut ? "Logging out..." : "Logout"}
           </button>
-
         </div>
       )}
     </div>
