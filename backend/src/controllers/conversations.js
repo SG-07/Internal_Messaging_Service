@@ -497,43 +497,27 @@ export const addMessage = async (req, res) => {
 
 // --- GET ALL CONVERSATIONS BETWEEN CURRENT USER AND A SPECIFIC OTHER USER ---
 export const getConversationsWithUser = async (req, res) => {
-  const { identifier } = req.body; // email or username of the other person
+  const { email } = req.body; // email of the other person
   const user_id = req.user.id;
 
   const isDev = process.env.NODE_ENV === 'development';
 
-  if (!identifier) {
+  if (!email) {
     return res.status(400).json({
       success: false,
-      message: 'Provide an email or username to search.',
+      message: 'Provide an email to search.',
     });
   }
 
   try {
-    // Resolve the other user by email, then username
-    let otherUser = null;
-
-    const { data: byEmail } = await supabaseAdmin
+    // Resolve the other user by email
+    const { data: otherUser, error: otherUserError } = await supabaseAdmin
       .from('profiles')
       .select('id, email, username, full_name')
-      .eq('email', identifier)
+      .eq('email', email)
       .single();
 
-    if (byEmail) {
-      otherUser = byEmail;
-    } else {
-      const { data: byUsername } = await supabaseAdmin
-        .from('profiles')
-        .select('id, email, username, full_name')
-        .eq('username', identifier)
-        .single();
-
-      if (byUsername) {
-        otherUser = byUsername;
-      }
-    }
-
-    if (!otherUser) {
+    if (otherUserError || !otherUser) {
       return res.status(404).json({
         success: false,
         message: 'User not found.',
@@ -645,6 +629,87 @@ export const getConversationsWithUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to fetch conversations.',
+    });
+  }
+};
+
+// --- Fetch Conversations sent by the current user ---
+export const getSentConversations = async (req, res) => {
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 15;
+  const offset = (page - 1) * limit;
+
+  const isDev = process.env.NODE_ENV === 'development';
+
+  try {
+    const { data: sentConversations, error: sentError, count } = await supabaseAdmin
+      .from('conversations')
+      .select(
+        `
+        id, subject, conversation_type, category, created_at, updated_at
+      `,
+        { count: 'exact' }
+      )
+      .eq('created_by', user_id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (sentError) {
+      console.error('[getSentConversations] Supabase error:', sentError);
+      throw new Error('Failed to fetch sent conversations');
+    }
+
+    // For each conversation, find the recipient (the other participant)
+    const formattedConversations = await Promise.all(
+      sentConversations.map(async (conv) => {
+        const { data: recipient, error: recipientError } = await supabaseAdmin
+          .from('conversation_participants')
+          .select('profiles(id, username, full_name, email)')
+          .eq('conversation_id', conv.id)
+          .neq('user_id', user_id)
+          .single();
+
+        if (isDev && recipientError) {
+          console.log(
+            `[getSentConversations] No recipient found for conversation ${conv.id}:`,
+            recipientError.message
+          );
+        }
+
+        return {
+          id: conv.id,
+          subject: conv.subject,
+          type: conv.conversation_type,
+          category: conv.category,
+          created_at: conv.created_at,
+          updated_at: conv.updated_at,
+          recipient_name:
+            recipient?.profiles?.full_name || recipient?.profiles?.username || null,
+          recipient_email: recipient?.profiles?.email || null,
+        };
+      })
+    );
+
+    if (isDev) {
+      console.log('[getSentConversations] user_id:', user_id, 'count:', count);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: formattedConversations,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[getSentConversations] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch sent conversations.',
     });
   }
 };

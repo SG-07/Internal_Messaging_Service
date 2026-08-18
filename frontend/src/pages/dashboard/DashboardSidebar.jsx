@@ -16,8 +16,8 @@ function DashboardSidebar({ onCompose }) {
   const isSent =
     location.pathname === '/dashboard/sent';
 
-  const isAllMail =
-    location.pathname === '/dashboard/all-mail';
+  const isDrafts =
+    location.pathname === '/dashboard/drafts';
 
   const isAdminUsers =
     location.pathname === '/admin/users';
@@ -69,10 +69,10 @@ function DashboardSidebar({ onCompose }) {
         {/* All Mail */}
         <button
           type="button"
-          onClick={() => navigate('/dashboard/all-mail')}
-          className={getNavClass(isAllMail)}
+          onClick={() => navigate('/dashboard/drafts')}
+          className={getNavClass(isDrafts)}
         >
-          All Mail
+          Drafts
         </button>
 
       </nav>

@@ -122,3 +122,15 @@ export async function getConversationsWithUser(identifier) {
 
   return response;
 }
+
+// ---- Get sent conversations ----
+export async function getSentConversations(page = 1) {
+  const response = await request(
+    `/api/conversations/sent?page=${page}`,
+    {
+      method: 'GET',
+    }
+  );
+
+  return response;
+}
