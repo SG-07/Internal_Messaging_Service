@@ -1,4 +1,5 @@
 // frontend/src/pages/conversation/ApprovalSection.jsx
+
 import { useState } from 'react';
 
 const APPROVAL_STATUSES = {
@@ -29,10 +30,16 @@ function ApprovalSection({
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
 
+  const [showCommentBox, setShowCommentBox] = useState(false);
+  const [comment, setComment] = useState('');
+
   const currentStatus =
     APPROVAL_STATUSES[status] || APPROVAL_STATUSES.PENDING;
 
-  async function handleDecisionChange(nextDecision) {
+  async function handleDecisionChange(
+    nextDecision,
+    decisionComment = ''
+  ) {
     if (
       !canRespond ||
       updating ||
@@ -45,7 +52,14 @@ function ApprovalSection({
       setUpdating(true);
       setError('');
 
-      await onDecisionChange(nextDecision);
+      await onDecisionChange(
+        nextDecision,
+        decisionComment
+      );
+
+      // Close comment box after successful update.
+      setShowCommentBox(false);
+      setComment('');
     } catch (err) {
       setError(
         err.message ||
@@ -54,6 +68,41 @@ function ApprovalSection({
     } finally {
       setUpdating(false);
     }
+  }
+
+  function handleMoreInfoClick() {
+    if (!canRespond || updating) {
+      return;
+    }
+
+    setError('');
+    setShowCommentBox(true);
+  }
+
+  async function handleSubmitMoreInfo() {
+    const trimmedComment = comment.trim();
+
+    if (!trimmedComment) {
+      setError(
+        'Please specify what information is required.'
+      );
+      return;
+    }
+
+    await handleDecisionChange(
+      'MORE_INFO',
+      trimmedComment
+    );
+  }
+
+  function handleCancelMoreInfo() {
+    if (updating) {
+      return;
+    }
+
+    setShowCommentBox(false);
+    setComment('');
+    setError('');
   }
 
   return (
@@ -79,7 +128,7 @@ function ApprovalSection({
           </p>
         </div>
 
-        {canRespond && (
+        {canRespond && !showCommentBox && (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -106,9 +155,7 @@ function ApprovalSection({
             <button
               type="button"
               disabled={updating}
-              onClick={() =>
-                handleDecisionChange('MORE_INFO')
-              }
+              onClick={handleMoreInfoClick}
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               More Information
@@ -116,6 +163,58 @@ function ApprovalSection({
           </div>
         )}
       </div>
+
+      {/* More Information comment form */}
+
+      {canRespond && showCommentBox && (
+        <div className="mt-5 rounded-lg border border-purple-200 bg-white p-4">
+          <label
+            htmlFor="approval-more-info-comment"
+            className="block text-sm font-medium text-gray-800"
+          >
+            What information is required?
+          </label>
+
+          <p className="mt-1 text-xs text-gray-500">
+            Explain what the requester needs to provide before
+            you can make an approval decision.
+          </p>
+
+          <textarea
+            id="approval-more-info-comment"
+            value={comment}
+            onChange={(event) =>
+              setComment(event.target.value)
+            }
+            disabled={updating}
+            rows={4}
+            placeholder="Example: Please attach the vendor quote and updated budget breakdown."
+            className="mt-3 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-gray-100"
+          />
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={updating}
+              onClick={handleSubmitMoreInfo}
+              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {updating
+                ? 'Requesting...'
+                : 'Request Information'}
+            </button>
+
+            <button
+              type="button"
+              disabled={updating}
+              onClick={handleCancelMoreInfo}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {updating && (
         <p className="mt-3 text-xs text-gray-500">

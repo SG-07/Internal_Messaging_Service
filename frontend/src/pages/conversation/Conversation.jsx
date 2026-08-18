@@ -27,6 +27,10 @@ function Conversation() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // --------------------------------------------------
+  // Load conversation
+  // --------------------------------------------------
+
   useEffect(() => {
     async function loadConversation() {
       try {
@@ -78,6 +82,10 @@ function Conversation() {
     }
   }, [id]);
 
+  // --------------------------------------------------
+  // Mark message as read
+  // --------------------------------------------------
+
   async function handleMarkAsRead(messageId) {
     try {
       await markMessageAsRead(messageId);
@@ -104,6 +112,10 @@ function Conversation() {
       }
     }
   }
+
+  // --------------------------------------------------
+  // Send reply
+  // --------------------------------------------------
 
   async function handleSendReply(content) {
     const payload = {
@@ -168,23 +180,253 @@ function Conversation() {
     }
   }
 
-  async function handleActionStatusChange(status) {
+  // --------------------------------------------------
+  // Update workflow status
+  // --------------------------------------------------
+
+  async function updateWorkflowStatus(
+    type,
+    status,
+    comment = ''
+  ) {
+    const endpoint =
+      type === 'action'
+        ? `/api/conversations/${id}/action`
+        : `/api/conversations/${id}/approval`;
+
+    const payload = {
+      status,
+      comment: comment || '',
+    };
+
     if (import.meta.env.DEV) {
       console.log(
-        '[Conversation] Action status requested:',
-        status
+        '[Conversation] Updating workflow:',
+        {
+          type,
+          endpoint,
+          method: 'PATCH',
+          payload,
+        }
       );
+    }
+
+    const response = await fetch(
+      endpoint,
+      {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    let data = null;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (import.meta.env.DEV) {
+      console.log(
+        '[Conversation] Workflow update response:',
+        data
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message ||
+          'Unable to update workflow status.'
+      );
+    }
+
+    return data;
+  }
+
+  // --------------------------------------------------
+  // Extract workflow from PATCH response
+  // --------------------------------------------------
+
+  function getUpdatedWorkflow(
+    response,
+    fallbackWorkflow,
+    status
+  ) {
+    /*
+     * Backend may return the workflow in different
+     * response shapes depending on the controller.
+     *
+     * Prefer the backend response whenever available.
+     */
+
+    const backendWorkflow =
+      response?.workflow ||
+      response?.data?.workflow ||
+      response?.data?.conversation?.workflow ||
+      response?.conversation?.workflow;
+
+    if (backendWorkflow) {
+      return backendWorkflow;
+    }
+
+    /*
+     * Fallback only when the backend does not return
+     * workflow information.
+     */
+
+    const isAction =
+      fallbackWorkflow?.type === 'action';
+
+    const isFinal = isAction
+      ? status === 'DONE' ||
+        status === 'REJECTED'
+      : status === 'APPROVED' ||
+        status === 'REJECTED';
+
+    return {
+      ...fallbackWorkflow,
+      status,
+      is_final: isFinal,
+
+      /*
+       * MORE_INFO is not final.
+       *
+       * For a fallback response, we cannot know who
+       * should respond next. The safest frontend behavior
+       * is to disable the current buttons until the next
+       * conversation fetch gives us the authoritative
+       * can_respond value from the backend.
+       */
+      can_respond: false,
+    };
+  }
+
+  // --------------------------------------------------
+  // Action status change
+  // --------------------------------------------------
+
+  async function handleActionStatusChange(
+    status,
+    comment = ''
+  ) {
+    if (
+      !conversation?.workflow?.can_respond ||
+      conversation?.workflow?.is_final ||
+      conversation?.workflow?.type !== 'action'
+    ) {
+      return;
+    }
+
+    try {
+      const response =
+        await updateWorkflowStatus(
+          'action',
+          status,
+          comment
+        );
+
+      const updatedWorkflow =
+        getUpdatedWorkflow(
+          response,
+          conversation.workflow,
+          status
+        );
+
+      setConversation((previousConversation) => {
+        if (!previousConversation) {
+          return previousConversation;
+        }
+
+        return {
+          ...previousConversation,
+          workflow: updatedWorkflow,
+          updated_at:
+            response?.updated_at ||
+            response?.data?.updated_at ||
+            previousConversation.updated_at,
+        };
+      });
+
+      return response;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error(
+          '[Conversation] Failed to update action status:',
+          err
+        );
+      }
+
+      throw err;
     }
   }
 
-  async function handleDecisionChange(status) {
-    if (import.meta.env.DEV) {
-      console.log(
-        '[Conversation] Decision status requested:',
-        status
-      );
+  // --------------------------------------------------
+  // Approval status change
+  // --------------------------------------------------
+
+  async function handleDecisionChange(
+    status,
+    comment = ''
+  ) {
+    if (
+      !conversation?.workflow?.can_respond ||
+      conversation?.workflow?.is_final ||
+      conversation?.workflow?.type !== 'approval'
+    ) {
+      return;
+    }
+
+    try {
+      const response =
+        await updateWorkflowStatus(
+          'approval',
+          status,
+          comment
+        );
+
+      const updatedWorkflow =
+        getUpdatedWorkflow(
+          response,
+          conversation.workflow,
+          status
+        );
+
+      setConversation((previousConversation) => {
+        if (!previousConversation) {
+          return previousConversation;
+        }
+
+        return {
+          ...previousConversation,
+          workflow: updatedWorkflow,
+          updated_at:
+            response?.updated_at ||
+            response?.data?.updated_at ||
+            previousConversation.updated_at,
+        };
+      });
+
+      return response;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error(
+          '[Conversation] Failed to update approval status:',
+          err
+        );
+      }
+
+      throw err;
     }
   }
+
+  // --------------------------------------------------
+  // Loading
+  // --------------------------------------------------
 
   if (loading) {
     return (
@@ -195,6 +437,10 @@ function Conversation() {
       </div>
     );
   }
+
+  // --------------------------------------------------
+  // Error
+  // --------------------------------------------------
 
   if (error) {
     return (
@@ -220,6 +466,10 @@ function Conversation() {
     );
   }
 
+  // --------------------------------------------------
+  // Conversation not found
+  // --------------------------------------------------
+
   if (!conversation) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -230,33 +480,83 @@ function Conversation() {
     );
   }
 
+  // --------------------------------------------------
+  // Conversation category
+  // --------------------------------------------------
+
   const category = (
     conversation.category ||
     conversation.conversation_type ||
     ''
   ).toLowerCase();
 
-  const canRespond = false;
+  // --------------------------------------------------
+  // Workflow
+  // --------------------------------------------------
+
+  const workflow =
+    conversation.workflow || null;
+
+  const workflowType =
+    workflow?.type || null;
+
+  const workflowStatus =
+    workflow?.status || 'PENDING';
+
+  /*
+   * IMPORTANT:
+   *
+   * Do NOT calculate canRespond from the category,
+   * created_by, participants, etc.
+   *
+   * Backend already determines whether the current
+   * logged-in user can respond.
+   */
+  const canRespond =
+    workflow?.can_respond === true &&
+    workflow?.is_final !== true;
+
+  if (import.meta.env.DEV) {
+    console.log(
+      '[Conversation] Workflow state:',
+      {
+        category,
+        workflow,
+        workflowType,
+        workflowStatus,
+        canRespond,
+      }
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col bg-white shadow-sm">
+
+        {/* --------------------------------------------------
+            Header
+            -------------------------------------------------- */}
 
         <ConversationHeader
           subject={conversation.subject}
           category={category}
         />
 
+        {/* --------------------------------------------------
+            Conversation information
+            -------------------------------------------------- */}
+
         <ConversationInfo
           conversation={conversation}
         />
 
-        {category === 'action_required' && (
+        {/* --------------------------------------------------
+            ACTION REQUIRED
+            -------------------------------------------------- */}
+
+        {workflowType === 'action' && (
           <ActionSection
-            status={
-              conversation.action_status ||
-              'PENDING'
-            }
+            status={workflowStatus}
             canRespond={canRespond}
             onStatusChange={
               handleActionStatusChange
@@ -264,18 +564,23 @@ function Conversation() {
           />
         )}
 
-        {category === 'approval_required' && (
+        {/* --------------------------------------------------
+            APPROVAL REQUIRED
+            -------------------------------------------------- */}
+
+        {workflowType === 'approval' && (
           <ApprovalSection
-            status={
-              conversation.decision_status ||
-              'PENDING'
-            }
+            status={workflowStatus}
             canRespond={canRespond}
             onDecisionChange={
               handleDecisionChange
             }
           />
         )}
+
+        {/* --------------------------------------------------
+            Follow-up
+            -------------------------------------------------- */}
 
         <FollowUpSection
           followUpAfter={
@@ -287,12 +592,20 @@ function Conversation() {
           }
         />
 
+        {/* --------------------------------------------------
+            Messages
+            -------------------------------------------------- */}
+
         <main className="flex-1">
           <MessageThread
             messages={messages}
             onMarkAsRead={handleMarkAsRead}
           />
         </main>
+
+        {/* --------------------------------------------------
+            Reply
+            -------------------------------------------------- */}
 
         <ReplyBox
           onSendReply={handleSendReply}

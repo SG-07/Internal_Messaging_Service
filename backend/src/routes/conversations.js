@@ -9,6 +9,8 @@ import {
   addMessage,
   getConversationsWithUser,
   getSentConversations,
+  getPendingWorkflows,
+  getMyWorkflowRequests,
 } from '../controllers/conversations.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -19,6 +21,8 @@ router.post('/', requireAuth, createConversation);
 router.get('/', requireAuth, getConversations);
 router.post('/with-user', requireAuth, getConversationsWithUser);
 router.get('/sent', requireAuth, getSentConversations);
+router.get('/workflow/pending', requireAuth, getPendingWorkflows);
+router.get('/workflow/mine', requireAuth, getMyWorkflowRequests);
 
 // dynamic routes for specific conversationId
 router.get('/:conversationId', requireAuth, getConversation);
