@@ -107,3 +107,18 @@ export async function deleteMessage(messageId) {
     }
   );
 }
+
+// ---- Get conversations with another user ----
+export async function getConversationsWithUser(identifier) {
+  const response = await request(
+    '/api/conversations/with-user',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        identifier,
+      }),
+    }
+  );
+
+  return response;
+}

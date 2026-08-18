@@ -2,6 +2,7 @@
 
 import supabaseAdmin from "../config/supabaseClient.js";
 
+/// --- CREATE NEW CONVERSATION WITH INITIAL MESSAGE ---
 export const createConversation = async (req, res) => {
   const { recipient_id, subject, type, body } = req.body;
   const sender_id = req.user.id;
@@ -490,6 +491,160 @@ export const addMessage = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Unable to send message.",
+    });
+  }
+};
+
+// --- GET ALL CONVERSATIONS BETWEEN CURRENT USER AND A SPECIFIC OTHER USER ---
+export const getConversationsWithUser = async (req, res) => {
+  const { identifier } = req.body; // email or username of the other person
+  const user_id = req.user.id;
+
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!identifier) {
+    return res.status(400).json({
+      success: false,
+      message: 'Provide an email or username to search.',
+    });
+  }
+
+  try {
+    // Resolve the other user by email, then username
+    let otherUser = null;
+
+    const { data: byEmail } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, username, full_name')
+      .eq('email', identifier)
+      .single();
+
+    if (byEmail) {
+      otherUser = byEmail;
+    } else {
+      const { data: byUsername } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, username, full_name')
+        .eq('username', identifier)
+        .single();
+
+      if (byUsername) {
+        otherUser = byUsername;
+      }
+    }
+
+    if (!otherUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (otherUser.id === user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot search conversations with yourself.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[getConversationsWithUser] user_id:', user_id, 'otherUser:', otherUser.id);
+    }
+
+    // Find all conversation_ids the CURRENT user is part of
+    const { data: myConvLinks, error: myConvError } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', user_id);
+
+    if (myConvError) {
+      throw new Error('Failed to fetch your conversations');
+    }
+
+    const myConvIds = myConvLinks.map((c) => c.conversation_id);
+
+    if (myConvIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No conversations found.',
+        data: [],
+      });
+    }
+
+    // Find which of those conversation_ids the OTHER user is also part of
+    const { data: sharedConvLinks, error: sharedError } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', otherUser.id)
+      .in('conversation_id', myConvIds);
+
+    if (sharedError) {
+      throw new Error('Failed to fetch shared conversations');
+    }
+
+    const sharedConvIds = sharedConvLinks.map((c) => c.conversation_id);
+
+    if (sharedConvIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No conversations found.',
+        data: [],
+      });
+    }
+
+    // Fetch full conversation + messages for each shared conversation
+    const { data: conversations, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id, subject, conversation_type, category, created_by, created_at, updated_at')
+      .in('id', sharedConvIds)
+      .order('updated_at', { ascending: false });
+
+    if (convError) {
+      throw new Error('Failed to fetch conversations');
+    }
+
+    const conversationsWithMessages = await Promise.all(
+      conversations.map(async (conv) => {
+        const { data: messages, error: messagesError } = await supabaseAdmin
+          .from('messages')
+          .select(`
+            id, content, created_at, sender_id,
+            profiles:sender_id(id, username, full_name)
+          `)
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true });
+
+        if (isDev && messagesError) {
+          console.log(`[getConversationsWithUser] Failed to fetch messages for ${conv.id}:`, messagesError.message);
+        }
+
+        return {
+          ...conv,
+          messages: (messages || []).map((m) => ({
+            id: m.id,
+            content: m.content,
+            created_at: m.created_at,
+            sender_id: m.sender_id,
+            sender_name: m.profiles?.full_name || m.profiles?.username || null,
+          })),
+        };
+      })
+    );
+
+    if (isDev) {
+      console.log('[getConversationsWithUser] Found', conversationsWithMessages.length, 'shared conversations');
+    }
+
+    res.status(200).json({
+      success: true,
+      other_user: otherUser,
+      data: conversationsWithMessages,
+    });
+  } catch (err) {
+    console.error('[getConversationsWithUser] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch conversations.',
     });
   }
 };
