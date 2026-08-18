@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { signup } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
@@ -34,6 +34,15 @@ function InputField({
           required
           disabled={loading}
           placeholder={placeholder}
+          autoComplete={
+            id === 'password'
+              ? 'new-password'
+              : id === 'confirmPassword'
+                ? 'new-password'
+                : id === 'email'
+                  ? 'email'
+                  : 'off'
+          }
           className="w-full rounded-lg border border-gray-300 px-4 py-3 pr-16 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
         />
 
@@ -150,9 +159,9 @@ function Signup() {
     } = formData;
 
     if (
-      !fullName ||
-      !email ||
-      !username ||
+      !fullName.trim() ||
+      !email.trim() ||
+      !username.trim() ||
       !password ||
       !confirmPassword
     ) {
@@ -176,14 +185,14 @@ function Signup() {
       setLoading(true);
 
       const response = await signup({
-        fullName,
-        email,
-        username,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        username: username.trim(),
         password,
       });
 
       /*
-       * Backend response:
+       * Expected backend response:
        *
        * {
        *   "message": "Signup successful.",
@@ -203,10 +212,10 @@ function Signup() {
         );
       }
 
-      // Store the newly created authenticated user.
+      // Store the newly authenticated user.
       setUser(response.user);
 
-      // Go directly to the protected dashboard.
+      // Go to the protected dashboard.
       navigate('/dashboard', {
         replace: true,
       });
@@ -221,6 +230,7 @@ function Signup() {
   }
 
   const passwordValid = isValidPassword(formData.password);
+
   const passwordsMatch =
     formData.password === formData.confirmPassword &&
     formData.confirmPassword.length > 0;
@@ -237,6 +247,7 @@ function Signup() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-10">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
 
+        {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900">
             Create Account
@@ -247,16 +258,19 @@ function Signup() {
           </p>
         </div>
 
+        {/* Error */}
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
+        {/* Form */}
         <form
           onSubmit={handleSubmit}
           className="space-y-5"
         >
+          {/* Full Name */}
           <InputField
             id="fullName"
             label="Full Name"
@@ -266,6 +280,7 @@ function Signup() {
             loading={loading}
           />
 
+          {/* Email */}
           <InputField
             id="email"
             label="Email"
@@ -276,6 +291,7 @@ function Signup() {
             loading={loading}
           />
 
+          {/* Username */}
           <InputField
             id="username"
             label="Username"
@@ -285,6 +301,7 @@ function Signup() {
             loading={loading}
           />
 
+          {/* Password */}
           <div>
             <InputField
               id="password"
@@ -305,6 +322,7 @@ function Signup() {
             />
           </div>
 
+          {/* Confirm Password */}
           <InputField
             id="confirmPassword"
             label="Confirm Password"
@@ -319,6 +337,7 @@ function Signup() {
             }
           />
 
+          {/* Password Match */}
           {formData.confirmPassword && (
             <p
               className={`-mt-3 text-xs ${
@@ -333,6 +352,7 @@ function Signup() {
             </p>
           )}
 
+          {/* Submit */}
           <button
             type="submit"
             disabled={!canSubmit}
@@ -344,15 +364,16 @@ function Signup() {
           </button>
         </form>
 
+        {/* Login Link */}
         <div className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
 
-          <a
-            href="/auth/login"
+          <Link
+            to="/auth/login"
             className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
           >
             Log in
-          </a>
+          </Link>
         </div>
 
       </div>

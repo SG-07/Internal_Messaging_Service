@@ -42,16 +42,16 @@ function Login() {
     try {
       setLoading(true);
 
-      // Login with backend
+      // Authenticate with the backend.
       await login({
         email,
         password,
       });
 
-      // Update AuthContext with the authenticated user
+      // Get the authenticated user and update AuthContext.
       await refreshUser();
 
-      // Go to dashboard
+      // Authentication succeeded.
       navigate('/dashboard', {
         replace: true,
       });
@@ -126,15 +126,10 @@ function Login() {
             </label>
 
             <div className="relative">
-
               <input
                 id="password"
                 name="password"
-                type={
-                  showPassword
-                    ? 'text'
-                    : 'password'
-                }
+                type={showPassword ? 'text' : 'password'}
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -147,18 +142,13 @@ function Login() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowPassword(
-                    (show) => !show
-                  )
+                  setShowPassword((show) => !show)
                 }
                 disabled={loading}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500 hover:text-gray-900 disabled:opacity-50"
               >
-                {showPassword
-                  ? 'Hide'
-                  : 'Show'}
+                {showPassword ? 'Hide' : 'Show'}
               </button>
-
             </div>
           </div>
 
@@ -168,9 +158,7 @@ function Login() {
             disabled={loading}
             className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
           >
-            {loading
-              ? 'Logging in...'
-              : 'Log In'}
+            {loading ? 'Logging in...' : 'Log In'}
           </button>
 
         </form>

@@ -12,6 +12,7 @@ import ProtectedRoute from "./component/ProtectedRoute";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminTeams from "./pages/admin/teams/AdminTeams";
 import TeamEdit from "./pages/admin/teams/TeamEdit";
+import PublicOnlyRoute from "./component/PublicOnlyRoute";
 
 function App() {
   return (
@@ -23,9 +24,23 @@ function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         {/* Authentication */}
-        <Route path="/auth/login" element={<Login />} />
+        <Route
+          path="/auth/login"
+          element={
+            <PublicOnlyRoute>
+              <Login />
+            </PublicOnlyRoute>
+          }
+        />
 
-        <Route path="/auth/signup" element={<Signup />} />
+        <Route
+          path="/auth/signup"
+          element={
+            <PublicOnlyRoute>
+              <Signup />
+            </PublicOnlyRoute>
+          }
+        />
 
         {/* Dashboard */}
         <Route
