@@ -13,6 +13,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminTeams from "./pages/admin/teams/AdminTeams";
 import TeamEdit from "./pages/admin/teams/TeamEdit";
 import PublicOnlyRoute from "./component/PublicOnlyRoute";
+import ChangePassword from "./pages/auth/ChangePassword";
 
 function App() {
   return (
@@ -39,6 +40,15 @@ function App() {
             <PublicOnlyRoute>
               <Signup />
             </PublicOnlyRoute>
+          }
+        />
+
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePassword />
+            </ProtectedRoute>
           }
         />
 

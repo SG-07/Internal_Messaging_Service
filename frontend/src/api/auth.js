@@ -27,6 +27,8 @@ function sanitizePayload(payload) {
   };
 }
 
+// --- API Functions ---
+// ---- Signup ---
 export async function signup(payload) {
   debugLog('SIGNUP → Request Payload', {
     endpoint: '/api/auth/signup',
@@ -56,6 +58,7 @@ export async function signup(payload) {
   }
 }
 
+// ---- Login ----
 export async function login(payload) {
   debugLog('LOGIN → Request Payload', {
     endpoint: '/api/auth/login',
@@ -85,6 +88,7 @@ export async function login(payload) {
   }
 }
 
+// ---- Logout ----
 export async function logout() {
   debugLog('LOGOUT → Request', {
     endpoint: '/api/auth/logout',
@@ -112,6 +116,7 @@ export async function logout() {
   }
 }
 
+// ---- Get Current User ----
 export async function getCurrentUser() {
   debugLog('CURRENT USER → Request', {
     endpoint: '/api/auth/me',
@@ -135,4 +140,18 @@ export async function getCurrentUser() {
 
     throw error;
   }
+}
+
+// ---- Change Password ----
+export async function changePassword({
+  password,
+  newPassword,
+}) {
+  return request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      password,
+      newPassword,
+    }),
+  });
 }

@@ -49,7 +49,7 @@ function UserMenu({ user }) {
       <div className="flex items-center gap-2">
         <Link
           to="/auth/login"
-          className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
           Login
         </Link>
@@ -80,7 +80,7 @@ function UserMenu({ user }) {
         disabled={loggingOut}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span>
           {username}
@@ -98,39 +98,29 @@ function UserMenu({ user }) {
       {/* Dropdown */}
       {open && (
         <div
-          className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1 shadow-lg"
           role="menu"
         >
 
-          {/* Username */}
-          <div className="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
-            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+          {/* User information */}
+          <div className="border-b border-gray-100 px-3 py-2">
+            <p className="truncate text-sm font-medium text-gray-900">
               {username}
             </p>
 
             {user.email && (
-              <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-0.5 truncate text-xs text-gray-500">
                 {user.email}
               </p>
             )}
           </div>
 
-          {/* Update Username */}
-          <Link
-            to="/profile/username"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="mt-1 block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Update Username
-          </Link>
-
           {/* Update Password */}
           <Link
-            to="/profile/password"
+            to="/change-password"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="mt-1 block rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
           >
             Update Password
           </Link>
@@ -141,7 +131,7 @@ function UserMenu({ user }) {
             onClick={handleLogout}
             disabled={loggingOut}
             role="menuitem"
-            className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950"
+            className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loggingOut
               ? 'Logging out...'

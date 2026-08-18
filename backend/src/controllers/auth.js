@@ -288,3 +288,50 @@ export const getCurrentUser = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// --- CHANGE PASSWORD ---
+export const newPassword = async (req, res) => {
+  const { password, newPassword } = req.body; // no email needed
+  const userId = req.user.id; // from requireAuth middleware
+
+  if (!password || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  try {
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, password_hash')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    const newHashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ password_hash: newHashedPassword, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+
+    res.status(200).json({ message: 'Password updated successfully. Please log in again.' });
+  } catch (err) {
+    console.error('New password error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
