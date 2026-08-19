@@ -1,21 +1,21 @@
 // frontend/src/pages/conversation/Conversation.jsx
 
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
 import {
   getConversation,
   markMessageAsRead,
   sendMessage,
-} from '../../api/conversations';
+} from "../../api/conversations";
 
-import ConversationHeader from './ConversationHeader';
-import ConversationInfo from './ConversationInfo';
-import MessageThread from './MessageThread';
-import ActionSection from './ActionSection';
-import ApprovalSection from './ApprovalSection';
-import FollowUpSection from './FollowUpSection';
-import ReplyBox from './ReplyBox';
+import ConversationHeader from "./ConversationHeader";
+import ConversationInfo from "./ConversationInfo";
+import MessageThread from "./MessageThread";
+import ActionSection from "./ActionSection";
+import ApprovalSection from "./ApprovalSection";
+import FollowUpSection from "./FollowUpSection";
+import ReplyBox from "./ReplyBox";
 
 function Conversation() {
   const { id } = useParams();
@@ -25,7 +25,7 @@ function Conversation() {
   const [messages, setMessages] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // --------------------------------------------------
   // Load conversation
@@ -35,42 +35,29 @@ function Conversation() {
     async function loadConversation() {
       try {
         setLoading(true);
-        setError('');
+        setError("");
 
         if (import.meta.env.DEV) {
-          console.log(
-            '[Conversation] Loading conversation:',
-            id
-          );
+          console.log("[Conversation] Loading conversation:", id);
         }
 
         const response = await getConversation(id);
 
         if (import.meta.env.DEV) {
-          console.log(
-            '[Conversation] Conversation response:',
-            response
-          );
+          console.log("[Conversation] Conversation response:", response);
         }
 
-        const data =
-          response?.conversation ||
-          response?.data ||
-          response;
+        const data = response?.conversation || response?.data || response;
 
         setConversation(data);
         setMessages(data?.messages || []);
       } catch (err) {
         if (import.meta.env.DEV) {
-          console.error(
-            '[Conversation] Failed to load conversation:',
-            err
-          );
+          console.error("[Conversation] Failed to load conversation:", err);
         }
 
         setError(
-          err.message ||
-            'Unable to load conversation. Please try again.'
+          err.message || "Unable to load conversation. Please try again.",
         );
       } finally {
         setLoading(false);
@@ -101,14 +88,11 @@ function Conversation() {
             is_read: true,
             read_at: new Date().toISOString(),
           };
-        })
+        }),
       );
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.error(
-          '[Conversation] Failed to mark message as read:',
-          err
-        );
+        console.error("[Conversation] Failed to mark message as read:", err);
       }
     }
   }
@@ -123,27 +107,18 @@ function Conversation() {
     };
 
     if (import.meta.env.DEV) {
-      console.log(
-        '[Conversation] Sending reply:',
-        {
-          endpoint: `/api/conversations/${id}/messages`,
-          method: 'POST',
-          payload,
-        }
-      );
+      console.log("[Conversation] Sending reply:", {
+        endpoint: `/api/conversations/${id}/messages`,
+        method: "POST",
+        payload,
+      });
     }
 
     try {
-      const response = await sendMessage(
-        id,
-        content
-      );
+      const response = await sendMessage(id, content);
 
       if (import.meta.env.DEV) {
-        console.log(
-          '[Conversation] Reply response:',
-          response
-        );
+        console.log("[Conversation] Reply response:", response);
       }
 
       const sentMessage = response?.data;
@@ -165,15 +140,12 @@ function Conversation() {
       return response;
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.error(
-          '[Conversation] Failed to send reply:',
-          {
-            error: err,
-            endpoint: `/api/conversations/${id}/messages`,
-            method: 'POST',
-            payload,
-          }
-        );
+        console.error("[Conversation] Failed to send reply:", {
+          error: err,
+          endpoint: `/api/conversations/${id}/messages`,
+          method: "POST",
+          payload,
+        });
       }
 
       throw err;
@@ -184,44 +156,34 @@ function Conversation() {
   // Update workflow status
   // --------------------------------------------------
 
-  async function updateWorkflowStatus(
-    type,
-    status,
-    comment = ''
-  ) {
+  async function updateWorkflowStatus(type, status, comment = "") {
     const endpoint =
-      type === 'action'
+      type === "action"
         ? `/api/conversations/${id}/action`
         : `/api/conversations/${id}/approval`;
 
     const payload = {
       status,
-      comment: comment || '',
+      comment: comment || "",
     };
 
     if (import.meta.env.DEV) {
-      console.log(
-        '[Conversation] Updating workflow:',
-        {
-          type,
-          endpoint,
-          method: 'PATCH',
-          payload,
-        }
-      );
+      console.log("[Conversation] Updating workflow:", {
+        type,
+        endpoint,
+        method: "PATCH",
+        payload,
+      });
     }
 
-    const response = await fetch(
-      endpoint,
-      {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    const response = await fetch(endpoint, {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
     let data = null;
 
@@ -232,17 +194,11 @@ function Conversation() {
     }
 
     if (import.meta.env.DEV) {
-      console.log(
-        '[Conversation] Workflow update response:',
-        data
-      );
+      console.log("[Conversation] Workflow update response:", data);
     }
 
     if (!response.ok) {
-      throw new Error(
-        data?.message ||
-          'Unable to update workflow status.'
-      );
+      throw new Error(data?.message || "Unable to update workflow status.");
     }
 
     return data;
@@ -252,18 +208,7 @@ function Conversation() {
   // Extract workflow from PATCH response
   // --------------------------------------------------
 
-  function getUpdatedWorkflow(
-    response,
-    fallbackWorkflow,
-    status
-  ) {
-    /*
-     * Backend may return the workflow in different
-     * response shapes depending on the controller.
-     *
-     * Prefer the backend response whenever available.
-     */
-
+  function getUpdatedWorkflow(response, fallbackWorkflow, status) {
     const backendWorkflow =
       response?.workflow ||
       response?.data?.workflow ||
@@ -279,29 +224,16 @@ function Conversation() {
      * workflow information.
      */
 
-    const isAction =
-      fallbackWorkflow?.type === 'action';
+    const isAction = fallbackWorkflow?.type === "action";
 
     const isFinal = isAction
-      ? status === 'DONE' ||
-        status === 'REJECTED'
-      : status === 'APPROVED' ||
-        status === 'REJECTED';
+      ? status === "DONE" || status === "REJECTED"
+      : status === "APPROVED" || status === "REJECTED";
 
     return {
       ...fallbackWorkflow,
       status,
       is_final: isFinal,
-
-      /*
-       * MORE_INFO is not final.
-       *
-       * For a fallback response, we cannot know who
-       * should respond next. The safest frontend behavior
-       * is to disable the current buttons until the next
-       * conversation fetch gives us the authoritative
-       * can_respond value from the backend.
-       */
       can_respond: false,
     };
   }
@@ -310,32 +242,23 @@ function Conversation() {
   // Action status change
   // --------------------------------------------------
 
-  async function handleActionStatusChange(
-    status,
-    comment = ''
-  ) {
+  async function handleActionStatusChange(status, comment = "") {
     if (
       !conversation?.workflow?.can_respond ||
       conversation?.workflow?.is_final ||
-      conversation?.workflow?.type !== 'action'
+      conversation?.workflow?.type !== "action"
     ) {
       return;
     }
 
     try {
-      const response =
-        await updateWorkflowStatus(
-          'action',
-          status,
-          comment
-        );
+      const response = await updateWorkflowStatus("action", status, comment);
 
-      const updatedWorkflow =
-        getUpdatedWorkflow(
-          response,
-          conversation.workflow,
-          status
-        );
+      const updatedWorkflow = getUpdatedWorkflow(
+        response,
+        conversation.workflow,
+        status,
+      );
 
       setConversation((previousConversation) => {
         if (!previousConversation) {
@@ -355,10 +278,7 @@ function Conversation() {
       return response;
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.error(
-          '[Conversation] Failed to update action status:',
-          err
-        );
+        console.error("[Conversation] Failed to update action status:", err);
       }
 
       throw err;
@@ -369,32 +289,23 @@ function Conversation() {
   // Approval status change
   // --------------------------------------------------
 
-  async function handleDecisionChange(
-    status,
-    comment = ''
-  ) {
+  async function handleDecisionChange(status, comment = "") {
     if (
       !conversation?.workflow?.can_respond ||
       conversation?.workflow?.is_final ||
-      conversation?.workflow?.type !== 'approval'
+      conversation?.workflow?.type !== "approval"
     ) {
       return;
     }
 
     try {
-      const response =
-        await updateWorkflowStatus(
-          'approval',
-          status,
-          comment
-        );
+      const response = await updateWorkflowStatus("approval", status, comment);
 
-      const updatedWorkflow =
-        getUpdatedWorkflow(
-          response,
-          conversation.workflow,
-          status
-        );
+      const updatedWorkflow = getUpdatedWorkflow(
+        response,
+        conversation.workflow,
+        status,
+      );
 
       setConversation((previousConversation) => {
         if (!previousConversation) {
@@ -414,10 +325,7 @@ function Conversation() {
       return response;
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.error(
-          '[Conversation] Failed to update approval status:',
-          err
-        );
+        console.error("[Conversation] Failed to update approval status:", err);
       }
 
       throw err;
@@ -431,9 +339,7 @@ function Conversation() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-500">
-          Loading conversation...
-        </p>
+        <p className="text-sm text-gray-500">Loading conversation...</p>
       </div>
     );
   }
@@ -450,13 +356,11 @@ function Conversation() {
             Unable to load conversation
           </h1>
 
-          <p className="mt-3 text-sm text-red-600">
-            {error}
-          </p>
+          <p className="mt-3 text-sm text-red-600">{error}</p>
 
           <button
             type="button"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate("/dashboard")}
             className="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
           >
             Back to Dashboard
@@ -466,150 +370,99 @@ function Conversation() {
     );
   }
 
-  // --------------------------------------------------
-  // Conversation not found
-  // --------------------------------------------------
+  // ---------- Conversation not found -------- 
 
   if (!conversation) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-500">
-          Conversation not found.
-        </p>
+        <p className="text-sm text-gray-500">Conversation not found.</p>
       </div>
     );
   }
 
-  // --------------------------------------------------
-  // Conversation category
-  // --------------------------------------------------
+  // ------------- Conversation category -------- 
 
   const category = (
     conversation.category ||
     conversation.conversation_type ||
-    ''
+    ""
   ).toLowerCase();
 
-  // --------------------------------------------------
-  // Workflow
-  // --------------------------------------------------
+  // --------- Workflow -------- 
 
-  const workflow =
-    conversation.workflow || null;
+  const workflow = conversation.workflow || null;
 
-  const workflowType =
-    workflow?.type || null;
+  const workflowType = workflow?.type || null;
 
-  const workflowStatus =
-    workflow?.status || 'PENDING';
+  const workflowStatus = workflow?.status || "PENDING";
 
-  /*
-   * IMPORTANT:
-   *
-   * Do NOT calculate canRespond from the category,
-   * created_by, participants, etc.
-   *
-   * Backend already determines whether the current
-   * logged-in user can respond.
-   */
+  const workflowComment = workflow?.workflow_comment || "";
+
   const canRespond =
-    workflow?.can_respond === true &&
-    workflow?.is_final !== true;
+    workflow?.can_respond === true && workflow?.is_final !== true;
 
   if (import.meta.env.DEV) {
-    console.log(
-      '[Conversation] Workflow state:',
-      {
-        category,
-        workflow,
-        workflowType,
-        workflowStatus,
-        canRespond,
-      }
-    );
+    console.log("[Conversation] Workflow state:", {
+      category,
+      workflow,
+      workflowType,
+      workflowStatus,
+      workflowComment,
+      canRespond,
+    });
   }
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col bg-white shadow-sm">
-
-        {/* --------------------------------------------------
-            Header
-            -------------------------------------------------- */}
+        {/* ------- Header -------- */}
 
         <ConversationHeader
           subject={conversation.subject}
           category={category}
         />
 
-        {/* --------------------------------------------------
-            Conversation information
-            -------------------------------------------------- */}
+        {/* ------- Conversation information -------- */}
 
-        <ConversationInfo
-          conversation={conversation}
-        />
+        <ConversationInfo conversation={conversation} />
 
-        {/* --------------------------------------------------
-            ACTION REQUIRED
-            -------------------------------------------------- */}
+        {/* ------------ ACTION REQUIRED -------- */}
 
-        {workflowType === 'action' && (
+        {workflowType === "action" && (
           <ActionSection
             status={workflowStatus}
+            workflowComment={workflowComment}
             canRespond={canRespond}
-            onStatusChange={
-              handleActionStatusChange
-            }
+            onStatusChange={handleActionStatusChange}
           />
         )}
 
-        {/* --------------------------------------------------
-            APPROVAL REQUIRED
-            -------------------------------------------------- */}
+        {/* -------- APPROVAL REQUIRED -------- */}
 
-        {workflowType === 'approval' && (
+        {workflowType === "approval" && (
           <ApprovalSection
             status={workflowStatus}
+            workflowComment={workflowComment}
             canRespond={canRespond}
-            onDecisionChange={
-              handleDecisionChange
-            }
+            onDecisionChange={handleDecisionChange}
           />
         )}
 
-        {/* --------------------------------------------------
-            Follow-up
-            -------------------------------------------------- */}
+        {/* ------- Follow-up -------- */}
 
         <FollowUpSection
-          followUpAfter={
-            conversation.follow_up_after
-          }
-          status={
-            conversation.follow_up_status ||
-            'Waiting for response'
-          }
+          followUpAfter={conversation.follow_up_after}
+          status={conversation.follow_up_status || "Waiting for response"}
         />
 
-        {/* --------------------------------------------------
-            Messages
-            -------------------------------------------------- */}
+        {/* -------------- Messages -------- */}
 
         <main className="flex-1">
-          <MessageThread
-            messages={messages}
-            onMarkAsRead={handleMarkAsRead}
-          />
+          <MessageThread messages={messages} onMarkAsRead={handleMarkAsRead} />
         </main>
 
-        {/* --------------------------------------------------
-            Reply
-            -------------------------------------------------- */}
-
-        <ReplyBox
-          onSendReply={handleSendReply}
-        />
+        {/* -------------- Reply -------- */}
+        <ReplyBox onSendReply={handleSendReply} />
       </div>
     </div>
   );
