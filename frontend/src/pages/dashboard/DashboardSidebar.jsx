@@ -66,14 +66,14 @@ function DashboardSidebar({ onCompose }) {
           Sent
         </button>
 
-        {/* All Mail */}
+        {/* All Mail
         <button
           type="button"
           onClick={() => navigate('/dashboard/drafts')}
           className={getNavClass(isDrafts)}
         >
           Drafts
-        </button>
+        </button> */}
 
       </nav>
 

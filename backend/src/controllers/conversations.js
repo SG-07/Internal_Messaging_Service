@@ -3,24 +3,25 @@
 import supabaseAdmin from "../config/supabaseClient.js";
 
 const ACTION_TRANSITIONS = {
-  PENDING: ["WILL_DO", "REJECTED"],
-  WILL_DO: ["DONE", "REJECTED"],
+  PENDING: ['WILL_DO', 'REJECTED', 'MORE_INFO'],
+  MORE_INFO: ['WILL_DO', 'REJECTED'],
+  WILL_DO: ['DONE', 'REJECTED'],
   DONE: [],
   REJECTED: [],
 };
 
 const APPROVAL_TRANSITIONS = {
-  PENDING: ["APPROVED", "REJECTED", "MORE_INFO"],
-  MORE_INFO: ["APPROVED", "REJECTED"],
+  PENDING: ['APPROVED', 'REJECTED', 'MORE_INFO'],
+  MORE_INFO: ['APPROVED', 'REJECTED'],
   APPROVED: [],
   REJECTED: [],
 };
 
-const FINAL_ACTION_STATUSES = ["DONE", "REJECTED"];
-const FINAL_APPROVAL_STATUSES = ["APPROVED", "REJECTED"];
+const FINAL_ACTION_STATUSES = ['DONE', 'REJECTED'];
+const FINAL_APPROVAL_STATUSES = ['APPROVED', 'REJECTED'];
 
 function buildWorkflow(conversation, currentUserId) {
-  const { category, workflow_status, created_by } = conversation;
+  const { category, workflow_status, created_by, workflow_comment } = conversation;
 
   // Information and Discussion do not have workflow
   if (category !== "action_required" && category !== "approval_required") {
@@ -46,6 +47,7 @@ function buildWorkflow(conversation, currentUserId) {
     status: workflow_status,
     can_respond: canRespond,
     is_final: isFinal,
+    workflow_comment: workflow_comment || null,
   };
 }
 
@@ -798,7 +800,7 @@ export const addMessage = async (req, res) => {
 
 // --- GET ALL CONVERSATIONS BETWEEN CURRENT USER AND A SPECIFIC OTHER USER ---
 export const getConversationsWithUser = async (req, res) => {
-  const { email } = req.body; // email of the other person
+  const { email } = req.body; 
   const user_id = req.user.id;
 
   const isDev = process.env.NODE_ENV === "development";
@@ -1162,6 +1164,228 @@ export const getMyWorkflowRequests = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Unable to fetch your requests.",
+    });
+  }
+};
+
+// --- UPDATE WORKFLOW STATUS FOR A CONVERSATION ---
+export const updateActionStatus = async (req, res) => {
+  const { conversationId } = req.params;
+  const { status, comment } = req.body;
+  const user_id = req.user.id;
+
+  const isDev = process.env.NODE_ENV === 'development';
+  const validStatuses = ['WILL_DO', 'DONE', 'REJECTED', 'MORE_INFO'];
+
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Status must be one of: ${validStatuses.join(', ')}`,
+    });
+  }
+
+  const requiresComment = status === 'REJECTED' || status === 'MORE_INFO';
+  if (requiresComment && (!comment || !comment.trim())) {
+    return res.status(400).json({
+      success: false,
+      message: 'A comment is required when rejecting or requesting more info.',
+    });
+  }
+
+  try {
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id, category, created_by, workflow_status')
+      .eq('id', conversationId)
+      .single();
+
+    if (convError || !conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found.',
+      });
+    }
+
+    if (conversation.category !== 'action_required') {
+      return res.status(400).json({
+        success: false,
+        message: 'This conversation does not have an action workflow.',
+      });
+    }
+
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user_id)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not part of this conversation.',
+      });
+    }
+
+    if (user_id === conversation.created_by) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot act on a request you created.',
+      });
+    }
+
+    const currentStatus = conversation.workflow_status;
+    const allowedNext = ACTION_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedNext.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot transition from ${currentStatus} to ${status}.`,
+      });
+    }
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('conversations')
+      .update({
+        workflow_status: status,
+        workflow_comment: comment || null,
+        workflow_updated_by: user_id,
+        workflow_updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', conversationId)
+      .select('id, category, workflow_status, workflow_comment, status')
+      .single();
+
+    if (isDev) {
+      console.log('[updateActionStatus]', conversationId, currentStatus, '->', status);
+    }
+
+    if (updateError) {
+      throw new Error('Failed to update action status');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Action status updated to ${status}.`,
+      data: updated,
+    });
+  } catch (err) {
+    console.error('[updateActionStatus] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to update action status.',
+    });
+  }
+};
+
+// --- UPDATE APPROVAL WORKFLOW STATUS ---
+export const updateApprovalStatus = async (req, res) => {
+  const { conversationId } = req.params;
+  const { status, comment } = req.body;
+  const user_id = req.user.id;
+
+  const isDev = process.env.NODE_ENV === 'development';
+  const validStatuses = ['APPROVED', 'REJECTED', 'MORE_INFO'];
+
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Status must be one of: ${validStatuses.join(', ')}`,
+    });
+  }
+
+  const requiresComment = status === 'REJECTED' || status === 'MORE_INFO';
+  if (requiresComment && (!comment || !comment.trim())) {
+    return res.status(400).json({
+      success: false,
+      message: 'A comment is required when rejecting or requesting more info.',
+    });
+  }
+
+  try {
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id, category, created_by, workflow_status')
+      .eq('id', conversationId)
+      .single();
+
+    if (convError || !conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found.',
+      });
+    }
+
+    if (conversation.category !== 'approval_required') {
+      return res.status(400).json({
+        success: false,
+        message: 'This conversation does not have an approval workflow.',
+      });
+    }
+
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user_id)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not part of this conversation.',
+      });
+    }
+
+    if (user_id === conversation.created_by) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot approve or reject your own request.',
+      });
+    }
+
+    const currentStatus = conversation.workflow_status;
+    const allowedNext = APPROVAL_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedNext.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot transition from ${currentStatus} to ${status}.`,
+      });
+    }
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('conversations')
+      .update({
+        workflow_status: status,
+        workflow_comment: comment || null,
+        workflow_updated_by: user_id,
+        workflow_updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', conversationId)
+      .select('id, category, workflow_status, workflow_comment, status')
+      .single();
+
+    if (isDev) {
+      console.log('[updateApprovalStatus]', conversationId, currentStatus, '->', status);
+    }
+
+    if (updateError) {
+      throw new Error('Failed to update approval status');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Approval status updated to ${status}.`,
+      data: updated,
+    });
+  } catch (err) {
+    console.error('[updateApprovalStatus] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to update approval status.',
     });
   }
 };

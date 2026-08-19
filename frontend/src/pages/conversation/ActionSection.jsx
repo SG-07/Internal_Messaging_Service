@@ -1,5 +1,3 @@
-// frontend/src/pages/conversation/ActionSection.jsx
-
 import { useState } from 'react';
 
 const ACTION_STATUSES = {
@@ -7,21 +5,25 @@ const ACTION_STATUSES = {
     label: 'Pending',
     description: 'No action has been taken yet.',
   },
+
   WILL_DO: {
     label: 'Will Do',
     description:
       'The recipient has committed to completing the action.',
   },
+
   DONE: {
     label: 'Done',
     description:
       'The requested action has been completed.',
   },
+
   MORE_INFO: {
     label: 'More Information',
     description:
       'More information is required before the action can proceed.',
   },
+
   REJECTED: {
     label: 'Rejected',
     description:
@@ -50,6 +52,10 @@ function ActionSection({
     selectedStatus
       ? ACTION_STATUSES[selectedStatus]
       : null;
+
+  const commentRequired =
+    selectedStatus === 'REJECTED' ||
+    selectedStatus === 'MORE_INFO';
 
   function openStatusForm(nextStatus) {
     if (
@@ -86,17 +92,6 @@ function ActionSection({
 
     const trimmedComment = comment.trim();
 
-    /*
-     * Comment is required when:
-     *
-     * - Rejecting the action
-     * - Requesting more information
-     */
-
-    const commentRequired =
-      selectedStatus === 'REJECTED' ||
-      selectedStatus === 'MORE_INFO';
-
     if (commentRequired && !trimmedComment) {
       setError(
         selectedStatus === 'MORE_INFO'
@@ -127,10 +122,6 @@ function ActionSection({
       setUpdating(false);
     }
   }
-
-  const commentRequired =
-    selectedStatus === 'REJECTED' ||
-    selectedStatus === 'MORE_INFO';
 
   return (
     <section className="mx-6 mb-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
@@ -240,6 +231,8 @@ function ActionSection({
             >
               {selectedStatus === 'MORE_INFO'
                 ? 'Information Required'
+                : selectedStatus === 'REJECTED'
+                ? 'Reason for Rejection'
                 : 'Comment'}
 
               {commentRequired
