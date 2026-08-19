@@ -25,6 +25,7 @@ export function createWebSocket({
 
   socket.onmessage = (event) => {
     try {
+      console.log('[WebSocket] Raw event.data:', event.data);
       const message = JSON.parse(event.data);
 
       if (import.meta.env.DEV) {

@@ -21,7 +21,7 @@ export function initWebSocket(httpServer) {
       userId = jwt.verify(token, process.env.JWT_ACCESS_SECRET).id;
     } catch (err) {
       console.error('[WS] Authentication failed:', err.message);
-      return ws.close(1008, 'Unauthorized'); // 1008 = policy violation
+      return ws.close(1008, 'Unauthorized');
     }
 
     if (!clients.has(userId)) clients.set(userId, new Set());
@@ -35,7 +35,13 @@ export function initWebSocket(httpServer) {
 
 export function broadcastToUsers(userIds, payload) {
   const message = JSON.stringify(payload);
+  console.log('[WS] Broadcasting to', userIds.length, 'users:', JSON.stringify(payload).substring(0, 100));
   userIds.forEach((id) => {
-    clients.get(id)?.forEach((ws) => ws.readyState === 1 && ws.send(message));
+    clients.get(id)?.forEach((ws) => {
+      if (ws.readyState === 1) {
+        ws.send(message);
+        console.log('[WS] Message sent to user:', id);
+      }
+    });
   });
 }
