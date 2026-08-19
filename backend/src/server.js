@@ -3,6 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import http from 'http';
+import { initWebSocket } from './websocket/wsServer.js';
+import { initDbListener } from './websocket/dbListener.js';
+
+
 
 dotenv.config();
 
@@ -15,6 +20,7 @@ import teamsRoutes from './routes/teams.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
 
 // Middleware
 app.use(
@@ -58,6 +64,8 @@ app.use((err, req, res, next) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
+initWebSocket(server);
+initDbListener();
+server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

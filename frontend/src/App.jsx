@@ -14,115 +14,126 @@ import AdminTeams from "./pages/admin/teams/AdminTeams";
 import TeamEdit from "./pages/admin/teams/TeamEdit";
 import PublicOnlyRoute from "./component/PublicOnlyRoute";
 import ChangePassword from "./pages/auth/ChangePassword";
+import { WebSocketProvider } from "./websocket/WebSocketProvider";
 
 function App() {
   return (
-    <>
-      <Navbar />
+    <WebSocketProvider>
+      <>
+        <Navbar />
 
-      <Routes>
-        {/* Default */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Routes>
+          {/* Default */}
+          <Route
+            path="/"
+            element={
+              <Navigate
+                to="/dashboard"
+                replace
+              />
+            }
+          />
 
-        {/* Authentication */}
-        <Route
-          path="/auth/login"
-          element={
-            <PublicOnlyRoute>
-              <Login />
-            </PublicOnlyRoute>
-          }
-        />
+          {/* Authentication */}
+          <Route
+            path="/auth/login"
+            element={
+              <PublicOnlyRoute>
+                <Login />
+              </PublicOnlyRoute>
+            }
+          />
 
-        <Route
-          path="/auth/signup"
-          element={
-            <PublicOnlyRoute>
-              <Signup />
-            </PublicOnlyRoute>
-          }
-        />
+          <Route
+            path="/auth/signup"
+            element={
+              <PublicOnlyRoute>
+                <Signup />
+              </PublicOnlyRoute>
+            }
+          />
 
-        <Route
-          path="/change-password"
-          element={
-            <ProtectedRoute>
-              <ChangePassword />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/change-password"
+            element={
+              <ProtectedRoute>
+                <ChangePassword />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Dashboard */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
+          {/* Dashboard */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Sent */}
-        <Route
-          path="/dashboard/sent"
-          element={
-            <ProtectedRoute>
-              <Sent />
-            </ProtectedRoute>
-          }
-        />
+          {/* Sent */}
+          <Route
+            path="/dashboard/sent"
+            element={
+              <ProtectedRoute>
+                <Sent />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Compose */}
-        <Route
-          path="/compose"
-          element={
-            <ProtectedRoute>
-              <Compose />
-            </ProtectedRoute>
-          }
-        />
+          {/* Compose */}
+          <Route
+            path="/compose"
+            element={
+              <ProtectedRoute>
+                <Compose />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Conversation */}
-        <Route
-          path="/conversation/:id"
-          element={
-            <ProtectedRoute>
-              <Conversation />
-            </ProtectedRoute>
-          }
-        />
+          {/* Conversation */}
+          <Route
+            path="/conversation/:id"
+            element={
+              <ProtectedRoute>
+                <Conversation />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Admin Users */}
-        <Route
-          path="/admin/users"
-          element={
-            <ProtectedRoute>
-              <AdminUsers />
-            </ProtectedRoute>
-          }
-        />
+          {/* Admin Users */}
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute>
+                <AdminUsers />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Admin Teams */}
-        <Route
-          path="/admin/teams"
-          element={
-            <ProtectedRoute>
-              <AdminTeams />
-            </ProtectedRoute>
-          }
-        />
+          {/* Admin Teams */}
+          <Route
+            path="/admin/teams"
+            element={
+              <ProtectedRoute>
+                <AdminTeams />
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Admin Team Edit */}
-        <Route
-          path="/admin/teams/:teamId/edit"
-          element={
-            <ProtectedRoute>
-              <TeamEdit />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </>
+          {/* Admin Team Edit */}
+          <Route
+            path="/admin/teams/:teamId/edit"
+            element={
+              <ProtectedRoute>
+                <TeamEdit />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </>
+    </WebSocketProvider>
   );
 }
 
