@@ -710,3 +710,10 @@ export async function removeTeamMember(
     throw error;
   }
 }
+
+// Get a single user's profile/details.
+export async function getUserProfile(userId) {
+  return request(
+    `/api/admin/users/${userId}/profile`
+  );
+}

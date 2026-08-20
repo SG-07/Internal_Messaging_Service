@@ -1,12 +1,17 @@
 // frontend/src/pages/admin/AdminUsers.jsx
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { getAdminUsers } from '../../api/admin';
-import DepartmentFilter from './common/DepartmentFilter';
+import DepartmentFilter, {
+  NO_DEPARTMENT,
+} from './common/DepartmentFilter';
 import DashboardLayout from '../dashboard/DashboardLayout';
 
 function AdminUsers() {
+  const navigate = useNavigate();
+
   const [departments, setDepartments] = useState([]);
 
   const [users, setUsers] = useState([]);
@@ -19,6 +24,11 @@ function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  /*
+   * --------------------------------------------------
+   * Load users
+   * --------------------------------------------------
+   */
   useEffect(() => {
     async function loadUsers() {
       const payload = {
@@ -31,7 +41,17 @@ function AdminUsers() {
 
       if (import.meta.env.DEV) {
         console.group('[AdminUsers] Fetch Users');
-        console.log('Request payload:', payload);
+
+        console.log(
+          'Selected departments:',
+          departments
+        );
+
+        console.log(
+          'Request payload:',
+          payload
+        );
+
         console.groupEnd();
       }
 
@@ -39,17 +59,32 @@ function AdminUsers() {
         setLoading(true);
         setError('');
 
-        const response = await getAdminUsers(payload);
+        const response =
+          await getAdminUsers(payload);
 
         if (import.meta.env.DEV) {
           console.group(
             '[AdminUsers] Fetch Users Response'
           );
-          console.log('Request payload:', payload);
-          console.log('Received response:', response);
+
+          console.log(
+            'Request payload:',
+            payload
+          );
+
+          console.log(
+            'Received response:',
+            response
+          );
+
           console.groupEnd();
         }
 
+        /*
+         * --------------------------------------------------
+         * Extract users
+         * --------------------------------------------------
+         */
         const responseUsers =
           response?.users ||
           response?.data?.users ||
@@ -62,6 +97,11 @@ function AdminUsers() {
             : []
         );
 
+        /*
+         * --------------------------------------------------
+         * Extract pagination
+         * --------------------------------------------------
+         */
         const pages =
           response?.totalPages ||
           response?.data?.totalPages ||
@@ -69,22 +109,37 @@ function AdminUsers() {
           response?.data?.pagination?.totalPages ||
           1;
 
-        setTotalPages(Number(pages) || 1);
+        setTotalPages(
+          Number(pages) || 1
+        );
       } catch (err) {
         if (import.meta.env.DEV) {
           console.group(
             '[AdminUsers] Fetch Users Error'
           );
-          console.log('Request payload:', payload);
-          console.error('Error:', err);
-          console.log('Error message:', err.message);
+
+          console.log(
+            'Request payload:',
+            payload
+          );
+
+          console.error(
+            'Error:',
+            err
+          );
+
+          console.log(
+            'Error message:',
+            err?.message
+          );
+
           console.groupEnd();
         }
 
         setUsers([]);
 
         setError(
-          err.message ||
+          err?.message ||
             'Unable to load users. Please try again.'
         );
       } finally {
@@ -95,21 +150,99 @@ function AdminUsers() {
     loadUsers();
   }, [page, limit, departments]);
 
+  /*
+   * --------------------------------------------------
+   * Department filter
+   * --------------------------------------------------
+   */
   function handleDepartmentsChange(value) {
-    setDepartments(value);
+    setDepartments(
+      Array.isArray(value)
+        ? value
+        : []
+    );
+
+    /*
+     * Whenever the filter changes,
+     * return to the first page.
+     */
     setPage(1);
   }
 
+  /*
+   * --------------------------------------------------
+   * Open user details
+   * --------------------------------------------------
+   */
+  function handleManageUser(userId) {
+    if (!userId) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[AdminUsers] Cannot open user details without user ID.'
+        );
+      }
+
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.log(
+        '[AdminUsers] Opening user details:',
+        userId
+      );
+    }
+
+    navigate(`/admin/users/${userId}`);
+  }
+
+  /*
+   * --------------------------------------------------
+   * Pagination
+   * --------------------------------------------------
+   */
   function handlePreviousPage() {
     if (page > 1) {
-      setPage((currentPage) => currentPage - 1);
+      setPage(
+        (currentPage) =>
+          currentPage - 1
+      );
     }
   }
 
   function handleNextPage() {
     if (page < totalPages) {
-      setPage((currentPage) => currentPage + 1);
+      setPage(
+        (currentPage) =>
+          currentPage + 1
+      );
     }
+  }
+
+  /*
+   * --------------------------------------------------
+   * Empty-state filter text
+   * --------------------------------------------------
+   */
+  function getDepartmentFilterText() {
+    if (departments.length === 0) {
+      return 'There are no users to display.';
+    }
+
+    const labels = departments.map(
+      (department) => {
+        if (
+          department === NO_DEPARTMENT
+        ) {
+          return 'No Department';
+        }
+
+        return department;
+      }
+    );
+
+    return `No users found in ${labels.join(
+      ', '
+    )}.`;
   }
 
   return (
@@ -136,7 +269,9 @@ function AdminUsers() {
 
             <DepartmentFilter
               value={departments}
-              onChange={handleDepartmentsChange}
+              onChange={
+                handleDepartmentsChange
+              }
               disabled={loading}
             />
 
@@ -210,28 +345,25 @@ function AdminUsers() {
               )}
 
               {/* Empty */}
-              {!loading && users.length === 0 && (
-                <tr>
-                  <td
-                    colSpan="7"
-                    className="px-6 py-16 text-center"
-                  >
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        No users found
-                      </h3>
+              {!loading &&
+                users.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="7"
+                      className="px-6 py-16 text-center"
+                    >
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          No users found
+                        </h3>
 
-                      <p className="mt-2 text-sm text-gray-500">
-                        {departments.length > 0
-                          ? `No users found in ${departments.join(
-                              ', '
-                            )}.`
-                          : 'There are no users to display.'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
+                        <p className="mt-2 text-sm text-gray-500">
+                          {getDepartmentFilterText()}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
 
               {/* Users */}
               {!loading &&
@@ -241,6 +373,7 @@ function AdminUsers() {
                     className="border-b last:border-b-0 hover:bg-gray-50"
                   >
 
+                    {/* User */}
                     <td className="px-6 py-4">
                       <div>
                         <p className="font-medium text-gray-900">
@@ -257,26 +390,31 @@ function AdminUsers() {
                       </div>
                     </td>
 
+                    {/* Email */}
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {user.email || '—'}
                     </td>
 
+                    {/* Role */}
                     <td className="px-6 py-4">
                       <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700">
                         {user.role || '—'}
                       </span>
                     </td>
 
+                    {/* Department */}
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {user.department || '—'}
                     </td>
 
+                    {/* Manager */}
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {user.manager ||
                         user.manager_username ||
                         '—'}
                     </td>
 
+                    {/* Status */}
                     <td className="px-6 py-4">
                       {user.is_active === false ? (
                         <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -289,10 +427,17 @@ function AdminUsers() {
                       )}
                     </td>
 
+                    {/* Actions */}
                     <td className="px-6 py-4">
                       <button
                         type="button"
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                        onClick={() =>
+                          handleManageUser(
+                            user.id
+                          )
+                        }
+                        disabled={!user.id}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Manage
                       </button>
@@ -308,37 +453,46 @@ function AdminUsers() {
         </div>
 
         {/* Pagination */}
-        {!loading && users.length > 0 && (
-          <div className="flex items-center justify-between border-t px-6 py-4">
+        {!loading &&
+          users.length > 0 && (
+            <div className="flex items-center justify-between border-t px-6 py-4">
 
-            <p className="text-sm text-gray-500">
-              Page {page} of {totalPages}
-            </p>
+              <p className="text-sm text-gray-500">
+                Page {page} of {totalPages}
+              </p>
 
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
 
-              <button
-                type="button"
-                onClick={handlePreviousPage}
-                disabled={page <= 1}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Previous
-              </button>
+                {/* Previous */}
+                <button
+                  type="button"
+                  onClick={
+                    handlePreviousPage
+                  }
+                  disabled={page <= 1}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
 
-              <button
-                type="button"
-                onClick={handleNextPage}
-                disabled={page >= totalPages}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Next
-              </button>
+                {/* Next */}
+                <button
+                  type="button"
+                  onClick={
+                    handleNextPage
+                  }
+                  disabled={
+                    page >= totalPages
+                  }
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+
+              </div>
 
             </div>
-
-          </div>
-        )}
+          )}
 
       </section>
 

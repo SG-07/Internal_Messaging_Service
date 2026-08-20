@@ -8,6 +8,8 @@ const DEPARTMENTS = [
   'Marketing',
 ];
 
+export const NO_DEPARTMENT = '__NO_DEPARTMENT__';
+
 function DepartmentFilter({
   value,
   onChange,
@@ -45,18 +47,31 @@ function DepartmentFilter({
         value.filter((item) => item !== department)
       );
     } else {
-      onChange([...value, department]);
+      onChange([
+        ...value,
+        department,
+      ]);
     }
   }
 
   function removeDepartment(department) {
     onChange(
-      value.filter((item) => item !== department)
+      value.filter(
+        (item) => item !== department
+      )
     );
   }
 
   function clearDepartments() {
     onChange([]);
+  }
+
+  function getDepartmentLabel(department) {
+    if (department === NO_DEPARTMENT) {
+      return 'No Department';
+    }
+
+    return department;
   }
 
   return (
@@ -74,7 +89,9 @@ function DepartmentFilter({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setOpen((current) => !current)}
+          onClick={() =>
+            setOpen((current) => !current)
+          }
           className="flex min-h-[42px] w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm outline-none transition hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100"
         >
           <div className="flex flex-wrap gap-1">
@@ -90,14 +107,30 @@ function DepartmentFilter({
                 key={department}
                 className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
               >
-                {department}
+                {getDepartmentLabel(department)}
 
                 <span
                   role="button"
                   tabIndex={0}
                   onClick={(event) => {
                     event.stopPropagation();
-                    removeDepartment(department);
+
+                    removeDepartment(
+                      department
+                    );
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' ||
+                      event.key === ' '
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      removeDepartment(
+                        department
+                      );
+                    }
                   }}
                   className="cursor-pointer font-bold hover:text-blue-900"
                 >
@@ -117,15 +150,19 @@ function DepartmentFilter({
         {open && (
           <div className="absolute left-0 right-0 z-50 mt-2 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
 
+            {/* Regular departments */}
             {DEPARTMENTS.map((department) => {
-              const selected = value.includes(department);
+              const selected =
+                value.includes(department);
 
               return (
                 <button
                   key={department}
                   type="button"
                   onClick={() =>
-                    toggleDepartment(department)
+                    toggleDepartment(
+                      department
+                    )
                   }
                   className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                 >
@@ -144,6 +181,31 @@ function DepartmentFilter({
               );
             })}
 
+            {/* No Department */}
+            <button
+              type="button"
+              onClick={() =>
+                toggleDepartment(
+                  NO_DEPARTMENT
+                )
+              }
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+            >
+              <span
+                className={`flex h-4 w-4 items-center justify-center rounded border ${
+                  value.includes(NO_DEPARTMENT)
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-gray-300 bg-white'
+                }`}
+              >
+                {value.includes(NO_DEPARTMENT) &&
+                  '✓'}
+              </span>
+
+              No Department
+            </button>
+
+            {/* Clear selection */}
             {value.length > 0 && (
               <div className="mt-2 border-t pt-2">
                 <button

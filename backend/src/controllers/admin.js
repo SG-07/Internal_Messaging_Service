@@ -2,52 +2,159 @@ import supabaseAdmin from '../config/supabaseClient.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-/// --- LIST ALL USERS (PAGINATED, WITH DEPARTMENT FILTER) ---
+// --- LIST ALL USERS (PAGINATED, WITH DEPARTMENT FILTER) ---
 export const listUsers = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 20;
   const offset = (page - 1) * limit;
-  const { department } = req.query; // string, comma-separated string, or array
+  const { department } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
 
   try {
-    let query = supabaseAdmin
-      .from('profiles')
-      .select('id, username, email, department, role, is_active', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
+    // Normalize department to array
+    let departments = [];
     if (department) {
-      // Normalize to an array regardless of how it arrived
-      const departments = Array.isArray(department)
+      departments = Array.isArray(department)
         ? department
         : department.split(',').map((d) => d.trim()).filter(Boolean);
-
-      if (departments.length === 1) {
-        query = query.eq('department', departments[0]);
-      } else if (departments.length > 1) {
-        query = query.in('department', departments);
-      }
     }
-
-    const { data: users, error, count } = await query;
 
     if (isDev) {
-      console.log('[listUsers] page:', page, 'department filter:', department || 'none', 'count:', count);
+      console.log('[listUsers] page:', page, 'departments:', departments.length > 0 ? departments : 'none');
     }
 
-    if (error) {
-      console.error('[listUsers] Supabase error:', error);
+    // If no department filter, fetch all users
+    if (departments.length === 0) {
+      const { data: users, error, count } = await supabaseAdmin
+        .from('profiles')
+        .select('id, username, email, full_name, department, role, is_active', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('[listUsers] Supabase error:', error);
+        throw new Error('Failed to fetch users');
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: users,
+        pagination: {
+          page,
+          limit,
+          total: count,
+          has_more: offset + limit < count,
+        },
+      });
+    }
+
+    // Split departments into two groups: real departments and null filter
+    const realDepartments = departments.filter((d) => d !== '__NO_DEPARTMENT__');
+    const includeNoDepartment = departments.includes('__NO_DEPARTMENT__');
+
+    if (isDev) {
+      console.log('[listUsers] realDepartments:', realDepartments, 'includeNoDepartment:', includeNoDepartment);
+    }
+
+    // Case 1: Only "__NO_DEPARTMENT__" selected
+    if (realDepartments.length === 0 && includeNoDepartment) {
+      const { data: users, error, count } = await supabaseAdmin
+        .from('profiles')
+        .select('id, username, email, full_name, department, role, is_active', { count: 'exact' })
+        .is('department', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('[listUsers] Supabase error:', error);
+        throw new Error('Failed to fetch users');
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: users,
+        pagination: {
+          page,
+          limit,
+          total: count,
+          has_more: offset + limit < count,
+        },
+      });
+    }
+
+    // Case 2: Only real departments selected (no "__NO_DEPARTMENT__")
+    if (realDepartments.length > 0 && !includeNoDepartment) {
+      let query = supabaseAdmin
+        .from('profiles')
+        .select('id, username, email, full_name, department, role, is_active', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (realDepartments.length === 1) {
+        query = query.eq('department', realDepartments[0]);
+      } else {
+        query = query.in('department', realDepartments);
+      }
+
+      const { data: users, error, count } = await query;
+
+      if (error) {
+        console.error('[listUsers] Supabase error:', error);
+        throw new Error('Failed to fetch users');
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: users,
+        pagination: {
+          page,
+          limit,
+          total: count,
+          has_more: offset + limit < count,
+        },
+      });
+    }
+
+    // Case 3: Mix of real departments + "__NO_DEPARTMENT__"
+    // We need to fetch both groups and combine them (Supabase doesn't support OR with null easily)
+    const { data: usersWithDept, error: error1 } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, email, full_name, department, role, is_active')
+      .in('department', realDepartments)
+      .order('created_at', { ascending: false });
+
+    const { data: usersNoDept, error: error2 } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, email, full_name, department, role, is_active')
+      .is('department', null)
+      .order('created_at', { ascending: false });
+
+    if (error1 || error2) {
+      console.error('[listUsers] Supabase error:', error1 || error2);
       throw new Error('Failed to fetch users');
+    }
+
+    // Combine and remove duplicates
+    const allUsers = [...(usersWithDept || []), ...(usersNoDept || [])];
+    const uniqueUsers = Array.from(new Map(allUsers.map((u) => [u.id, u])).values()).sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    const total = uniqueUsers.length;
+    const paginatedUsers = uniqueUsers.slice(offset, offset + limit);
+
+    if (isDev) {
+      console.log('[listUsers] total matched:', total, 'returning:', paginatedUsers.length);
     }
 
     res.status(200).json({
       success: true,
-      data: users,
+      data: paginatedUsers,
       pagination: {
         page,
         limit,
-        total: count,
-        has_more: offset + limit < count,
+        total,
+        has_more: offset + limit < total,
       },
     });
   } catch (err) {
@@ -380,6 +487,78 @@ export const deleteTeam = async (req, res) => {
   }
 };
 
+/// --- GET USER PROFILE BY ID ---
+export const getUserProfile = async (req, res) => {
+  const { userId } = req.params;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: 'User ID is required.',
+    });
+  }
+
+  try {
+    const { data: user, error } = await supabaseAdmin
+      .from('profiles')
+      .select(
+        `
+        id,
+        email,
+        username,
+        full_name,
+        role,
+        created_at,
+        updated_at,
+        department,
+        manager_id,
+        current_team_id,
+        previous_team_id,
+        team_status,
+        team_status_changed_by,
+        team_status_changed_at,
+        is_active
+      `
+      )
+      .eq('id', userId)
+      .single();
+
+    if (isDev) {
+      console.log('[getUserProfile] userId:', userId);
+    }
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found.',
+        });
+      }
+      console.error('[getUserProfile] Supabase error:', error);
+      throw new Error('Failed to fetch user');
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (err) {
+    console.error('[getUserProfile] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch user profile.',
+    });
+  }
+};
+
 // --- ADD USER TO TEAM ---
 export const addUserToTeam = async (req, res) => {
   const { teamId } = req.params;
@@ -527,6 +706,13 @@ export const updateUserTeamStatus = async (req, res) => {
   }
 };
 
+
+
+// 
+// 
+// 
+// 
+// 
 // --- ADMIN: GET A USER'S CONVERSATIONS BY ID ---
 export const getUserConversations = async (req, res) => {
   const { userId } = req.params;
@@ -619,6 +805,11 @@ export const getUserConversations = async (req, res) => {
   }
 };
 
+// 
+// 
+// 
+// 
+// 
 // --- ADMIN: GET ANY CONVERSATION'S FULL DETAILS + MESSAGES (bypasses participant check) ---
 export const getAnyConversation = async (req, res) => {
   const { conversationId } = req.params;

@@ -18,6 +18,7 @@ import ChangePassword from "./pages/auth/ChangePassword";
 import { WebSocketProvider } from "./websocket/WebSocketProvider";
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
+import UserDetails from "./pages/admin/UserDetails";
 
 function App() {
   return (
@@ -123,6 +124,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminUsers />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin User Details */}
+          <Route
+            path="/admin/users/:userId"
+            element={
+              <ProtectedRoute>
+                <UserDetails />
               </ProtectedRoute>
             }
           />
