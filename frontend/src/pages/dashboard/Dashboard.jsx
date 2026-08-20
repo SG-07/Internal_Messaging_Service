@@ -1,9 +1,10 @@
-// frontend/src/pages/dashboard/dashboard.jsx
+// frontend/src/pages/dashboard/Dashboard.jsx
 
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { getConversations } from '../../api/conversations';
+import { useWebSocket } from '../../websocket/WebSocketProvider';
 
 import DashboardSidebar from './DashboardSidebar';
 import ConversationList from './ConversationList';
@@ -12,18 +13,31 @@ function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { lastMessage } = useWebSocket();
+
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const searchResult = location.state?.searchResult || null;
-  const searchQuery = location.state?.searchQuery || '';
+  const searchResult =
+    location.state?.searchResult || null;
 
+  const searchQuery =
+    location.state?.searchQuery || '';
+
+  /*
+   * Load Dashboard conversations.
+   *
+   * This only runs when:
+   * 1. Dashboard initially loads
+   * 2. Search results are passed through navigation state
+   *
+   * WebSocket updates do NOT call this API again.
+   */
   useEffect(() => {
     async function loadDashboard() {
       /*
-       * If Dashboard was opened with a search result,
-       * show the search result instead of loading inbox.
+       * Search mode.
        */
       if (searchResult) {
         console.log(
@@ -44,7 +58,7 @@ function Dashboard() {
       }
 
       /*
-       * No search result means normal inbox.
+       * Normal inbox mode.
        */
       try {
         setLoading(true);
@@ -86,6 +100,260 @@ function Dashboard() {
     loadDashboard();
   }, [searchResult]);
 
+  /*
+   * Handle real-time WebSocket events.
+   */
+  useEffect(() => {
+    if (!lastMessage) {
+      return;
+    }
+
+    /*
+     * Do not modify search results with live inbox events.
+     */
+    if (searchResult) {
+      console.log(
+        '[Dashboard] Search mode active. Ignoring WebSocket update.'
+      );
+
+      return;
+    }
+
+    console.group(
+      '[Dashboard] WebSocket event received'
+    );
+
+    console.log(
+      '[Dashboard] Full payload:',
+      lastMessage
+    );
+
+    console.log(
+      '[Dashboard] Event type:',
+      lastMessage.type
+    );
+
+    console.log(
+      '[Dashboard] Conversation ID:',
+      lastMessage.conversationId
+    );
+
+    console.groupEnd();
+
+    /*
+     * --------------------------------------------------
+     * NEW MESSAGE
+     * --------------------------------------------------
+     *
+     * We receive the latest message here.
+     *
+     * We don't have enough conversation information to
+     * create a complete Dashboard conversation object.
+     *
+     * The next `conversation_updated` event will provide
+     * the conversation metadata.
+     *
+     * Therefore we only log this event for now.
+     */
+    if (lastMessage.type === 'new_message') {
+      console.group(
+        '[Dashboard] New message received'
+      );
+
+      console.log(
+        '[Dashboard] Message:',
+        lastMessage.message
+      );
+
+      console.log(
+        '[Dashboard] Message content:',
+        lastMessage.message?.content
+      );
+
+      console.log(
+        '[Dashboard] Sender ID:',
+        lastMessage.message?.sender_id
+      );
+
+      console.log(
+        '[Dashboard] Created at:',
+        lastMessage.message?.created_at
+      );
+
+      console.log(
+        '[Dashboard] Conversation ID:',
+        lastMessage.conversationId
+      );
+
+      console.groupEnd();
+
+      return;
+    }
+
+    /*
+     * --------------------------------------------------
+     * CONVERSATION UPDATED
+     * --------------------------------------------------
+     *
+     * Example payload:
+     *
+     * {
+     *   type: "conversation_updated",
+     *   conversationId: "...",
+     *   conversation: {
+     *     id: "...",
+     *     subject: "...",
+     *     category: "...",
+     *     created_by: "...",
+     *     updated_at: "...",
+     *     conversation_type: "direct"
+     *   }
+     * }
+     *
+     * We use this to update the Dashboard state locally.
+     */
+    if (
+      lastMessage.type === 'conversation_updated' &&
+      lastMessage.conversation
+    ) {
+      const conversationId =
+        lastMessage.conversationId;
+
+      const updatedConversation =
+        lastMessage.conversation;
+
+      console.group(
+        '[Dashboard] Updating conversation locally'
+      );
+
+      console.log(
+        '[Dashboard] Incoming conversation:',
+        updatedConversation
+      );
+
+      console.log(
+        '[Dashboard] Conversation ID:',
+        conversationId
+      );
+
+      console.log(
+        '[Dashboard] Subject:',
+        updatedConversation.subject
+      );
+
+      console.log(
+        '[Dashboard] Category:',
+        updatedConversation.category
+      );
+
+      console.log(
+        '[Dashboard] Updated at:',
+        updatedConversation.updated_at
+      );
+
+      console.groupEnd();
+
+      setConversations((previousConversations) => {
+        /*
+         * Check whether this conversation already exists
+         * in the Dashboard list.
+         */
+        const existingConversation =
+          previousConversations.find(
+            (conversation) =>
+              conversation.id === conversationId
+          );
+
+        /*
+         * Remove the conversation from its old position.
+         *
+         * If this is a new conversation, nothing will
+         * be removed.
+         */
+        const remainingConversations =
+          previousConversations.filter(
+            (conversation) =>
+              conversation.id !== conversationId
+          );
+
+        /*
+         * Merge existing Dashboard-specific fields with
+         * the new WebSocket conversation data.
+         *
+         * Existing object contains fields such as:
+         *
+         * - created_by_name
+         * - created_by_email
+         * - other_user_name
+         * - other_user_email
+         * - is_sender
+         *
+         * The WebSocket event does not currently provide
+         * these fields.
+         */
+        const mergedConversation = {
+          ...existingConversation,
+          ...updatedConversation,
+
+          /*
+           * Dashboard uses `type`.
+           * WebSocket payload uses `conversation_type`.
+           */
+          type:
+            updatedConversation.conversation_type ||
+            existingConversation?.type,
+
+          id: conversationId,
+        };
+
+        console.group(
+          '[Dashboard] Conversation state update'
+        );
+
+        console.log(
+          '[Dashboard] Existing conversation:',
+          existingConversation
+        );
+
+        console.log(
+          '[Dashboard] Merged conversation:',
+          mergedConversation
+        );
+
+        console.log(
+          '[Dashboard] Was already in Dashboard:',
+          Boolean(existingConversation)
+        );
+
+        console.groupEnd();
+
+        /*
+         * Put the updated conversation at the top.
+         */
+        const nextConversations = [
+          mergedConversation,
+          ...remainingConversations,
+        ];
+
+        /*
+         * Keep only the latest 15 conversations,
+         * matching the current Dashboard API behavior.
+         */
+        return nextConversations.slice(0, 15);
+      });
+
+      return;
+    }
+
+    /*
+     * Unknown WebSocket event.
+     */
+    console.log(
+      '[Dashboard] No handler for WebSocket event type:',
+      lastMessage.type
+    );
+  }, [lastMessage, searchResult]);
+
   function openConversation(conversationId) {
     console.log(
       '[Dashboard] Opening conversation:',
@@ -99,11 +367,11 @@ function Dashboard() {
     navigate('/compose');
   }
 
-  const isSearchMode = Boolean(searchResult);
+  const isSearchMode =
+    Boolean(searchResult);
 
   return (
     <div className="min-h-screen bg-gray-100">
-
       <main className="mx-auto flex max-w-7xl gap-6 px-6 py-6 pb-8">
 
         <DashboardSidebar
@@ -155,11 +423,9 @@ function Dashboard() {
           {!loading && error && (
             <div className="flex flex-1 items-center justify-center px-6 py-12">
               <div className="text-center">
-
                 <p className="text-sm text-red-600">
                   {error}
                 </p>
-
               </div>
             </div>
           )}

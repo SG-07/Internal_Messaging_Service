@@ -1,4 +1,3 @@
-// backend/src/websocket/wsServer.js
 import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 import cookie from 'cookie';
@@ -35,12 +34,10 @@ export function initWebSocket(httpServer) {
 
 export function broadcastToUsers(userIds, payload) {
   const message = JSON.stringify(payload);
-  console.log('[WS] Broadcasting to', userIds.length, 'users:', JSON.stringify(payload).substring(0, 100));
   userIds.forEach((id) => {
     clients.get(id)?.forEach((ws) => {
       if (ws.readyState === 1) {
         ws.send(message);
-        console.log('[WS] Message sent to user:', id);
       }
     });
   });
