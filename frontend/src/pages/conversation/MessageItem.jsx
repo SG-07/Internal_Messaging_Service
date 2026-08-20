@@ -5,24 +5,41 @@ function MessageItem({
   currentUserId,
   isOriginal,
 }) {
-  const senderId = message?.sender_id;
+  const senderId =
+    message?.sender_id;
 
   const isOwnMessage =
     Boolean(currentUserId) &&
     Boolean(senderId) &&
-    senderId === currentUserId;
+    String(senderId) ===
+      String(currentUserId);
 
+  /*
+   * WebSocket payload:
+   *
+   * sender_name
+   * sender_email
+   *
+   * API-loaded messages may also contain these fields.
+   */
   const senderName =
-    message?.sender_name || 'Unknown user';
+    message?.sender_name ||
+    message?.sender_email ||
+    'Unknown user';
 
   function formatDate(value) {
     if (!value) {
       return '—';
     }
 
-    const date = new Date(value);
+    const date =
+      new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
       return '—';
     }
 
@@ -38,7 +55,6 @@ function MessageItem({
           : 'border-gray-200 bg-white',
       ].join(' ')}
     >
-      {/* Message Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -54,26 +70,36 @@ function MessageItem({
               </span>
             )}
           </div>
+
+          {!isOwnMessage &&
+            message?.sender_email && (
+              <p className="mt-1 text-xs text-gray-400">
+                {message.sender_email}
+              </p>
+            )}
         </div>
 
         <time
           dateTime={
-            message?.created_at || undefined
+            message?.created_at ||
+            undefined
           }
           className="shrink-0 text-xs text-gray-500"
         >
-          {formatDate(message?.created_at)}
+          {formatDate(
+            message?.created_at
+          )}
         </time>
       </div>
 
-      {/* Message Body */}
       <div className="mt-4">
         <p className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">
-          {message?.content || ''}
+          {message?.content ||
+            message?.body ||
+            ''}
         </p>
       </div>
 
-      {/* Message Footer */}
       <div className="mt-4 flex items-center gap-2">
         {message?.is_read === false && (
           <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">

@@ -1,5 +1,3 @@
-// frontend/src/pages/dashboard/Dashboard.jsx
-
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
@@ -26,24 +24,22 @@ function Dashboard() {
     location.state?.searchQuery || '';
 
   /*
-   * Load Dashboard conversations.
-   *
-   * This only runs when:
-   * 1. Dashboard initially loads
-   * 2. Search results are passed through navigation state
-   *
-   * WebSocket updates do NOT call this API again.
+   * --------------------------------------------------
+   * Load Dashboard conversations
+   * --------------------------------------------------
    */
   useEffect(() => {
     async function loadDashboard() {
       /*
-       * Search mode.
+       * Search mode
        */
       if (searchResult) {
-        console.log(
-          '[Dashboard] Showing search results:',
-          searchResult
-        );
+        if (import.meta.env.DEV) {
+          console.log(
+            '[Dashboard] Showing search results:',
+            searchResult
+          );
+        }
 
         setLoading(false);
         setError('');
@@ -58,22 +54,26 @@ function Dashboard() {
       }
 
       /*
-       * Normal inbox mode.
+       * Normal inbox mode
        */
       try {
         setLoading(true);
         setError('');
 
-        console.log(
-          '[Dashboard] Fetching normal conversations...'
-        );
+        if (import.meta.env.DEV) {
+          console.log(
+            '[Dashboard] Fetching normal conversations...'
+          );
+        }
 
         const data = await getConversations();
 
-        console.log(
-          '[Dashboard] Conversations received:',
-          data
-        );
+        if (import.meta.env.DEV) {
+          console.log(
+            '[Dashboard] Conversations received:',
+            data
+          );
+        }
 
         setConversations(
           Array.isArray(data)
@@ -101,7 +101,9 @@ function Dashboard() {
   }, [searchResult]);
 
   /*
-   * Handle real-time WebSocket events.
+   * --------------------------------------------------
+   * Handle real-time WebSocket events
+   * --------------------------------------------------
    */
   useEffect(() => {
     if (!lastMessage) {
@@ -109,75 +111,31 @@ function Dashboard() {
     }
 
     /*
-     * Do not modify search results with live inbox events.
+     * Do not modify search results.
      */
     if (searchResult) {
-      console.log(
-        '[Dashboard] Search mode active. Ignoring WebSocket update.'
-      );
+      if (import.meta.env.DEV) {
+        console.log(
+          '[Dashboard] Search mode active. Ignoring WebSocket update.'
+        );
+      }
 
       return;
     }
 
-    console.group(
-      '[Dashboard] WebSocket event received'
-    );
-
-    console.log(
-      '[Dashboard] Full payload:',
-      lastMessage
-    );
-
-    console.log(
-      '[Dashboard] Event type:',
-      lastMessage.type
-    );
-
-    console.log(
-      '[Dashboard] Conversation ID:',
-      lastMessage.conversationId
-    );
-
-    console.groupEnd();
-
-    /*
-     * --------------------------------------------------
-     * NEW MESSAGE
-     * --------------------------------------------------
-     *
-     * We receive the latest message here.
-     *
-     * We don't have enough conversation information to
-     * create a complete Dashboard conversation object.
-     *
-     * The next `conversation_updated` event will provide
-     * the conversation metadata.
-     *
-     * Therefore we only log this event for now.
-     */
-    if (lastMessage.type === 'new_message') {
+    if (import.meta.env.DEV) {
       console.group(
-        '[Dashboard] New message received'
+        '[Dashboard] WebSocket event received'
       );
 
       console.log(
-        '[Dashboard] Message:',
-        lastMessage.message
+        '[Dashboard] Full payload:',
+        lastMessage
       );
 
       console.log(
-        '[Dashboard] Message content:',
-        lastMessage.message?.content
-      );
-
-      console.log(
-        '[Dashboard] Sender ID:',
-        lastMessage.message?.sender_id
-      );
-
-      console.log(
-        '[Dashboard] Created at:',
-        lastMessage.message?.created_at
+        '[Dashboard] Event type:',
+        lastMessage.type
       );
 
       console.log(
@@ -186,6 +144,99 @@ function Dashboard() {
       );
 
       console.groupEnd();
+    }
+
+    /*
+     * --------------------------------------------------
+     * NEW MESSAGE
+     * --------------------------------------------------
+     *
+     * Backend now sends:
+     *
+     * {
+     *   type: "new_message",
+     *   conversationId: "...",
+     *   conversation: {...},
+     *   message: {...}
+     * }
+     *
+     * Therefore we can immediately create or update
+     * the Dashboard conversation.
+     */
+    if (
+      lastMessage.type === 'new_message' &&
+      lastMessage.conversation
+    ) {
+      const incomingConversation =
+        lastMessage.conversation;
+
+      const incomingMessage =
+        lastMessage.message || null;
+
+      const conversationId =
+        lastMessage.conversationId ||
+        incomingConversation.id ||
+        incomingMessage?.conversation_id;
+
+      if (!conversationId) {
+        console.warn(
+          '[Dashboard] new_message received without conversation ID:',
+          lastMessage
+        );
+
+        return;
+      }
+
+      setConversations((previousConversations) => {
+        const existingConversation =
+          previousConversations.find(
+            (conversation) =>
+              String(conversation.id) ===
+              String(conversationId)
+          );
+
+        const remainingConversations =
+          previousConversations.filter(
+            (conversation) =>
+              String(conversation.id) !==
+              String(conversationId)
+          );
+
+        const mergedConversation = {
+          ...existingConversation,
+          ...incomingConversation,
+
+          id: conversationId,
+
+          type:
+            incomingConversation.type ||
+            incomingConversation.conversation_type ||
+            existingConversation?.type ||
+            'direct',
+
+          latest_message:
+            incomingMessage ||
+            existingConversation?.latest_message ||
+            null,
+
+          updated_at:
+            incomingMessage?.created_at ||
+            incomingConversation.updated_at ||
+            existingConversation?.updated_at,
+        };
+
+        if (import.meta.env.DEV) {
+          console.log(
+            '[Dashboard] Adding/updating conversation from new_message:',
+            mergedConversation
+          );
+        }
+
+        return [
+          mergedConversation,
+          ...remainingConversations,
+        ].slice(0, 15);
+      });
 
       return;
     }
@@ -194,172 +245,83 @@ function Dashboard() {
      * --------------------------------------------------
      * CONVERSATION UPDATED
      * --------------------------------------------------
-     *
-     * Example payload:
-     *
-     * {
-     *   type: "conversation_updated",
-     *   conversationId: "...",
-     *   conversation: {
-     *     id: "...",
-     *     subject: "...",
-     *     category: "...",
-     *     created_by: "...",
-     *     updated_at: "...",
-     *     conversation_type: "direct"
-     *   }
-     * }
-     *
-     * We use this to update the Dashboard state locally.
      */
     if (
       lastMessage.type === 'conversation_updated' &&
       lastMessage.conversation
     ) {
-      const conversationId =
-        lastMessage.conversationId;
-
-      const updatedConversation =
+      const incomingConversation =
         lastMessage.conversation;
 
-      console.group(
-        '[Dashboard] Updating conversation locally'
-      );
+      const conversationId =
+        lastMessage.conversationId ||
+        incomingConversation.id;
 
-      console.log(
-        '[Dashboard] Incoming conversation:',
-        updatedConversation
-      );
+      if (!conversationId) {
+        console.warn(
+          '[Dashboard] conversation_updated received without ID:',
+          lastMessage
+        );
 
-      console.log(
-        '[Dashboard] Conversation ID:',
-        conversationId
-      );
-
-      console.log(
-        '[Dashboard] Subject:',
-        updatedConversation.subject
-      );
-
-      console.log(
-        '[Dashboard] Category:',
-        updatedConversation.category
-      );
-
-      console.log(
-        '[Dashboard] Updated at:',
-        updatedConversation.updated_at
-      );
-
-      console.groupEnd();
+        return;
+      }
 
       setConversations((previousConversations) => {
-        /*
-         * Check whether this conversation already exists
-         * in the Dashboard list.
-         */
         const existingConversation =
           previousConversations.find(
             (conversation) =>
-              conversation.id === conversationId
+              String(conversation.id) ===
+              String(conversationId)
           );
 
-        /*
-         * Remove the conversation from its old position.
-         *
-         * If this is a new conversation, nothing will
-         * be removed.
-         */
         const remainingConversations =
           previousConversations.filter(
             (conversation) =>
-              conversation.id !== conversationId
+              String(conversation.id) !==
+              String(conversationId)
           );
 
-        /*
-         * Merge existing Dashboard-specific fields with
-         * the new WebSocket conversation data.
-         *
-         * Existing object contains fields such as:
-         *
-         * - created_by_name
-         * - created_by_email
-         * - other_user_name
-         * - other_user_email
-         * - is_sender
-         *
-         * The WebSocket event does not currently provide
-         * these fields.
-         */
         const mergedConversation = {
           ...existingConversation,
-          ...updatedConversation,
-
-          /*
-           * Dashboard uses `type`.
-           * WebSocket payload uses `conversation_type`.
-           */
-          type:
-            updatedConversation.conversation_type ||
-            existingConversation?.type,
+          ...incomingConversation,
 
           id: conversationId,
+
+          type:
+            incomingConversation.type ||
+            incomingConversation.conversation_type ||
+            existingConversation?.type ||
+            'direct',
+
+          latest_message:
+            incomingConversation.latest_message ||
+            existingConversation?.latest_message ||
+            null,
         };
 
-        console.group(
-          '[Dashboard] Conversation state update'
-        );
-
-        console.log(
-          '[Dashboard] Existing conversation:',
-          existingConversation
-        );
-
-        console.log(
-          '[Dashboard] Merged conversation:',
-          mergedConversation
-        );
-
-        console.log(
-          '[Dashboard] Was already in Dashboard:',
-          Boolean(existingConversation)
-        );
-
-        console.groupEnd();
-
-        /*
-         * Put the updated conversation at the top.
-         */
-        const nextConversations = [
+        return [
           mergedConversation,
           ...remainingConversations,
-        ];
-
-        /*
-         * Keep only the latest 15 conversations,
-         * matching the current Dashboard API behavior.
-         */
-        return nextConversations.slice(0, 15);
+        ].slice(0, 15);
       });
 
       return;
     }
 
-    /*
-     * Unknown WebSocket event.
-     */
-    console.log(
-      '[Dashboard] No handler for WebSocket event type:',
-      lastMessage.type
-    );
+    if (import.meta.env.DEV) {
+      console.log(
+        '[Dashboard] No handler for event:',
+        lastMessage.type
+      );
+    }
   }, [lastMessage, searchResult]);
 
+  /*
+   * --------------------------------------------------
+   * Navigation
+   * --------------------------------------------------
+   */
   function openConversation(conversationId) {
-    console.log(
-      '[Dashboard] Opening conversation:',
-      conversationId
-    );
-
     navigate(`/conversation/${conversationId}`);
   }
 
@@ -373,16 +335,12 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-100">
       <main className="mx-auto flex max-w-7xl gap-6 px-6 py-6 pb-8">
-
         <DashboardSidebar
           onCompose={openCompose}
         />
 
         <section className="flex min-h-[calc(100vh-130px)] min-w-0 flex-1 flex-col rounded-xl bg-white shadow">
-
-          {/* Section Header */}
           <div className="shrink-0 border-b px-6 py-5">
-
             {isSearchMode ? (
               <>
                 <h2 className="text-xl font-semibold text-gray-900">
@@ -407,10 +365,8 @@ function Dashboard() {
                 </p>
               </>
             )}
-
           </div>
 
-          {/* Loading */}
           {loading && (
             <div className="flex flex-1 items-center justify-center px-6 py-12">
               <p className="text-sm text-gray-500">
@@ -419,25 +375,20 @@ function Dashboard() {
             </div>
           )}
 
-          {/* Error */}
           {!loading && error && (
             <div className="flex flex-1 items-center justify-center px-6 py-12">
-              <div className="text-center">
-                <p className="text-sm text-red-600">
-                  {error}
-                </p>
-              </div>
+              <p className="text-sm text-red-600">
+                {error}
+              </p>
             </div>
           )}
 
-          {/* Empty Search Result */}
           {!loading &&
             !error &&
             isSearchMode &&
             conversations.length === 0 && (
               <div className="flex flex-1 items-center justify-center px-6 py-16">
                 <div className="text-center">
-
                   <h3 className="text-lg font-semibold text-gray-900">
                     No conversations found
                   </h3>
@@ -448,19 +399,16 @@ function Dashboard() {
                       {searchQuery}
                     </span>.
                   </p>
-
                 </div>
               </div>
             )}
 
-          {/* Empty Inbox */}
           {!loading &&
             !error &&
             !isSearchMode &&
             conversations.length === 0 && (
               <div className="flex flex-1 items-center justify-center px-6 py-16">
                 <div className="text-center">
-
                   <h3 className="text-lg font-semibold text-gray-900">
                     No conversations yet
                   </h3>
@@ -476,12 +424,10 @@ function Dashboard() {
                   >
                     Compose Your First Message
                   </button>
-
                 </div>
               </div>
             )}
 
-          {/* Conversations */}
           {!loading &&
             !error &&
             conversations.length > 0 && (
@@ -490,7 +436,6 @@ function Dashboard() {
                 onConversationClick={openConversation}
               />
             )}
-
         </section>
       </main>
     </div>

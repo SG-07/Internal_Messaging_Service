@@ -1,4 +1,3 @@
-// frontend/src/websocket/websocket.js
 const WS_BASE_URL = import.meta.env.VITE_WS_URL;
 
 export function createWebSocket({
@@ -9,7 +8,7 @@ export function createWebSocket({
 }) {
   if (!WS_BASE_URL) {
     throw new Error(
-      "VITE_WS_URL is not configured."
+      'VITE_WS_URL is not configured.'
     );
   }
 
@@ -17,7 +16,7 @@ export function createWebSocket({
 
   socket.onopen = () => {
     if (import.meta.env.DEV) {
-      console.log("[WebSocket] Connected");
+      console.log('[WebSocket] Connected');
     }
 
     onOpen?.();
@@ -25,20 +24,34 @@ export function createWebSocket({
 
   socket.onmessage = (event) => {
     try {
-      console.log('[WebSocket] Raw event.data:', event.data);
+      console.log(
+        '[WebSocket] Raw event.data:',
+        event.data
+      );
+
       const message = JSON.parse(event.data);
 
       if (import.meta.env.DEV) {
         console.log(
-          "[WebSocket] Received:",
+          '[WebSocket] Received:',
           message
         );
       }
 
+      /*
+       * Pass the complete backend payload through.
+       *
+       * Do NOT remove or transform:
+       * - conversation
+       * - message
+       * - sender_name
+       * - sender_email
+       * - conversation metadata
+       */
       onMessage?.(message);
     } catch (error) {
       console.error(
-        "[WebSocket] Invalid message:",
+        '[WebSocket] Invalid message:',
         error
       );
     }
@@ -46,8 +59,8 @@ export function createWebSocket({
 
   socket.onerror = (error) => {
     if (import.meta.env.DEV) {
-      console.log(
-        "[WebSocket] Error:",
+      console.error(
+        '[WebSocket] Error:',
         error
       );
     }
@@ -58,7 +71,7 @@ export function createWebSocket({
   socket.onclose = (event) => {
     if (import.meta.env.DEV) {
       console.log(
-        "[WebSocket] Closed:",
+        '[WebSocket] Closed:',
         event.code,
         event.reason
       );

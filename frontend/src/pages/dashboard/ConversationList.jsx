@@ -1,5 +1,3 @@
-// frontend/src/pages/dashboard/ConversationList.jsx
-
 import ConversationListItem from './ConversationListItem';
 
 function ConversationList({
@@ -7,7 +5,7 @@ function ConversationList({
   onConversationClick,
 }) {
   if (
-    !conversations ||
+    !Array.isArray(conversations) ||
     conversations.length === 0
   ) {
     return null;

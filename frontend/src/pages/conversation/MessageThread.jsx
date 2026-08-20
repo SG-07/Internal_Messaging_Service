@@ -1,5 +1,4 @@
 // frontend/src/pages/conversation/MessageThread.jsx
-
 import MessageItem from './MessageItem';
 
 function MessageThread({
