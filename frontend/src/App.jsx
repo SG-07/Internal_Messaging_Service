@@ -1,3 +1,4 @@
+// frontend/src/App.jsx
 import React from "react";
 import { Navigate, Route, Routes } from "react-router";
 
@@ -15,6 +16,8 @@ import TeamEdit from "./pages/admin/teams/TeamEdit";
 import PublicOnlyRoute from "./component/PublicOnlyRoute";
 import ChangePassword from "./pages/auth/ChangePassword";
 import { WebSocketProvider } from "./websocket/WebSocketProvider";
+import PendingWorkflows from "./pages/workflows/PendingWorkflows";
+import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 
 function App() {
   return (
@@ -24,15 +27,7 @@ function App() {
 
         <Routes>
           {/* Default */}
-          <Route
-            path="/"
-            element={
-              <Navigate
-                to="/dashboard"
-                replace
-              />
-            }
-          />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           {/* Authentication */}
           <Route
@@ -78,6 +73,26 @@ function App() {
             element={
               <ProtectedRoute>
                 <Sent />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Workflow - Pending */}
+          <Route
+            path="/dashboard/workflows/pending"
+            element={
+              <ProtectedRoute>
+                <PendingWorkflows />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Workflow - My Requests */}
+          <Route
+            path="/dashboard/workflows/mine"
+            element={
+              <ProtectedRoute>
+                <MyWorkflowRequests />
               </ProtectedRoute>
             }
           />

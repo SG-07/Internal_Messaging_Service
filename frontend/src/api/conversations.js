@@ -134,3 +134,21 @@ export async function getSentConversations(page = 1) {
 
   return response;
 }
+
+// Get workflow items awaiting the current user's response
+export async function getPendingWorkflows(page = 1) {
+  const response = await request(
+    `/api/conversations/workflow/pending?page=${page}`
+  );
+
+  return response;
+}
+
+// Get workflow requests created by the current user
+export async function getMyWorkflowRequests(page = 1) {
+  const response = await request(
+    `/api/conversations/workflow/mine?page=${page}`
+  );
+
+  return response;
+}

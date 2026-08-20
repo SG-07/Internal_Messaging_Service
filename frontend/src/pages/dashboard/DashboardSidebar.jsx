@@ -1,3 +1,4 @@
+// frontend/src/pages/dashboard/DashboardSidebar.jsx
 import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../context/AuthContext';
@@ -16,8 +17,11 @@ function DashboardSidebar({ onCompose }) {
   const isSent =
     location.pathname === '/dashboard/sent';
 
-  const isDrafts =
-    location.pathname === '/dashboard/drafts';
+  const isPendingWorkflows =
+    location.pathname === '/dashboard/workflows/pending';
+
+  const isMyWorkflowRequests =
+    location.pathname === '/dashboard/workflows/mine';
 
   const isAdminUsers =
     location.pathname === '/admin/users';
@@ -66,16 +70,41 @@ function DashboardSidebar({ onCompose }) {
           Sent
         </button>
 
-        {/* All Mail
-        <button
-          type="button"
-          onClick={() => navigate('/dashboard/drafts')}
-          className={getNavClass(isDrafts)}
-        >
-          Drafts
-        </button> */}
-
       </nav>
+
+      {/* Workflow Navigation */}
+      <div className="mt-8">
+
+        <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          Workflows
+        </p>
+
+        <nav className="space-y-1">
+
+          {/* Pending Workflows */}
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/dashboard/workflows/pending')
+            }
+            className={getNavClass(isPendingWorkflows)}
+          >
+            Pending Workflows
+          </button>
+
+          {/* My Workflow Requests */}
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/dashboard/workflows/mine')
+            }
+            className={getNavClass(isMyWorkflowRequests)}
+          >
+            My Workflow Requests
+          </button>
+
+        </nav>
+      </div>
 
       {/* Admin Navigation */}
       {isAdmin && (
