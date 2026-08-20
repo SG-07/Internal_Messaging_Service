@@ -14,14 +14,46 @@ export async function request(path, options = {}) {
 
   const data = await response.json().catch(() => null);
 
+  /*
+   * --------------------------------------------------
+   * Authentication failure
+   * --------------------------------------------------
+   */
+  if (response.status === 401) {
+    const isAuthEndpoint =
+      path.includes('/api/auth/login') ||
+      path.includes('/api/auth/signup');
+
+    if (!isAuthEndpoint) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[API Client] Authentication failed. Session may have expired:',
+          path
+        );
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('auth-expired')
+      );
+    }
+  }
+
+  /*
+   * --------------------------------------------------
+   * General API errors
+   * --------------------------------------------------
+   */
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       data?.message ||
         data?.error ||
         'Something went wrong. Please try again.'
     );
+
+    error.status = response.status;
+
+    throw error;
   }
 
   return data;
 }
-

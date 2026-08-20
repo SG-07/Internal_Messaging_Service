@@ -13,6 +13,11 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  /*
+   * --------------------------------------------------
+   * Load current authenticated user
+   * --------------------------------------------------
+   */
   async function loadUser() {
     try {
       const response = await getCurrentUser();
@@ -39,8 +44,37 @@ export function AuthProvider({ children }) {
     }
   }
 
+  /*
+   * --------------------------------------------------
+   * Initial authentication check
+   * --------------------------------------------------
+   */
   useEffect(() => {
     loadUser();
+  }, []);
+
+  useEffect(() => {
+    function handleAuthExpired() {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[AuthContext] Authentication expired or is no longer valid.'
+        );
+      }
+
+      setUser(null);
+    }
+
+    window.addEventListener(
+      'auth-expired',
+      handleAuthExpired
+    );
+
+    return () => {
+      window.removeEventListener(
+        'auth-expired',
+        handleAuthExpired
+      );
+    };
   }, []);
 
   return (
