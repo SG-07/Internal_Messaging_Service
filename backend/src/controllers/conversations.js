@@ -39,7 +39,8 @@ function buildWorkflow(conversation, currentUserId) {
   // is the requester and cannot respond.
   const isRequester = currentUserId === created_by;
 
-  // Only the recipient can respond while pending.
+  // Only the recipient can respond while NOT in a truly final state.
+  // MORE_INFO is NOT final - user can still update from MORE_INFO
   const canRespond = !isRequester && !isFinal;
 
   return {

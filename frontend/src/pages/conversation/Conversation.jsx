@@ -1,5 +1,3 @@
-// frontend/src/pages/conversation/Conversation.jsx
-
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
@@ -72,9 +70,15 @@ function Conversation() {
             "[Conversation] Initial messages:",
             data?.messages
           );
+
+          console.log(
+            "[Conversation] Initial workflow:",
+            data?.workflow
+          );
         }
 
         setConversation(data);
+
         setMessages(
           Array.isArray(data?.messages)
             ? data.messages
@@ -103,11 +107,60 @@ function Conversation() {
   }, [id]);
 
   // --------------------------------------------------
-  // Real-time WebSocket messages
+  // Update conversation from WebSocket payload
+  // --------------------------------------------------
+
+  function updateConversationFromWebSocket(
+    incomingConversation
+  ) {
+    if (!incomingConversation) {
+      return;
+    }
+
+    setConversation((previousConversation) => {
+      if (!previousConversation) {
+        return previousConversation;
+      }
+
+      /*
+       * Merge the new backend conversation data.
+       *
+       * Existing fields are preserved if the WebSocket
+       * payload does not include them.
+       *
+       * Most importantly, workflow is updated when the
+       * backend sends new workflow information.
+       */
+      return {
+        ...previousConversation,
+        ...incomingConversation,
+
+        workflow:
+          incomingConversation.workflow !== undefined
+            ? incomingConversation.workflow
+            : previousConversation.workflow,
+      };
+    });
+  }
+
+  // --------------------------------------------------
+  // Real-time WebSocket events
   // --------------------------------------------------
 
   useEffect(() => {
     if (!lastMessage) {
+      return;
+    }
+
+    const eventConversationId =
+      lastMessage.conversationId ||
+      lastMessage.conversation?.id ||
+      lastMessage.message?.conversation_id;
+
+    if (
+      String(eventConversationId) !==
+      String(id)
+    ) {
       return;
     }
 
@@ -117,36 +170,101 @@ function Conversation() {
       );
 
       console.log(
-        "[Conversation] Full WebSocket payload:",
+        "[Conversation] Full payload:",
         lastMessage
-      );
-
-      console.log(
-        "[Conversation] Current conversation ID:",
-        id
-      );
-
-      console.log(
-        "[Conversation] Event conversation ID:",
-        lastMessage.conversationId
       );
 
       console.log(
         "[Conversation] Event type:",
         lastMessage.type
       );
+
+      console.log(
+        "[Conversation] Event conversation ID:",
+        eventConversationId
+      );
+
+      console.log(
+        "[Conversation] Incoming conversation:",
+        lastMessage.conversation
+      );
+
+      console.log(
+        "[Conversation] Incoming workflow:",
+        lastMessage.conversation?.workflow ||
+          lastMessage.workflow
+      );
     }
 
     // ----------------------------------------------
-    // We only care about new messages here.
+    // NEW MESSAGE
     // ----------------------------------------------
 
-    if (lastMessage.type !== "new_message") {
-      if (import.meta.env.DEV) {
-        console.log(
-          "[Conversation] Ignoring WebSocket event because it is not new_message."
-        );
+    if (lastMessage.type === "new_message") {
+      const incomingMessage =
+        lastMessage.message;
 
+      if (incomingMessage) {
+        setMessages((previousMessages) => {
+          const alreadyExists =
+            previousMessages.some(
+              (message) =>
+                String(message.id) ===
+                String(incomingMessage.id)
+            );
+
+          if (alreadyExists) {
+            if (import.meta.env.DEV) {
+              console.log(
+                "[Conversation] Duplicate message ignored:",
+                incomingMessage.id
+              );
+            }
+
+            return previousMessages;
+          }
+
+          if (import.meta.env.DEV) {
+            console.log(
+              "[Conversation] Adding WebSocket message:",
+              incomingMessage
+            );
+          }
+
+          return [
+            ...previousMessages,
+            incomingMessage,
+          ];
+        });
+      }
+
+      /*
+       * IMPORTANT:
+       *
+       * The backend may send updated conversation data
+       * together with the new message.
+       *
+       * This is where the ActionSection / ApprovalSection
+       * gets its new workflow state.
+       */
+      if (lastMessage.conversation) {
+        updateConversationFromWebSocket(
+          lastMessage.conversation
+        );
+      } else if (lastMessage.workflow) {
+        setConversation((previousConversation) => {
+          if (!previousConversation) {
+            return previousConversation;
+          }
+
+          return {
+            ...previousConversation,
+            workflow: lastMessage.workflow,
+          };
+        });
+      }
+
+      if (import.meta.env.DEV) {
         console.groupEnd();
       }
 
@@ -154,32 +272,32 @@ function Conversation() {
     }
 
     // ----------------------------------------------
-    // Ignore messages belonging to another
-    // conversation.
+    // CONVERSATION UPDATED
     // ----------------------------------------------
 
     if (
-      String(lastMessage.conversationId) !==
-      String(id)
+      lastMessage.type === "conversation_updated"
     ) {
-      if (import.meta.env.DEV) {
-        console.log(
-          "[Conversation] Ignoring message because it belongs to another conversation."
+      if (lastMessage.conversation) {
+        updateConversationFromWebSocket(
+          lastMessage.conversation
         );
+      } else if (lastMessage.workflow) {
+        setConversation((previousConversation) => {
+          if (!previousConversation) {
+            return previousConversation;
+          }
 
-        console.groupEnd();
+          return {
+            ...previousConversation,
+            workflow: lastMessage.workflow,
+          };
+        });
       }
 
-      return;
-    }
-
-    const incomingMessage =
-      lastMessage.message;
-
-    if (!incomingMessage) {
       if (import.meta.env.DEV) {
-        console.warn(
-          "[Conversation] new_message event has no message payload."
+        console.log(
+          "[Conversation] Conversation/workflow updated from WebSocket."
         );
 
         console.groupEnd();
@@ -190,73 +308,10 @@ function Conversation() {
 
     if (import.meta.env.DEV) {
       console.log(
-        "[Conversation] New message belongs to current conversation."
+        "[Conversation] No handler for event:",
+        lastMessage.type
       );
 
-      console.log(
-        "[Conversation] Incoming message:",
-        incomingMessage
-      );
-
-      console.log(
-        "[Conversation] Message ID:",
-        incomingMessage.id
-      );
-
-      console.log(
-        "[Conversation] Message content:",
-        incomingMessage.content
-      );
-
-      console.log(
-        "[Conversation] Message sender:",
-        incomingMessage.sender_id
-      );
-    }
-
-    // ----------------------------------------------
-    // Add message if it does not already exist.
-    //
-    // This is important because:
-    //
-    // 1. handleSendReply() adds the sent message
-    //    from the API response.
-    //
-    // 2. Backend also broadcasts new_message.
-    //
-    // Therefore the same message may arrive twice.
-    // ----------------------------------------------
-
-    setMessages((previousMessages) => {
-      const alreadyExists = previousMessages.some(
-        (message) =>
-          message.id === incomingMessage.id
-      );
-
-      if (alreadyExists) {
-        if (import.meta.env.DEV) {
-          console.log(
-            "[Conversation] Message already exists. Skipping duplicate:",
-            incomingMessage.id
-          );
-        }
-
-        return previousMessages;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log(
-          "[Conversation] Adding new WebSocket message to thread."
-        );
-      }
-
-      return [
-        ...previousMessages,
-        incomingMessage,
-      ];
-    });
-
-    if (import.meta.env.DEV) {
       console.groupEnd();
     }
   }, [lastMessage, id]);
@@ -271,7 +326,10 @@ function Conversation() {
 
       setMessages((previousMessages) =>
         previousMessages.map((message) => {
-          if (message.id !== messageId) {
+          if (
+            String(message.id) !==
+            String(messageId)
+          ) {
             return message;
           }
 
@@ -301,17 +359,6 @@ function Conversation() {
       body: content,
     };
 
-    if (import.meta.env.DEV) {
-      console.log(
-        "[Conversation] Sending reply:",
-        {
-          endpoint: `/api/conversations/${id}/messages`,
-          method: "POST",
-          payload,
-        }
-      );
-    }
-
     try {
       const response = await sendMessage(
         id,
@@ -325,41 +372,58 @@ function Conversation() {
         );
       }
 
-      const sentMessage = response?.data;
+      const sentMessage =
+        response?.data ||
+        response?.message;
 
       if (sentMessage) {
         const localMessage = {
-          id: sentMessage.message_id,
-          content: sentMessage.content,
-          body: sentMessage.content,
-          sender_id: sentMessage.sender_id,
-          sender_name: sentMessage.sender_name,
-          created_at: sentMessage.sent_at,
-        };
+          id:
+            sentMessage.id ||
+            sentMessage.message_id,
 
-        if (import.meta.env.DEV) {
-          console.log(
-            "[Conversation] Adding sent message locally:",
-            localMessage
-          );
-        }
+          content:
+            sentMessage.content ||
+            sentMessage.body ||
+            content,
+
+          body:
+            sentMessage.body ||
+            sentMessage.content ||
+            content,
+
+          sender_id:
+            sentMessage.sender_id,
+
+          sender_name:
+            sentMessage.sender_name,
+
+          sender_email:
+            sentMessage.sender_email,
+
+          created_at:
+            sentMessage.created_at ||
+            sentMessage.sent_at,
+
+          updated_at:
+            sentMessage.updated_at,
+
+          is_read:
+            sentMessage.is_read,
+
+          is_edited:
+            sentMessage.is_edited,
+        };
 
         setMessages((previousMessages) => {
           const alreadyExists =
             previousMessages.some(
               (message) =>
-                message.id ===
-                localMessage.id
+                String(message.id) ===
+                String(localMessage.id)
             );
 
           if (alreadyExists) {
-            if (import.meta.env.DEV) {
-              console.log(
-                "[Conversation] Sent message already exists. Skipping:",
-                localMessage.id
-              );
-            }
-
             return previousMessages;
           }
 
@@ -370,17 +434,35 @@ function Conversation() {
         });
       }
 
+      /*
+       * If the reply API also returns updated workflow,
+       * immediately use it.
+       */
+      const returnedWorkflow =
+        response?.workflow ||
+        response?.data?.workflow ||
+        response?.conversation?.workflow ||
+        response?.data?.conversation?.workflow;
+
+      if (returnedWorkflow) {
+        setConversation((previousConversation) => {
+          if (!previousConversation) {
+            return previousConversation;
+          }
+
+          return {
+            ...previousConversation,
+            workflow: returnedWorkflow,
+          };
+        });
+      }
+
       return response;
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error(
           "[Conversation] Failed to send reply:",
-          {
-            error: err,
-            endpoint: `/api/conversations/${id}/messages`,
-            method: "POST",
-            payload,
-          }
+          err
         );
       }
 
@@ -424,9 +506,12 @@ function Conversation() {
       {
         method: "PATCH",
         credentials: "include",
+
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type":
+            "application/json",
         },
+
         body: JSON.stringify(payload),
       }
     );
@@ -439,16 +524,10 @@ function Conversation() {
       data = null;
     }
 
-    if (import.meta.env.DEV) {
-      console.log(
-        "[Conversation] Workflow update response:",
-        data
-      );
-    }
-
     if (!response.ok) {
       throw new Error(
         data?.message ||
+          data?.detail ||
           "Unable to update workflow status."
       );
     }
@@ -471,24 +550,64 @@ function Conversation() {
       response?.data?.conversation?.workflow ||
       response?.conversation?.workflow;
 
+    /*
+     * Always prefer the backend workflow.
+     *
+     * Backend is responsible for:
+     *
+     * - can_respond
+     * - is_final
+     * - status
+     * - workflow_comment
+     */
     if (backendWorkflow) {
       return backendWorkflow;
     }
 
+    /*
+     * Fallback only when the backend PATCH response
+     * does not contain workflow data.
+     *
+     * MORE_INFO is NOT final.
+     *
+     * Action final statuses:
+     * - DONE
+     * - REJECTED
+     *
+     * Approval final statuses:
+     * - APPROVED
+     * - REJECTED
+     */
     const isAction =
       fallbackWorkflow?.type === "action";
 
     const isFinal = isAction
-      ? status === "DONE" ||
-        status === "REJECTED"
-      : status === "APPROVED" ||
-        status === "REJECTED";
+      ? [
+          "DONE",
+          "REJECTED",
+        ].includes(status)
+      : [
+          "APPROVED",
+          "REJECTED",
+        ].includes(status);
 
     return {
       ...fallbackWorkflow,
+
       status,
+
       is_final: isFinal,
-      can_respond: false,
+
+      /*
+       * Keep interaction enabled for non-final statuses.
+       *
+       * The next API/WebSocket update from the backend
+       * will provide the authoritative can_respond value.
+       */
+      can_respond:
+        isFinal
+          ? false
+          : fallbackWorkflow?.can_respond === true,
     };
   }
 
@@ -531,10 +650,13 @@ function Conversation() {
 
           return {
             ...previousConversation,
+
             workflow: updatedWorkflow,
+
             updated_at:
               response?.updated_at ||
               response?.data?.updated_at ||
+              response?.conversation?.updated_at ||
               previousConversation.updated_at,
           };
         }
@@ -592,10 +714,13 @@ function Conversation() {
 
           return {
             ...previousConversation,
+
             workflow: updatedWorkflow,
+
             updated_at:
               response?.updated_at ||
               response?.data?.updated_at ||
+              response?.conversation?.updated_at ||
               previousConversation.updated_at,
           };
         }
@@ -698,20 +823,26 @@ function Conversation() {
   const workflowComment =
     workflow?.workflow_comment || "";
 
+  /*
+   * Backend authorization is the primary check.
+   *
+   * We additionally prevent interaction when the
+   * workflow is marked final.
+   */
   const canRespond =
     workflow?.can_respond === true &&
     workflow?.is_final !== true;
 
   if (import.meta.env.DEV) {
     console.log(
-      "[Conversation] Workflow state:",
+      "[Conversation] Current workflow state:",
       {
-        category,
         workflow,
         workflowType,
         workflowStatus,
         workflowComment,
         canRespond,
+        isFinal: workflow?.is_final,
       }
     );
   }
@@ -720,14 +851,10 @@ function Conversation() {
     <div className="min-h-screen bg-gray-100">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col bg-white shadow-sm">
 
-        {/* Header */}
-
         <ConversationHeader
           subject={conversation.subject}
           category={category}
         />
-
-        {/* Conversation information */}
 
         <ConversationInfo
           conversation={conversation}
@@ -759,8 +886,6 @@ function Conversation() {
           />
         )}
 
-        {/* Follow-up */}
-
         <FollowUpSection
           followUpAfter={
             conversation.follow_up_after
@@ -770,8 +895,6 @@ function Conversation() {
             "Waiting for response"
           }
         />
-
-        {/* Messages */}
 
         <main className="flex-1">
           <MessageThread
@@ -784,8 +907,6 @@ function Conversation() {
             }
           />
         </main>
-
-        {/* Reply */}
 
         <ReplyBox
           onSendReply={handleSendReply}
