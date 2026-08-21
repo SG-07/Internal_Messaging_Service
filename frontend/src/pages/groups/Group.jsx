@@ -1,4 +1,4 @@
-// frontend/src/pages/groups/CreateGroup.jsx
+// frontend/src/pages/groups/Group.jsx
 
 import DashboardLayout from '../dashboard/DashboardLayout';
 

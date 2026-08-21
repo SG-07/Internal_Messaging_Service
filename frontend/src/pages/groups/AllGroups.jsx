@@ -106,9 +106,7 @@ function Groups() {
               {department && (
                 <button
                   type="button"
-                  onClick={
-                    handleClearFilter
-                  }
+                  onClick={handleClearFilter}
                   disabled={loading}
                   className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -136,7 +134,7 @@ function Groups() {
           </div>
         )}
 
-        {/* Groups table */}
+        {/* Groups Table */}
         <div className="overflow-x-auto">
 
           <table className="w-full min-w-[1000px]">
@@ -165,10 +163,6 @@ function Groups() {
                 </th>
 
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Requested By
-                </th>
-
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Created
                 </th>
 
@@ -181,7 +175,7 @@ function Groups() {
               {loading && (
                 <tr>
                   <td
-                    colSpan="7"
+                    colSpan="6"
                     className="px-6 py-16 text-center"
                   >
                     <p className="text-sm text-gray-500">
@@ -196,7 +190,7 @@ function Groups() {
                 groups.length === 0 && (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="6"
                       className="px-6 py-16 text-center"
                     >
 
@@ -230,12 +224,6 @@ function Groups() {
                         <p className="font-medium text-gray-900">
                           {group.name || '—'}
                         </p>
-
-                        {group.id && (
-                          <p className="mt-1 break-all text-xs text-gray-400">
-                            {group.id}
-                          </p>
-                        )}
 
                       </div>
 
@@ -301,15 +289,6 @@ function Groups() {
                       />
                     </td>
 
-                    {/* Requested By */}
-                    <td className="px-6 py-4">
-
-                      <p className="break-all text-sm text-gray-700">
-                        {group.requested_by || '—'}
-                      </p>
-
-                    </td>
-
                     {/* Created */}
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {formatDate(
@@ -354,9 +333,7 @@ function Groups() {
                 {/* Previous */}
                 <button
                   type="button"
-                  onClick={
-                    handlePreviousPage
-                  }
+                  onClick={handlePreviousPage}
                   disabled={
                     page <= 1 ||
                     loading
@@ -369,9 +346,7 @@ function Groups() {
                 {/* Next */}
                 <button
                   type="button"
-                  onClick={
-                    handleNextPage
-                  }
+                  onClick={handleNextPage}
                   disabled={
                     !pagination.has_more ||
                     loading
@@ -447,7 +422,11 @@ function formatDate(value) {
     return '—';
   }
 
-  return date.toLocaleString();
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 export default Groups;

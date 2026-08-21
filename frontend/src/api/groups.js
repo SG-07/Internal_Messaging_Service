@@ -14,7 +14,11 @@ function debugLog(label, data) {
   console.groupEnd();
 }
 
-// --- CREATE GROUP  ----
+/*
+ * --------------------------------------------------
+ * CREATE GROUP
+ * --------------------------------------------------
+ */
 
 export async function createGroup(
   name,
@@ -22,14 +26,16 @@ export async function createGroup(
   department = null,
   managerId = null
 ) {
-  const endpoint = '/api/groups/createGroup';
+  const endpoint = '/api/groups/create';
 
   const payload = {
     name,
     is_open: isOpen,
+
     ...(department !== null && {
       department,
     }),
+
     ...(managerId && {
       manager_id: managerId,
     }),
@@ -68,7 +74,12 @@ export async function createGroup(
   }
 }
 
-// --- GET GROUPS  ----
+/*
+ * --------------------------------------------------
+ * GET GROUPS
+ * --------------------------------------------------
+ */
+
 export async function getGroups({
   page = 1,
   department,
@@ -95,11 +106,15 @@ export async function getGroups({
     query.set('status', status);
   }
 
-  if (isOpen !== undefined && isOpen !== null) {
+  if (
+    isOpen !== undefined &&
+    isOpen !== null
+  ) {
     query.set('is_open', isOpen);
   }
 
-  const endpoint = `/api/groups/listGroups?${query.toString()}`;
+  const endpoint =
+    `/api/groups/listGroups?${query.toString()}`;
 
   debugLog('GROUPS → Request', {
     endpoint,
@@ -126,6 +141,50 @@ export async function getGroups({
       endpoint,
       error: error?.message,
       status: error?.status,
+    });
+
+    throw error;
+  }
+}
+
+// ------- Join a group -------
+export async function joinGroup(groupId) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/join`;
+
+  debugLog('JOIN GROUP → Request', {
+    endpoint,
+    method: 'POST',
+    groupId,
+  });
+
+  try {
+    const response = await request(
+      endpoint,
+      {
+        method: 'POST',
+      }
+    );
+
+    debugLog('JOIN GROUP ← Response', {
+      endpoint,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    debugLog('JOIN GROUP ← Error', {
+      endpoint,
+      groupId,
+      status: error?.status,
+      message: error?.message,
+      error,
     });
 
     throw error;

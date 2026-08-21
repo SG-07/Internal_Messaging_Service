@@ -12,11 +12,11 @@ import { useAuth } from '../../context/AuthContext';
 import {
   createGroup,
   getGroups,
+  joinGroup,
 } from '../../api/groups';
 
 
-// ------- CREATE GROUP  -------
-
+// ------- CREATE GROUP -------
 export function useGroupLogic() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -127,7 +127,8 @@ export function useGroupLogic() {
       }
 
 
-      //    ------------ Build request -------------
+      // ------------ Build request -------------
+
       const response = await createGroup(
         trimmedName,
         isOpen,
@@ -292,6 +293,15 @@ export function useGroupsLogic() {
     useState(true);
 
   const [error, setError] =
+    useState('');
+
+  const [joiningGroupId, setJoiningGroupId] =
+    useState(null);
+
+  const [joinError, setJoinError] =
+    useState('');
+
+  const [joinSuccess, setJoinSuccess] =
     useState('');
 
 
@@ -504,6 +514,129 @@ export function useGroupsLogic() {
 
   /*
    * --------------------------------------------------
+   * Join group
+   * --------------------------------------------------
+   */
+
+  async function handleJoinGroup(groupId) {
+    if (!groupId) {
+      setJoinError(
+        'A valid group ID is required.'
+      );
+      return;
+    }
+
+    setJoinError('');
+    setJoinSuccess('');
+    setJoiningGroupId(groupId);
+
+
+    if (import.meta.env.DEV) {
+      console.group(
+        '[Groups] Join Group'
+      );
+
+      console.log(
+        'Group ID:',
+        groupId
+      );
+
+      console.log(
+        'User:',
+        user
+      );
+
+      console.groupEnd();
+    }
+
+
+    try {
+      const response =
+        await joinGroup(groupId);
+
+
+      if (import.meta.env.DEV) {
+        console.group(
+          '[Groups] Join Group Response'
+        );
+
+        console.log(
+          'Group ID:',
+          groupId
+        );
+
+        console.log(
+          'Response:',
+          response
+        );
+
+        console.groupEnd();
+      }
+
+
+      setJoinSuccess(
+        response?.message ||
+          'You joined the group successfully.'
+      );
+
+
+      /*
+       * Refresh the group list after joining.
+       * This keeps membership-related fields
+       * returned by the backend in sync.
+       */
+      await loadGroups();
+
+
+      return response;
+
+    } catch (err) {
+
+      if (import.meta.env.DEV) {
+        console.group(
+          '[Groups] Join Group Error'
+        );
+
+        console.log(
+          'Group ID:',
+          groupId
+        );
+
+        console.error(
+          'Error:',
+          err
+        );
+
+        console.log(
+          'Error message:',
+          err?.message
+        );
+
+        console.log(
+          'Error status:',
+          err?.status
+        );
+
+        console.groupEnd();
+      }
+
+
+      setJoinError(
+        err?.message ||
+          'Unable to join group. Please try again.'
+      );
+
+
+      throw err;
+
+    } finally {
+      setJoiningGroupId(null);
+    }
+  }
+
+
+  /*
+   * --------------------------------------------------
    * Department filter
    * --------------------------------------------------
    */
@@ -591,6 +724,12 @@ export function useGroupsLogic() {
     error,
 
     isAdmin,
+
+    // Join group
+    joiningGroupId,
+    joinError,
+    joinSuccess,
+    handleJoinGroup,
 
     setDepartment:
       handleDepartmentChange,
