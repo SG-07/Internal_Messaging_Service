@@ -19,6 +19,7 @@ import { WebSocketProvider } from "./websocket/WebSocketProvider";
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 import UserDetails from "./pages/admin/UserDetails";
+import CreateGroup from "./pages/groups/CreateGroup";
 
 function App() {
   return (
@@ -114,6 +115,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <Conversation />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Create Group */}
+          <Route
+            path="/groups/create"
+            element={
+              <ProtectedRoute>
+                <CreateGroup />
               </ProtectedRoute>
             }
           />

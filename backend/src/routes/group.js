@@ -5,10 +5,10 @@ import {
 } from '../controllers/group.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
-router.use(requireAuth); // All routes here require valid auth
+
 
 const router = Router();
 
-router.post('/create', createGroup);
+router.post('/create', requireAuth, createGroup);
 
 export default router;

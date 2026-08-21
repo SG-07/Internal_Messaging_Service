@@ -5,3 +5,5 @@ export * from './users';
 export * from './conversations';
 export * from './messages';
 export * from './admin';
+export * from './teams';
+export * from './groups';
