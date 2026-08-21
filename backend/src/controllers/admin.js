@@ -908,3 +908,116 @@ export const getTeamById = async (req, res) => {
     });
   }
 };
+
+/// --- UPDATE USER DEPARTMENT ---
+export const updateUserDepartment = async (req, res) => {
+  const { userId } = req.params;
+  const { department } = req.body;
+  const currentUserId = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: 'User ID is required.',
+    });
+  }
+
+  // Department can be a string or null (to unassign)
+  if (department === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: 'Department is required. Pass null to unassign department.',
+    });
+  }
+
+  // Validate department is a string or null
+  if (department !== null && typeof department !== 'string') {
+    return res.status(400).json({
+      success: false,
+      message: 'Department must be a string or null.',
+    });
+  }
+
+  // Validate department is not empty string
+  if (typeof department === 'string' && department.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Department cannot be empty. Pass null to unassign department.',
+    });
+  }
+
+  try {
+    // Check if user exists
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, department, updated_at')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      if (userError?.code === 'PGRST116') {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found.',
+        });
+      }
+      console.error('[updateUserDepartment] Supabase error:', userError);
+      throw new Error('Failed to fetch user');
+    }
+
+    if (isDev) {
+      console.log('[updateUserDepartment] userId:', userId, 'currentUserId:', currentUserId, 'newDepartment:', department || 'null');
+    }
+
+    // Update department
+    const { data: updatedUser, error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        department: department ? department.trim() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .select(
+        `
+        id,
+        email,
+        username,
+        full_name,
+        role,
+        created_at,
+        updated_at,
+        department,
+        manager_id,
+        current_team_id,
+        previous_team_id,
+        team_status,
+        team_status_changed_by,
+        team_status_changed_at,
+        is_active
+      `
+      )
+      .single();
+
+    if (updateError) {
+      console.error('[updateUserDepartment] Supabase update error:', updateError);
+      throw new Error('Failed to update user department');
+    }
+
+    if (isDev) {
+      console.log('[updateUserDepartment] Success - userId:', userId, 'old department:', user.department, 'new department:', department || 'null');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `User department updated to ${department ? `"${department}"` : 'unassigned'}.`,
+      data: updatedUser,
+    });
+  } catch (err) {
+    console.error('[updateUserDepartment] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to update user department.',
+    });
+  }
+};

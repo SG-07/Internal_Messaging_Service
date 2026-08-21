@@ -13,8 +13,8 @@ import {
   getUserConversations,
   getAnyConversation,
   getTeamById,
-  getUserProfile
-
+  getUserProfile,
+  updateUserDepartment
 } from '../controllers/admin.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
@@ -31,6 +31,7 @@ router.patch('/users/:userId/status', setUserActiveStatus);
 router.patch('/users/:userId/team-status', updateUserTeamStatus);
 router.get('/users/:userId/conversations', getUserConversations);
 router.get('/users/:userId/profile', getUserProfile);
+router.patch('/users/:userId/department', updateUserDepartment);
 
 // Team management
 router.get('/teams', listTeams);

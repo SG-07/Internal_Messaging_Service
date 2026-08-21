@@ -17,12 +17,22 @@ function buildQueryParams(params = {}) {
 
   Object.entries(params).forEach(([key, value]) => {
     if (
-      value !== undefined &&
-      value !== null &&
-      value !== ''
+      value === undefined ||
+      value === null ||
+      value === ''
     ) {
-      query.set(key, value);
+      return;
     }
+
+    if (Array.isArray(value)) {
+      if (value.length > 0) {
+        query.set(key, value.join(','));
+      }
+
+      return;
+    }
+
+    query.set(key, value);
   });
 
   const queryString = query.toString();
@@ -76,7 +86,6 @@ export async function getAdminUsers({
     });
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN USERS ← Error Response',
@@ -91,13 +100,61 @@ export async function getAdminUsers({
 }
 
 
+// GET /api/admin/users/:userId/profile
+export async function getUserProfile(
+  userId
+) {
+  const endpoint =
+    `/api/admin/users/${userId}/profile`;
+
+  debugLog(
+    'ADMIN USER PROFILE → Request',
+    {
+      endpoint,
+      method: 'GET',
+      userId,
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint);
+
+    debugLog(
+      'ADMIN USER PROFILE ← Response',
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      'ADMIN USER PROFILE ← Error Response',
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
 // PATCH /api/admin/users/:userId/role
 export async function updateUserRole(
   userId,
-  role
+  payload
 ) {
   const endpoint =
     `/api/admin/users/${userId}/role`;
+
+  const body =
+    typeof payload === 'string'
+      ? { role: payload }
+      : payload;
 
   debugLog(
     'ADMIN USER ROLE → Request',
@@ -105,7 +162,7 @@ export async function updateUserRole(
       endpoint,
       method: 'PATCH',
       userId,
-      role,
+      payload: body,
     }
   );
 
@@ -113,9 +170,7 @@ export async function updateUserRole(
     const response =
       await request(endpoint, {
         method: 'PATCH',
-        body: JSON.stringify({
-          role,
-        }),
+        body: JSON.stringify(body),
       });
 
     debugLog(
@@ -127,7 +182,6 @@ export async function updateUserRole(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN USER ROLE ← Error Response',
@@ -143,12 +197,28 @@ export async function updateUserRole(
 
 
 // PATCH /api/admin/users/:userId/manager
+//
+// Accepts either:
+// updateUserManager(userId, managerId)
+//
+// or:
+// updateUserManager(userId, {
+//   manager_id: 'uuid'
+// })
 export async function updateUserManager(
   userId,
-  managerId
+  payload
 ) {
   const endpoint =
     `/api/admin/users/${userId}/manager`;
+
+  const body =
+    typeof payload === 'object' &&
+    payload !== null
+      ? payload
+      : {
+          manager_id: payload || null,
+        };
 
   debugLog(
     'ADMIN USER MANAGER → Request',
@@ -156,7 +226,7 @@ export async function updateUserManager(
       endpoint,
       method: 'PATCH',
       userId,
-      managerId,
+      payload: body,
     }
   );
 
@@ -164,9 +234,7 @@ export async function updateUserManager(
     const response =
       await request(endpoint, {
         method: 'PATCH',
-        body: JSON.stringify({
-          managerId,
-        }),
+        body: JSON.stringify(body),
       });
 
     debugLog(
@@ -178,7 +246,6 @@ export async function updateUserManager(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN USER MANAGER ← Error Response',
@@ -193,21 +260,42 @@ export async function updateUserManager(
 }
 
 
-// PATCH /api/admin/users/:userId/status
-export async function updateUserStatus(
+// PATCH /api/admin/users/:userId/department
+//
+// Backend endpoint to add:
+// PATCH /api/admin/users/:userId/department
+//
+// Expected body:
+// {
+//   department: 'HR'
+// }
+//
+// or:
+// {
+//   department: null
+// }
+export async function updateUserDepartment(
   userId,
-  status
+  payload
 ) {
   const endpoint =
-    `/api/admin/users/${userId}/status`;
+    `/api/admin/users/${userId}/department`;
+
+  const body =
+    typeof payload === 'object' &&
+    payload !== null
+      ? payload
+      : {
+          department: payload || null,
+        };
 
   debugLog(
-    'ADMIN USER STATUS → Request',
+    'ADMIN USER DEPARTMENT → Request',
     {
       endpoint,
       method: 'PATCH',
       userId,
-      status,
+      payload: body,
     }
   );
 
@@ -215,9 +303,69 @@ export async function updateUserStatus(
     const response =
       await request(endpoint, {
         method: 'PATCH',
-        body: JSON.stringify({
-          status,
-        }),
+        body: JSON.stringify(body),
+      });
+
+    debugLog(
+      'ADMIN USER DEPARTMENT ← Response',
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      'ADMIN USER DEPARTMENT ← Error Response',
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
+// PATCH /api/admin/users/:userId/status
+//
+// Expected body:
+// {
+//   is_active: true,
+//   comment: 'Reason for activation'
+// }
+export async function updateUserStatus(
+  userId,
+  payload
+) {
+  const endpoint =
+    `/api/admin/users/${userId}/status`;
+
+  const body =
+    typeof payload === 'object' &&
+    payload !== null
+      ? payload
+      : {
+          is_active: Boolean(payload),
+        };
+
+  debugLog(
+    'ADMIN USER STATUS → Request',
+    {
+      endpoint,
+      method: 'PATCH',
+      userId,
+      payload: body,
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
       });
 
     debugLog(
@@ -229,7 +377,6 @@ export async function updateUserStatus(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN USER STATUS ← Error Response',
@@ -245,12 +392,25 @@ export async function updateUserStatus(
 
 
 // PATCH /api/admin/users/:userId/team-status
+//
+// Expected body:
+// {
+//   team_status: 'active'
+// }
 export async function updateUserTeamStatus(
   userId,
-  teamStatus
+  payload
 ) {
   const endpoint =
     `/api/admin/users/${userId}/team-status`;
+
+  const body =
+    typeof payload === 'object' &&
+    payload !== null
+      ? payload
+      : {
+          team_status: payload,
+        };
 
   debugLog(
     'ADMIN USER TEAM STATUS → Request',
@@ -258,7 +418,7 @@ export async function updateUserTeamStatus(
       endpoint,
       method: 'PATCH',
       userId,
-      teamStatus,
+      payload: body,
     }
   );
 
@@ -266,9 +426,7 @@ export async function updateUserTeamStatus(
     const response =
       await request(endpoint, {
         method: 'PATCH',
-        body: JSON.stringify({
-          teamStatus,
-        }),
+        body: JSON.stringify(body),
       });
 
     debugLog(
@@ -280,7 +438,6 @@ export async function updateUserTeamStatus(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN USER TEAM STATUS ← Error Response',
@@ -338,7 +495,6 @@ export async function getAdminTeams({
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN TEAMS ← Error Response',
@@ -353,11 +509,7 @@ export async function getAdminTeams({
 }
 
 
-// GET /api/admin/teams/:teamId
-//
-// NOTE:
-// This requires the backend to expose:
-// GET /api/admin/teams/:teamId
+// GET /api/admin/teams/:teamId/edit
 export async function getAdminTeam(
   teamId
 ) {
@@ -386,7 +538,6 @@ export async function getAdminTeam(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN TEAM ← Error Response',
@@ -433,7 +584,6 @@ export async function createAdminTeam(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN CREATE TEAM ← Error Response',
@@ -449,16 +599,6 @@ export async function createAdminTeam(
 
 
 // PATCH /api/admin/teams/:teamId
-//
-// NOTE:
-// This requires the backend to expose:
-// PATCH /api/admin/teams/:teamId
-//
-// Expected payload can currently contain:
-// {
-//   name,
-//   description
-// }
 export async function updateAdminTeam(
   teamId,
   payload
@@ -492,7 +632,6 @@ export async function updateAdminTeam(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN UPDATE TEAM ← Error Response',
@@ -543,7 +682,6 @@ export async function reviewAdminTeam(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN TEAM REVIEW ← Error Response',
@@ -589,7 +727,6 @@ export async function deleteAdminTeam(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN DELETE TEAM ← Error Response',
@@ -645,7 +782,6 @@ export async function addTeamMember(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN ADD TEAM MEMBER ← Error Response',
@@ -660,10 +796,6 @@ export async function addTeamMember(
 }
 
 
-// DELETE /api/admin/teams/:teamId/members/:userId
-//
-// NOTE:
-// This requires the backend to expose:
 // DELETE /api/admin/teams/:teamId/members/:userId
 export async function removeTeamMember(
   teamId,
@@ -697,7 +829,6 @@ export async function removeTeamMember(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADMIN REMOVE TEAM MEMBER ← Error Response',
@@ -709,11 +840,4 @@ export async function removeTeamMember(
 
     throw error;
   }
-}
-
-// Get a single user's profile/details.
-export async function getUserProfile(userId) {
-  return request(
-    `/api/admin/users/${userId}/profile`
-  );
 }

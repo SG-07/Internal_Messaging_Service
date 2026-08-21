@@ -1,13 +1,11 @@
 // frontend/src/pages/admin/AdminUsers.jsx
 
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 
-import { getAdminUsers } from '../../api/admin';
-import DepartmentFilter, {
-  NO_DEPARTMENT,
-} from './common/DepartmentFilter';
-import DashboardLayout from '../dashboard/DashboardLayout';
+import { getAdminUsers } from "../../api/admin";
+import DepartmentFilter, { NO_DEPARTMENT } from "./common/DepartmentFilter";
+import DashboardLayout from "../dashboard/DashboardLayout";
 
 function AdminUsers() {
   const navigate = useNavigate();
@@ -22,7 +20,7 @@ function AdminUsers() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   /*
    * --------------------------------------------------
@@ -40,42 +38,27 @@ function AdminUsers() {
       };
 
       if (import.meta.env.DEV) {
-        console.group('[AdminUsers] Fetch Users');
+        console.group("[AdminUsers] Fetch Users");
 
-        console.log(
-          'Selected departments:',
-          departments
-        );
+        console.log("Selected departments:", departments);
 
-        console.log(
-          'Request payload:',
-          payload
-        );
+        console.log("Request payload:", payload);
 
         console.groupEnd();
       }
 
       try {
         setLoading(true);
-        setError('');
+        setError("");
 
-        const response =
-          await getAdminUsers(payload);
+        const response = await getAdminUsers(payload);
 
         if (import.meta.env.DEV) {
-          console.group(
-            '[AdminUsers] Fetch Users Response'
-          );
+          console.group("[AdminUsers] Fetch Users Response");
 
-          console.log(
-            'Request payload:',
-            payload
-          );
+          console.log("Request payload:", payload);
 
-          console.log(
-            'Received response:',
-            response
-          );
+          console.log("Received response:", response);
 
           console.groupEnd();
         }
@@ -86,16 +69,9 @@ function AdminUsers() {
          * --------------------------------------------------
          */
         const responseUsers =
-          response?.users ||
-          response?.data?.users ||
-          response?.data ||
-          [];
+          response?.users || response?.data?.users || response?.data || [];
 
-        setUsers(
-          Array.isArray(responseUsers)
-            ? responseUsers
-            : []
-        );
+        setUsers(Array.isArray(responseUsers) ? responseUsers : []);
 
         /*
          * --------------------------------------------------
@@ -109,39 +85,23 @@ function AdminUsers() {
           response?.data?.pagination?.totalPages ||
           1;
 
-        setTotalPages(
-          Number(pages) || 1
-        );
+        setTotalPages(Number(pages) || 1);
       } catch (err) {
         if (import.meta.env.DEV) {
-          console.group(
-            '[AdminUsers] Fetch Users Error'
-          );
+          console.group("[AdminUsers] Fetch Users Error");
 
-          console.log(
-            'Request payload:',
-            payload
-          );
+          console.log("Request payload:", payload);
 
-          console.error(
-            'Error:',
-            err
-          );
+          console.error("Error:", err);
 
-          console.log(
-            'Error message:',
-            err?.message
-          );
+          console.log("Error message:", err?.message);
 
           console.groupEnd();
         }
 
         setUsers([]);
 
-        setError(
-          err?.message ||
-            'Unable to load users. Please try again.'
-        );
+        setError(err?.message || "Unable to load users. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -156,11 +116,7 @@ function AdminUsers() {
    * --------------------------------------------------
    */
   function handleDepartmentsChange(value) {
-    setDepartments(
-      Array.isArray(value)
-        ? value
-        : []
-    );
+    setDepartments(Array.isArray(value) ? value : []);
 
     /*
      * Whenever the filter changes,
@@ -175,24 +131,29 @@ function AdminUsers() {
    * --------------------------------------------------
    */
   function handleManageUser(userId) {
+    console.log("[AdminUsers] handleManageUser CALLED");
+
+    console.log("[AdminUsers] Received userId:", userId);
+
     if (!userId) {
-      if (import.meta.env.DEV) {
-        console.warn(
-          '[AdminUsers] Cannot open user details without user ID.'
-        );
-      }
+      console.error("[AdminUsers] ERROR: No user ID received.");
 
       return;
     }
 
-    if (import.meta.env.DEV) {
-      console.log(
-        '[AdminUsers] Opening user details:',
-        userId
-      );
-    }
+    const targetPath = `/admin/users/${userId}`;
 
-    navigate(`/admin/users/${userId}`);
+    console.log("[AdminUsers] Target path:", targetPath);
+
+    console.log("[AdminUsers] Calling navigate...");
+
+    try {
+      navigate(targetPath);
+
+      console.log("[AdminUsers] navigate() CALLED successfully");
+    } catch (error) {
+      console.error("[AdminUsers] navigate() FAILED:", error);
+    }
   }
 
   /*
@@ -202,19 +163,13 @@ function AdminUsers() {
    */
   function handlePreviousPage() {
     if (page > 1) {
-      setPage(
-        (currentPage) =>
-          currentPage - 1
-      );
+      setPage((currentPage) => currentPage - 1);
     }
   }
 
   function handleNextPage() {
     if (page < totalPages) {
-      setPage(
-        (currentPage) =>
-          currentPage + 1
-      );
+      setPage((currentPage) => currentPage + 1);
     }
   }
 
@@ -225,37 +180,27 @@ function AdminUsers() {
    */
   function getDepartmentFilterText() {
     if (departments.length === 0) {
-      return 'There are no users to display.';
+      return "There are no users to display.";
     }
 
-    const labels = departments.map(
-      (department) => {
-        if (
-          department === NO_DEPARTMENT
-        ) {
-          return 'No Department';
-        }
-
-        return department;
+    const labels = departments.map((department) => {
+      if (department === NO_DEPARTMENT) {
+        return "No Department";
       }
-    );
 
-    return `No users found in ${labels.join(
-      ', '
-    )}.`;
+      return department;
+    });
+
+    return `No users found in ${labels.join(", ")}.`;
   }
 
   return (
     <DashboardLayout>
-
       <section className="rounded-xl bg-white shadow">
-
         {/* Header */}
         <div className="border-b px-6 py-5">
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              Users
-            </h1>
+            <h1 className="text-xl font-semibold text-gray-900">Users</h1>
 
             <p className="mt-1 text-sm text-gray-500">
               Manage users, roles, managers, and account status.
@@ -266,15 +211,11 @@ function AdminUsers() {
         {/* Filters */}
         <div className="border-b bg-gray-50 px-6 py-4">
           <div className="flex flex-wrap items-end gap-4">
-
             <DepartmentFilter
               value={departments}
-              onChange={
-                handleDepartmentsChange
-              }
+              onChange={handleDepartmentsChange}
               disabled={loading}
             />
-
           </div>
         </div>
 
@@ -282,21 +223,16 @@ function AdminUsers() {
         {error && (
           <div className="border-b px-6 py-4">
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-              <p className="text-sm text-red-700">
-                {error}
-              </p>
+              <p className="text-sm text-red-700">{error}</p>
             </div>
           </div>
         )}
 
         {/* Users table */}
         <div className="overflow-x-auto">
-
           <table className="w-full min-w-[900px]">
-
             <thead>
               <tr className="border-b bg-white text-left">
-
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   User
                 </th>
@@ -324,46 +260,35 @@ function AdminUsers() {
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Actions
                 </th>
-
               </tr>
             </thead>
 
             <tbody>
-
               {/* Loading */}
               {loading && (
                 <tr>
-                  <td
-                    colSpan="7"
-                    className="px-6 py-16 text-center"
-                  >
-                    <p className="text-sm text-gray-500">
-                      Loading users...
-                    </p>
+                  <td colSpan="7" className="px-6 py-16 text-center">
+                    <p className="text-sm text-gray-500">Loading users...</p>
                   </td>
                 </tr>
               )}
 
               {/* Empty */}
-              {!loading &&
-                users.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="7"
-                      className="px-6 py-16 text-center"
-                    >
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          No users found
-                        </h3>
+              {!loading && users.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="px-6 py-16 text-center">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        No users found
+                      </h3>
 
-                        <p className="mt-2 text-sm text-gray-500">
-                          {getDepartmentFilterText()}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+                      <p className="mt-2 text-sm text-gray-500">
+                        {getDepartmentFilterText()}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
 
               {/* Users */}
               {!loading &&
@@ -372,14 +297,11 @@ function AdminUsers() {
                     key={user.id}
                     className="border-b last:border-b-0 hover:bg-gray-50"
                   >
-
                     {/* User */}
                     <td className="px-6 py-4">
                       <div>
                         <p className="font-medium text-gray-900">
-                          {user.full_name ||
-                            user.username ||
-                            '—'}
+                          {user.full_name || user.username || "—"}
                         </p>
 
                         {user.username && (
@@ -392,26 +314,24 @@ function AdminUsers() {
 
                     {/* Email */}
                     <td className="px-6 py-4 text-sm text-gray-700">
-                      {user.email || '—'}
+                      {user.email || "—"}
                     </td>
 
                     {/* Role */}
                     <td className="px-6 py-4">
                       <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium capitalize text-gray-700">
-                        {user.role || '—'}
+                        {user.role || "—"}
                       </span>
                     </td>
 
                     {/* Department */}
                     <td className="px-6 py-4 text-sm text-gray-700">
-                      {user.department || '—'}
+                      {user.department || "—"}
                     </td>
 
                     {/* Manager */}
                     <td className="px-6 py-4 text-sm text-gray-700">
-                      {user.manager ||
-                        user.manager_username ||
-                        '—'}
+                      {user.manager || user.manager_username || "—"}
                     </td>
 
                     {/* Status */}
@@ -431,71 +351,60 @@ function AdminUsers() {
                     <td className="px-6 py-4">
                       <button
                         type="button"
-                        onClick={() =>
-                          handleManageUser(
-                            user.id
-                          )
-                        }
+                        onClick={(event) => {
+                          console.log("[AdminUsers] MANAGE BUTTON CLICKED");
+
+                          console.log("[AdminUsers] Click event:", event);
+
+                          console.log("[AdminUsers] User:", user);
+
+                          console.log("[AdminUsers] User ID:", user.id);
+
+                          handleManageUser(user.id);
+                        }}
                         disabled={!user.id}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Manage
                       </button>
                     </td>
-
                   </tr>
                 ))}
-
             </tbody>
-
           </table>
-
         </div>
 
         {/* Pagination */}
-        {!loading &&
-          users.length > 0 && (
-            <div className="flex items-center justify-between border-t px-6 py-4">
+        {!loading && users.length > 0 && (
+          <div className="flex items-center justify-between border-t px-6 py-4">
+            <p className="text-sm text-gray-500">
+              Page {page} of {totalPages}
+            </p>
 
-              <p className="text-sm text-gray-500">
-                Page {page} of {totalPages}
-              </p>
+            <div className="flex items-center gap-2">
+              {/* Previous */}
+              <button
+                type="button"
+                onClick={handlePreviousPage}
+                disabled={page <= 1}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Previous
+              </button>
 
-              <div className="flex items-center gap-2">
-
-                {/* Previous */}
-                <button
-                  type="button"
-                  onClick={
-                    handlePreviousPage
-                  }
-                  disabled={page <= 1}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Previous
-                </button>
-
-                {/* Next */}
-                <button
-                  type="button"
-                  onClick={
-                    handleNextPage
-                  }
-                  disabled={
-                    page >= totalPages
-                  }
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Next
-                </button>
-
-              </div>
-
+              {/* Next */}
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
-          )}
-
+          </div>
+        )}
       </section>
-
     </DashboardLayout>
   );
 }
