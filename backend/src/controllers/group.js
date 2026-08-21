@@ -166,3 +166,136 @@ export const createGroup = async (req, res) => {
     });
   }
 };
+
+
+/// --- LIST ALL GROUPS ---
+export const listGroups = async (req, res) => {
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { department, status, is_open } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  try {
+    // Fetch current user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role, department')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Build base query
+    let query = supabaseAdmin
+      .from('teams')
+      .select(
+        `
+        id,
+        name,
+        is_open,
+        department,
+        manager_id,
+        status,
+        requested_by,
+        approved_by,
+        created_at,
+        updated_at,
+        profiles!teams_manager_id_fkey(id, username, full_name, email)
+      `,
+        { count: 'exact' }
+      )
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    // ADMIN: Can see all groups
+    if (user.role === 'admin') {
+      // No filters - see everything
+    }
+    // MANAGER: Can see groups in their department
+    else {
+      query = query.or(
+        `and(status.eq.approved,or(department.eq.${user.department},department.is.null)),` +
+        `requested_by.eq.${user_id}`
+      );
+    }
+
+    // Apply optional filters
+    if (department) {
+      query = query.eq('department', department);
+    }
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    if (is_open !== undefined) {
+      const isOpenBool = is_open === 'true' || is_open === true;
+      query = query.eq('is_open', isOpenBool);
+    }
+
+    const { data: groups, error, count } = await query;
+
+    if (isDev) {
+      console.log(
+        '[listGroups] user_id:',
+        user_id,
+        'role:',
+        user.role,
+        'department:',
+        user.department,
+        'count:',
+        count
+      );
+    }
+
+    if (error) {
+      console.error('[listGroups] Supabase error:', error);
+      throw new Error('Failed to fetch groups');
+    }
+
+    // Transform response - flatten manager details
+    const transformedGroups = groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      is_open: group.is_open,
+      department: group.department,
+      manager: group.profiles
+        ? {
+            id: group.profiles.id,
+            username: group.profiles.username,
+            full_name: group.profiles.full_name,
+            email: group.profiles.email,
+          }
+        : null,
+      status: group.status,
+      requested_by: group.requested_by,
+      approved_by: group.approved_by,
+      created_at: group.created_at,
+      updated_at: group.updated_at,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: transformedGroups,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[listGroups] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch groups.',
+    });
+  }
+};
