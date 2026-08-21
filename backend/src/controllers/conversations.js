@@ -118,16 +118,6 @@ export const createConversation = async (req, res) => {
       });
     }
 
-    // --------------------------------------------------
-    // 4. Initialize workflow status
-    //
-    // Information / Discussion:
-    //     workflow_status = null
-    //
-    // Approval / Action:
-    //     workflow_status = PENDING
-    // --------------------------------------------------
-
     const needsWorkflow =
       resolvedCategory === "action_required" ||
       resolvedCategory === "approval_required";
