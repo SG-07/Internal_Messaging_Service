@@ -772,3 +772,767 @@ export const getGroup = async (req, res) => {
     });
   }
 };
+
+/// --- LEAVE GROUP ---
+export const leaveGroup = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Check if user is an active member
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from('group_members')
+      .select('id, left_at')
+      .eq('group_id', groupId)
+      .eq('user_id', user_id)
+      .maybeSingle();
+
+    if (membershipError) {
+      console.error('[leaveGroup] Error checking membership:', membershipError);
+      throw new Error('Failed to check group membership');
+    }
+
+    // User is not a member
+    if (!membership) {
+      return res.status(400).json({
+        success: false,
+        message: 'You are not a member of this group.',
+      });
+    }
+
+    // User already left
+    if (membership.left_at) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already left this group.',
+      });
+    }
+
+    // Mark user as left (soft delete)
+    const { error: leaveError } = await supabaseAdmin
+      .from('group_members')
+      .update({
+        left_at: new Date().toISOString(),
+      })
+      .eq('id', membership.id);
+
+    if (leaveError) {
+      console.error('[leaveGroup] Error leaving group:', leaveError);
+      throw new Error('Failed to leave group');
+    }
+
+    if (isDev) {
+      console.log('[leaveGroup] User left group:', groupId, 'user_id:', user_id);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `You have left the group "${group.name}".`,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        left_at: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error('[leaveGroup] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to leave group.',
+    });
+  }
+};
+
+
+/// --- UPDATE GROUP ---
+export const updateGroup = async (req, res) => {
+  const { groupId } = req.params;
+  const { name, is_open, manager_id } = req.body;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  // Validate at least one field is provided for update
+  if (name === undefined && is_open === undefined && manager_id === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: 'At least one field (name, is_open, manager_id) is required for update.',
+    });
+  }
+
+  // Validate field types
+  if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group name must be a non-empty string.',
+    });
+  }
+
+  if (is_open !== undefined && typeof is_open !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      message: 'is_open must be a boolean (true/false).',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, requested_by, department, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch current user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check permissions: only creator, admin, or manager can update
+    const isCreator = group.requested_by === user_id;
+    const isAdmin = user.role === 'admin';
+    const isManager = user.role === 'manager';
+
+    if (!isCreator && !isAdmin && !isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to update this group.',
+      });
+    }
+
+    // Build update object
+    const updateData = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (name !== undefined) {
+      updateData.name = name.trim();
+    }
+
+    if (is_open !== undefined) {
+      updateData.is_open = is_open;
+    }
+
+    if (manager_id !== undefined) {
+      // Only admin can change manager
+      if (!isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only admins can change the group manager.',
+        });
+      }
+
+      // Validate manager exists
+      if (manager_id !== null) {
+        const { data: manager, error: managerError } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('id', manager_id)
+          .single();
+
+        if (managerError || !manager) {
+          return res.status(400).json({
+            success: false,
+            message: 'Specified manager not found.',
+          });
+        }
+      }
+
+      updateData.manager_id = manager_id;
+    }
+
+    // Update group
+    const { data: updatedGroup, error: updateError } = await supabaseAdmin
+      .from('teams')
+      .update(updateData)
+      .eq('id', groupId)
+      .select('id, name, is_open, department, manager_id, status, requested_by, approved_by, created_at, updated_at')
+      .single();
+
+    if (updateError) {
+      console.error('[updateGroup] Supabase update error:', updateError);
+      throw new Error('Failed to update group');
+    }
+
+    if (isDev) {
+      console.log('[updateGroup] Group updated:', groupId, 'by user:', user_id, 'changes:', updateData);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Group updated successfully.',
+      data: updatedGroup,
+    });
+  } catch (err) {
+    console.error('[updateGroup] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to update group.',
+    });
+  }
+};
+
+
+/// --- DELETE GROUP ---
+export const deleteGroup = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, requested_by, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch current user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check permissions: only creator or admin can delete
+    const isCreator = group.requested_by === user_id;
+    const isAdmin = user.role === 'admin';
+
+    if (!isCreator && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to delete this group. Only the creator or an admin can delete.',
+      });
+    }
+
+    // Delete group (cascades to group_members and group_join_requests)
+    const { error: deleteError } = await supabaseAdmin
+      .from('teams')
+      .delete()
+      .eq('id', groupId);
+
+    if (deleteError) {
+      console.error('[deleteGroup] Supabase delete error:', deleteError);
+      throw new Error('Failed to delete group');
+    }
+
+    if (isDev) {
+      console.log('[deleteGroup] Group deleted:', groupId, 'by user:', user_id);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Group "${group.name}" has been deleted.`,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        deleted_at: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error('[deleteGroup] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to delete group.',
+    });
+  }
+};
+
+
+/// --- LIST GROUP MEMBERS ---
+export const listGroupMembers = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch group members (only active members, not left)
+    const { data: members, error: membersError, count } = await supabaseAdmin
+      .from('group_members')
+      .select(
+        `
+        id,
+        user_id,
+        added_by,
+        joined_at,
+        profiles:user_id(id, username, full_name, email, department, role),
+        added_by_profile:profiles!group_members_added_by_fkey(id, username, full_name)
+      `,
+        { count: 'exact' }
+      )
+      .eq('group_id', groupId)
+      .is('left_at', null)
+      .order('joined_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (membersError) {
+      console.error('[listGroupMembers] Error fetching members:', membersError);
+      throw new Error('Failed to fetch group members');
+    }
+
+    if (isDev) {
+      console.log('[listGroupMembers] groupId:', groupId, 'user_id:', user_id, 'total members:', count);
+    }
+
+    // Transform response
+    const transformedMembers = members.map((m) => ({
+      id: m.user_id,
+      username: m.profiles.username,
+      full_name: m.profiles.full_name,
+      email: m.profiles.email,
+      department: m.profiles.department,
+      role: m.profiles.role,
+      joined_at: m.joined_at,
+      added_by: m.added_by_profile
+        ? {
+            id: m.added_by,
+            username: m.added_by_profile.username,
+            full_name: m.added_by_profile.full_name,
+          }
+        : null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        members: transformedMembers,
+      },
+      pagination: {
+        page,
+        limit,
+        total: count,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[listGroupMembers] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch group members.',
+    });
+  }
+};
+
+
+/// --- ADD MEMBER TO GROUP ---
+export const addMember = async (req, res) => {
+  const { groupId } = req.params;
+  const { user_id: userToAdd } = req.body;
+  const currentUserId = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  if (!userToAdd) {
+    return res.status(400).json({
+      success: false,
+      message: 'User ID to add is required.',
+    });
+  }
+
+  try {
+    // Fetch current user details (must be admin or manager)
+    const { data: currentUser, error: currentUserError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Current user not found.',
+      });
+    }
+
+    // Check permissions: only admin or manager can add members
+    if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and managers can add members to groups.',
+      });
+    }
+
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Validate group is approved
+    if (group.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot add members to unapproved groups.',
+      });
+    }
+
+    // Fetch user to add
+    const { data: userToAddProfile, error: userToAddError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('id', userToAdd)
+      .single();
+
+    if (userToAddError || !userToAddProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'User to add not found.',
+      });
+    }
+
+    // Check if user is already a member (active or left)
+    const { data: existingMembership, error: membershipCheckError } = await supabaseAdmin
+      .from('group_members')
+      .select('id, left_at')
+      .eq('group_id', groupId)
+      .eq('user_id', userToAdd)
+      .maybeSingle();
+
+    if (membershipCheckError) {
+      console.error('[addMember] Error checking membership:', membershipCheckError);
+      throw new Error('Failed to check group membership');
+    }
+
+    // If user is already an active member
+    if (existingMembership && !existingMembership.left_at) {
+      return res.status(400).json({
+        success: false,
+        message: `${userToAddProfile.full_name} is already a member of this group.`,
+      });
+    }
+
+    // If user left before, reactivate them
+    if (existingMembership && existingMembership.left_at) {
+      const { error: rejoinError } = await supabaseAdmin
+        .from('group_members')
+        .update({
+          left_at: null,
+          joined_at: new Date().toISOString(),
+        })
+        .eq('id', existingMembership.id);
+
+      if (rejoinError) {
+        console.error('[addMember] Error reactivating member:', rejoinError);
+        throw new Error('Failed to add member to group');
+      }
+
+      if (isDev) {
+        console.log('[addMember] Member reactivated:', groupId, 'user_id:', userToAdd, 'by:', currentUserId);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `${userToAddProfile.full_name} has been added back to the group.`,
+        data: {
+          group_id: groupId,
+          group_name: group.name,
+          user: {
+            id: userToAddProfile.id,
+            username: userToAddProfile.username,
+            full_name: userToAddProfile.full_name,
+            email: userToAddProfile.email,
+          },
+          action: 'reactivated',
+        },
+      });
+    }
+
+    // Add new member
+    const { data: newMember, error: addMemberError } = await supabaseAdmin
+      .from('group_members')
+      .insert({
+        group_id: groupId,
+        user_id: userToAdd,
+        added_by: currentUserId,
+      })
+      .select('id, joined_at')
+      .single();
+
+    if (addMemberError) {
+      console.error('[addMember] Error adding member:', addMemberError);
+      throw new Error('Failed to add member to group');
+    }
+
+    if (isDev) {
+      console.log('[addMember] Member added to group:', groupId, 'user_id:', userToAdd, 'by:', currentUserId);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${userToAddProfile.full_name} has been added to the group.`,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        user: {
+          id: userToAddProfile.id,
+          username: userToAddProfile.username,
+          full_name: userToAddProfile.full_name,
+          email: userToAddProfile.email,
+        },
+        joined_at: newMember.joined_at,
+        action: 'added',
+      },
+    });
+  } catch (err) {
+    console.error('[addMember] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to add member to group.',
+    });
+  }
+};
+
+
+/// --- REMOVE MEMBER FROM GROUP ---
+export const removeMember = async (req, res) => {
+  const { groupId, userId } = req.params;
+  const currentUserId = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: 'User ID is required.',
+    });
+  }
+
+  // Prevent self-removal
+  if (userId === currentUserId) {
+    return res.status(400).json({
+      success: false,
+      message: 'You cannot remove yourself from the group. Use the leave endpoint instead.',
+    });
+  }
+
+  try {
+    // Fetch current user details (must be admin or manager)
+    const { data: currentUser, error: currentUserError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Current user not found.',
+      });
+    }
+
+    // Check permissions: only admin or manager can remove members
+    if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and managers can remove members from groups.',
+      });
+    }
+
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch user to remove
+    const { data: userToRemove, error: userToRemoveError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('id', userId)
+      .single();
+
+    if (userToRemoveError || !userToRemove) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check if user is a member
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from('group_members')
+      .select('id, left_at')
+      .eq('group_id', groupId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (membershipError) {
+      console.error('[removeMember] Error checking membership:', membershipError);
+      throw new Error('Failed to check group membership');
+    }
+
+    // User is not a member
+    if (!membership) {
+      return res.status(400).json({
+        success: false,
+        message: `${userToRemove.full_name} is not a member of this group.`,
+      });
+    }
+
+    // User already left
+    if (membership.left_at) {
+      return res.status(400).json({
+        success: false,
+        message: `${userToRemove.full_name} has already left this group.`,
+      });
+    }
+
+    // Remove member (soft delete)
+    const { error: removeError } = await supabaseAdmin
+      .from('group_members')
+      .update({
+        left_at: new Date().toISOString(),
+      })
+      .eq('id', membership.id);
+
+    if (removeError) {
+      console.error('[removeMember] Error removing member:', removeError);
+      throw new Error('Failed to remove member from group');
+    }
+
+    if (isDev) {
+      console.log('[removeMember] Member removed from group:', groupId, 'user_id:', userId, 'by:', currentUserId);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${userToRemove.full_name} has been removed from the group.`,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        user: {
+          id: userToRemove.id,
+          username: userToRemove.username,
+          full_name: userToRemove.full_name,
+          email: userToRemove.email,
+        },
+        removed_at: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error('[removeMember] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to remove member from group.',
+    });
+  }
+};
