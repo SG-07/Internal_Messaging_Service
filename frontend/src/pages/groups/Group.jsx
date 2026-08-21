@@ -5,10 +5,10 @@ import DashboardLayout from '../dashboard/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 
 import {
-  useCreateGroupLogic,
-} from './CreateGroupLogic';
+  useGroupLogic,
+} from './GroupLogic';
 
-function CreateGroup() {
+function Group() {
   const { user } = useAuth();
 
   const {
@@ -34,7 +34,7 @@ function CreateGroup() {
     handleSubmit,
     handleCancel,
     handleCreateAnother,
-  } = useCreateGroupLogic();
+  } = useGroupLogic();
 
   const isAdmin =
     user?.role === 'admin';
@@ -359,4 +359,4 @@ function formatStatus(status) {
     );
 }
 
-export default CreateGroup;
+export default Group;

@@ -67,3 +67,67 @@ export async function createGroup(
     throw error;
   }
 }
+
+// --- GET GROUPS  ----
+export async function getGroups({
+  page = 1,
+  department,
+  status,
+  isOpen,
+} = {}) {
+  const query = new URLSearchParams();
+
+  query.set('page', page);
+
+  if (
+    department !== undefined &&
+    department !== null &&
+    department !== ''
+  ) {
+    query.set('department', department);
+  }
+
+  if (
+    status !== undefined &&
+    status !== null &&
+    status !== ''
+  ) {
+    query.set('status', status);
+  }
+
+  if (isOpen !== undefined && isOpen !== null) {
+    query.set('is_open', isOpen);
+  }
+
+  const endpoint = `/api/groups/listGroups?${query.toString()}`;
+
+  debugLog('GROUPS → Request', {
+    endpoint,
+    method: 'GET',
+    params: {
+      page,
+      department,
+      status,
+      isOpen,
+    },
+  });
+
+  try {
+    const response = await request(endpoint);
+
+    debugLog('GROUPS ← Response', {
+      endpoint,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    debugLog('GROUPS ← Error Response', {
+      endpoint,
+      error: error?.message,
+      status: error?.status,
+    });
+
+    throw error;
+  }
+}

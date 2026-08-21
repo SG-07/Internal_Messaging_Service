@@ -1,37 +1,66 @@
 // frontend/src/App.jsx
+
 import React from "react";
 import { Navigate, Route, Routes } from "react-router";
 
 import Login from "./pages/auth/login";
 import Signup from "./pages/auth/signup";
+
 import Dashboard from "./pages/dashboard/Dashboard";
 import Compose from "./pages/compose/Compose";
 import Conversation from "./pages/conversation/Conversation";
 import Sent from "./pages/Sent";
+
 import Navbar from "./component/navbar/Navbar";
 import ProtectedRoute from "./component/ProtectedRoute";
+import PublicOnlyRoute from "./component/PublicOnlyRoute";
+
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminTeams from "./pages/admin/teams/AdminTeams";
 import TeamEdit from "./pages/admin/teams/TeamEdit";
-import PublicOnlyRoute from "./component/PublicOnlyRoute";
+import UserDetails from "./pages/admin/UserDetails";
+
 import ChangePassword from "./pages/auth/ChangePassword";
-import { WebSocketProvider } from "./websocket/WebSocketProvider";
+
+import {
+  WebSocketProvider,
+} from "./websocket/WebSocketProvider";
+
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
-import UserDetails from "./pages/admin/UserDetails";
-import CreateGroup from "./pages/groups/CreateGroup";
+
+import CreateGroup from "./pages/groups/Group";
+import AllGroups from "./pages/groups/AllGroups";
+
 
 function App() {
   return (
     <WebSocketProvider>
+
       <>
         <Navbar />
 
         <Routes>
-          {/* Default */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          {/* Authentication */}
+          {/* ==================================================
+              Default
+          ================================================== */}
+
+          <Route
+            path="/"
+            element={
+              <Navigate
+                to="/dashboard"
+                replace
+              />
+            }
+          />
+
+
+          {/* ==================================================
+              Authentication
+          ================================================== */}
+
           <Route
             path="/auth/login"
             element={
@@ -59,7 +88,11 @@ function App() {
             }
           />
 
-          {/* Dashboard */}
+
+          {/* ==================================================
+              Dashboard
+          ================================================== */}
+
           <Route
             path="/dashboard"
             element={
@@ -69,7 +102,11 @@ function App() {
             }
           />
 
-          {/* Sent */}
+
+          {/* ==================================================
+              Sent
+          ================================================== */}
+
           <Route
             path="/dashboard/sent"
             element={
@@ -79,7 +116,11 @@ function App() {
             }
           />
 
-          {/* Workflow - Pending */}
+
+          {/* ==================================================
+              Workflows
+          ================================================== */}
+
           <Route
             path="/dashboard/workflows/pending"
             element={
@@ -89,7 +130,6 @@ function App() {
             }
           />
 
-          {/* Workflow - My Requests */}
           <Route
             path="/dashboard/workflows/mine"
             element={
@@ -99,7 +139,11 @@ function App() {
             }
           />
 
-          {/* Compose */}
+
+          {/* ==================================================
+              Compose
+          ================================================== */}
+
           <Route
             path="/compose"
             element={
@@ -109,7 +153,11 @@ function App() {
             }
           />
 
-          {/* Conversation */}
+
+          {/* ==================================================
+              Conversation
+          ================================================== */}
+
           <Route
             path="/conversation/:id"
             element={
@@ -118,6 +166,11 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+
+          {/* ==================================================
+              Groups
+          ================================================== */}
 
           {/* Create Group */}
           <Route
@@ -129,7 +182,21 @@ function App() {
             }
           />
 
-          {/* Admin Users */}
+          {/* All Groups */}
+          <Route
+            path="/groups"
+            element={
+              <ProtectedRoute>
+                <AllGroups />
+              </ProtectedRoute>
+            }
+          />
+
+
+          {/* ==================================================
+              Admin Users
+          ================================================== */}
+
           <Route
             path="/admin/users"
             element={
@@ -139,7 +206,6 @@ function App() {
             }
           />
 
-          {/* Admin User Details */}
           <Route
             path="/admin/users/:userId"
             element={
@@ -149,7 +215,11 @@ function App() {
             }
           />
 
-          {/* Admin Teams */}
+
+          {/* ==================================================
+              Admin Teams
+          ================================================== */}
+
           <Route
             path="/admin/teams"
             element={
@@ -159,7 +229,6 @@ function App() {
             }
           />
 
-          {/* Admin Team Edit */}
           <Route
             path="/admin/teams/:teamId/edit"
             element={
@@ -168,8 +237,10 @@ function App() {
               </ProtectedRoute>
             }
           />
+
         </Routes>
       </>
+
     </WebSocketProvider>
   );
 }

@@ -3,9 +3,9 @@ import { Router } from 'express';
 import {
    createGroup, 
    listGroups, 
-   getGroup, 
-   updateGroup, 
-   deleteGroup 
+//    getGroup, 
+//    updateGroup, 
+//    deleteGroup 
 } from '../controllers/group.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
