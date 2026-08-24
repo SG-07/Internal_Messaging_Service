@@ -147,6 +147,100 @@ export async function getGroups({
   }
 }
 
+// ------- Get group details -------
+export async function getGroup(groupId) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}`;
+
+  /*
+   * ----------------------------------------
+   * Request debug log
+   * ----------------------------------------
+   */
+  debugLog(
+    'GET GROUP DETAILS → Request',
+    {
+      endpoint,
+      method: 'GET',
+
+      /*
+       * GET requests do not normally contain
+       * a request body, so the group ID is
+       * sent through the URL path.
+       */
+      payload: {
+        groupId,
+      },
+    }
+  );
+
+  try {
+    const response = await request(
+      endpoint,
+      {
+        method: 'GET',
+      }
+    );
+
+
+    /*
+     * ----------------------------------------
+     * Response debug log
+     * ----------------------------------------
+     */
+    debugLog(
+      'GET GROUP DETAILS ← Response',
+      {
+        endpoint,
+        groupId,
+
+        response,
+
+        data:
+          response?.data || null,
+
+        message:
+          response?.message || null,
+      }
+    );
+
+
+    return response;
+
+  } catch (error) {
+
+    /*
+     * ----------------------------------------
+     * Error debug log
+     * ----------------------------------------
+     */
+    debugLog(
+      'GET GROUP DETAILS ← Error',
+      {
+        endpoint,
+        groupId,
+
+        status:
+          error?.status,
+
+        message:
+          error?.message,
+
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
 // ------- Join a group -------
 export async function joinGroup(groupId) {
   if (!groupId) {

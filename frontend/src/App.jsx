@@ -31,6 +31,7 @@ import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 
 import CreateGroup from "./pages/groups/Group";
 import AllGroups from "./pages/groups/AllGroups";
+import GroupDetails from './pages/groups/GroupDetails';
 
 
 function App() {
@@ -188,6 +189,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <AllGroups />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Group Details */}
+          <Route
+            path="/groups/:groupId"
+            element={
+              <ProtectedRoute>
+                <GroupDetails />
               </ProtectedRoute>
             }
           />

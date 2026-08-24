@@ -1,12 +1,19 @@
 // frontend/src/pages/groups/AllGroups.jsx
 
+import {
+  useNavigate,
+} from 'react-router';
+
 import DashboardLayout from '../dashboard/DashboardLayout';
 
 import {
   useGroupsLogic,
 } from './GroupLogic';
 
+
 function Groups() {
+  const navigate = useNavigate();
+
   const {
     groups,
 
@@ -32,6 +39,52 @@ function Groups() {
 
   } = useGroupsLogic();
 
+
+  /*
+   * --------------------------------------------------
+   * Open group details
+   * --------------------------------------------------
+   */
+
+  function handleViewGroup(groupId) {
+    if (!groupId) {
+      if (import.meta.env.DEV) {
+        console.error(
+          '[Groups] Cannot open group details: missing group ID'
+        );
+      }
+
+      return;
+    }
+
+
+    if (import.meta.env.DEV) {
+      console.group(
+        '[Groups] Open Group Details'
+      );
+
+      console.log(
+        'Payload sent:',
+        {
+          groupId,
+        }
+      );
+
+      console.log(
+        'Navigate to:',
+        `/groups/${groupId}`
+      );
+
+      console.groupEnd();
+    }
+
+
+    navigate(
+      `/groups/${groupId}`
+    );
+  }
+
+
   return (
     <DashboardLayout>
 
@@ -49,6 +102,7 @@ function Groups() {
           </p>
 
         </div>
+
 
         {/* Admin Filters */}
         {isAdmin && (
@@ -119,6 +173,7 @@ function Groups() {
           </div>
         )}
 
+
         {/* Error */}
         {error && (
           <div className="border-b px-6 py-4">
@@ -134,10 +189,11 @@ function Groups() {
           </div>
         )}
 
+
         {/* Groups Table */}
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[1000px]">
+          <table className="w-full min-w-[1100px]">
 
             <thead>
               <tr className="border-b bg-white text-left">
@@ -166,8 +222,13 @@ function Groups() {
                   Created
                 </th>
 
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Actions
+                </th>
+
               </tr>
             </thead>
+
 
             <tbody>
 
@@ -175,7 +236,7 @@ function Groups() {
               {loading && (
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="7"
                     className="px-6 py-16 text-center"
                   >
                     <p className="text-sm text-gray-500">
@@ -185,12 +246,13 @@ function Groups() {
                 </tr>
               )}
 
+
               {/* Empty */}
               {!loading &&
                 groups.length === 0 && (
                   <tr>
                     <td
-                      colSpan="6"
+                      colSpan="7"
                       className="px-6 py-16 text-center"
                     >
 
@@ -208,12 +270,18 @@ function Groups() {
                   </tr>
                 )}
 
+
               {/* Groups */}
               {!loading &&
                 groups.map((group) => (
                   <tr
                     key={group.id}
-                    className="border-b last:border-b-0 hover:bg-gray-50"
+                    onClick={() =>
+                      handleViewGroup(
+                        group.id
+                      )
+                    }
+                    className="cursor-pointer border-b last:border-b-0 transition hover:bg-gray-50"
                   >
 
                     {/* Group */}
@@ -225,9 +293,16 @@ function Groups() {
                           {group.name || '—'}
                         </p>
 
+                        {group.id && (
+                          <p className="mt-1 text-xs text-gray-400">
+                            {group.id}
+                          </p>
+                        )}
+
                       </div>
 
                     </td>
+
 
                     {/* Type */}
                     <td className="px-6 py-4">
@@ -244,6 +319,7 @@ function Groups() {
 
                     </td>
 
+
                     {/* Department */}
                     <td className="px-6 py-4 text-sm text-gray-700">
 
@@ -254,6 +330,7 @@ function Groups() {
                       )}
 
                     </td>
+
 
                     {/* Manager */}
                     <td className="px-6 py-4">
@@ -282,6 +359,7 @@ function Groups() {
 
                     </td>
 
+
                     {/* Status */}
                     <td className="px-6 py-4">
                       <StatusBadge
@@ -289,11 +367,35 @@ function Groups() {
                       />
                     </td>
 
+
                     {/* Created */}
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {formatDate(
                         group.created_at
                       )}
+                    </td>
+
+
+                    {/* Actions */}
+                    <td
+                      className="px-6 py-4 text-right"
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                    >
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleViewGroup(
+                            group.id
+                          )
+                        }
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      >
+                        View Details
+                      </button>
+
                     </td>
 
                   </tr>
@@ -304,6 +406,7 @@ function Groups() {
           </table>
 
         </div>
+
 
         {/* Pagination */}
         {!loading &&
@@ -343,6 +446,7 @@ function Groups() {
                   Previous
                 </button>
 
+
                 {/* Next */}
                 <button
                   type="button"
@@ -366,6 +470,7 @@ function Groups() {
     </DashboardLayout>
   );
 }
+
 
 /*
  * --------------------------------------------------
@@ -405,6 +510,7 @@ function StatusBadge({ status }) {
   );
 }
 
+
 /*
  * --------------------------------------------------
  * Date
@@ -422,11 +528,15 @@ function formatDate(value) {
     return '—';
   }
 
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return date.toLocaleDateString(
+    'en-US',
+    {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }
+  );
 }
+
 
 export default Groups;

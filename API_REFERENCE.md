@@ -4,9 +4,9 @@
 
 | Method | Endpoint | Auth | Purpose |
 |--------|----------|------|---------|
-| POST | /api/groups/createGroup | User | Create new group |
-| GET | /api/groups | User | List all groups |
-| GET | /api/groups/:id | User | Get group details |
+| POST | /api/groups/createGroup | User | Create new group | DONE
+| GET | /api/groups | User | List all groups | Done
+| GET | /api/groups/:id | User | Get group details |   
 | PATCH | /api/groups/:id | Creator/Admin/Manager | Update group |
 | DELETE | /api/groups/:id | Creator/Admin | Delete group |
 | POST | /api/groups/:id/join | User | Join group |
