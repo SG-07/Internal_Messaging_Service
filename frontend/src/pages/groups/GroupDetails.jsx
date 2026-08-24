@@ -14,6 +14,12 @@ function GroupDetails() {
     isCreator,
     canDelete,
 
+    joining,
+    joinError,
+    joinSuccess,
+    handleJoin,
+    handleLeave,
+
     isEditing,
     name,
     setName,
@@ -206,6 +212,32 @@ function GroupDetails() {
 
               <StatusBadge status={group.status} />
 
+              {/* Join Group */}
+
+              {group.can_join === true && (
+                <button
+                  type="button"
+                  onClick={handleJoin}
+                  disabled={joining}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {joining ? "Joining..." : "Join Group"}
+                </button>
+              )}
+
+              {/* Leave Group */}
+
+              {group.can_leave === true && (
+                <button
+                  type="button"
+                  onClick={handleLeave}
+                  disabled={joining}
+                  className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {joining ? "Leaving..." : "Leave Group"}
+                </button>
+              )}
+
               {canEdit && !isEditing && (
                 <button
                   type="button"
@@ -228,6 +260,20 @@ function GroupDetails() {
             </div>
           )}
 
+          {joinSuccess && (
+            <div className="border-b border-green-200 bg-green-50 px-6 py-4">
+              <p className="text-sm font-medium text-green-700">
+                {joinSuccess}
+              </p>
+            </div>
+          )}
+
+          {joinError && (
+            <div className="border-b border-red-200 bg-red-50 px-6 py-4">
+              <p className="text-sm font-medium text-red-700">{joinError}</p>
+            </div>
+          )}
+
           {/* Statistics */}
 
           <div className="grid grid-cols-1 divide-y border-b sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -236,10 +282,7 @@ function GroupDetails() {
               value={group.total_members ?? members.length}
             />
 
-            <StatItem
-              label="Pending Requests"
-              value={pendingRequests.length}
-            />
+            <StatItem label="Pending Requests" value={pendingRequests.length} />
 
             <StatItem
               label="Department"
@@ -525,9 +568,7 @@ function GroupDetails() {
                 <div className="divide-y">
                   <DetailRow
                     label="Membership Status"
-                    value={formatMembershipStatus(
-                      group.user_membership_status
-                    )}
+                    value={formatMembershipStatus(group.user_membership_status)}
                   />
 
                   <DetailRow
@@ -594,8 +635,7 @@ function GroupDetails() {
                         </h2>
 
                         <p className="mt-1 text-sm text-red-700">
-                          Permanently delete this group and its associated
-                          data.
+                          Permanently delete this group and its associated data.
                         </p>
                       </div>
                     </div>
@@ -634,7 +674,6 @@ function GroupDetails() {
                           d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v12a1 1 0 01-1 1H8a1 1 0 01-1-1V7h10zM10 11v5M14 11v5"
                         />
                       </svg>
-
                       Delete Group
                     </button>
                   </div>
@@ -754,9 +793,7 @@ function StatItem({ label, value }) {
     <div className="px-6 py-5">
       <p className="text-sm text-gray-500">{label}</p>
 
-      <p className="mt-1 text-xl font-semibold text-gray-900">
-        {value ?? "—"}
-      </p>
+      <p className="mt-1 text-xl font-semibold text-gray-900">{value ?? "—"}</p>
     </div>
   );
 }

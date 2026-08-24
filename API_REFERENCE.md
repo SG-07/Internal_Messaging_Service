@@ -9,8 +9,8 @@
 | GET | /api/groups/:id | User | Get group details |  Done
 | PATCH | /api/groups/:id | Creator/Admin/Manager | Update group | Done
 | DELETE | /api/groups/:id | Creator/Admin | Delete group | Done
-| POST | /api/groups/:id/join | User | Join group |
-| POST | /api/groups/:id/leave | Member | Leave group |
+| POST | /api/groups/:id/join | User | Join group |  Done
+| POST | /api/groups/:id/leave | Member | Leave group | Done
 
 ## Membership
 

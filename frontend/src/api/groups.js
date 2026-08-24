@@ -285,8 +285,53 @@ export async function joinGroup(groupId) {
   }
 }
 
-// ------- Update group -------
 
+// ------- Leave a group -------
+export async function leaveGroup(groupId) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/leave`;
+
+  debugLog('LEAVE GROUP → Request', {
+    endpoint,
+    method: 'POST',
+    groupId,
+  });
+
+  try {
+    const response = await request(
+      endpoint,
+      {
+        method: 'POST',
+      }
+    );
+
+    debugLog('LEAVE GROUP ← Response', {
+      endpoint,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    debugLog('LEAVE GROUP ← Error', {
+      endpoint,
+      groupId,
+      status: error?.status,
+      message: error?.message,
+      error,
+    });
+
+    throw error;
+  }
+}
+
+
+// ------- Update group -------
 export async function updateGroup(
   groupId,
   payload

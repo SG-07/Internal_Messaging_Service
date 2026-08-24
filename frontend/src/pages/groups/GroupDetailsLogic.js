@@ -1,12 +1,16 @@
-// frontend/src/pages/groups/GroupDetailsLogic.js
-
 import { useCallback, useEffect, useState } from "react";
 
 import { useNavigate, useParams } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
 
-import { getGroup, updateGroup, deleteGroup } from "../../api/groups";
+import {
+  getGroup,
+  updateGroup,
+  deleteGroup,
+  joinGroup,
+  leaveGroup,
+} from "../../api/groups";
 
 export function useGroupDetailsLogic() {
   const navigate = useNavigate();
@@ -26,7 +30,7 @@ export function useGroupDetailsLogic() {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
-  
+
   /*
    * ----------------------------------------
    * Permissions
@@ -35,10 +39,26 @@ export function useGroupDetailsLogic() {
 
   const isAdmin = user?.role === "admin";
 
-  const isCreator = group?.creator?.id === user?.id;
+  const isCreator =
+    group?.creator?.id === user?.id;
 
-  const canDelete = isAdmin || isCreator;
+  const canDelete =
+    isAdmin || isCreator;
 
+  /*
+   * ----------------------------------------
+   * Membership state
+   * ----------------------------------------
+   */
+
+  const [joining, setJoining] =
+    useState(false);
+
+  const [joinError, setJoinError] =
+    useState("");
+
+  const [joinSuccess, setJoinSuccess] =
+    useState("");
 
   /*
    * ----------------------------------------
@@ -46,19 +66,26 @@ export function useGroupDetailsLogic() {
    * ----------------------------------------
    */
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] =
+    useState(false);
 
-  const [name, setName] = useState("");
+  const [name, setName] =
+    useState("");
 
-  const [description, setDescription] = useState("");
+  const [description, setDescription] =
+    useState("");
 
-  const [managerId, setManagerId] = useState("");
+  const [managerId, setManagerId] =
+    useState("");
 
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [saveError, setSaveError] = useState("");
+  const [saveError, setSaveError] =
+    useState("");
 
-  const [saveSuccess, setSaveSuccess] = useState("");
+  const [saveSuccess, setSaveSuccess] =
+    useState("");
 
   /*
    * ----------------------------------------
@@ -66,11 +93,14 @@ export function useGroupDetailsLogic() {
    * ----------------------------------------
    */
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] =
+    useState(false);
 
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] =
+    useState(false);
 
-  const [deleteError, setDeleteError] = useState("");
+  const [deleteError, setDeleteError] =
+    useState("");
 
   /*
    * ----------------------------------------
@@ -105,26 +135,44 @@ export function useGroupDetailsLogic() {
       setLoading(true);
       setError("");
 
-      const response = await getGroup(groupId);
+      const response =
+        await getGroup(groupId);
 
       if (import.meta.env.DEV) {
-        console.group("[Group Details] Fetch Group Response");
+        console.group(
+          "[Group Details] Fetch Group Response"
+        );
 
-        console.log("Group ID:", groupId);
+        console.log(
+          "Group ID:",
+          groupId
+        );
 
-        console.log("Full response:", response);
+        console.log(
+          "Full response:",
+          response
+        );
 
-        console.log("Response data:", response?.data);
+        console.log(
+          "Response data:",
+          response?.data
+        );
 
-        console.log("Response message:", response?.message);
+        console.log(
+          "Response message:",
+          response?.message
+        );
 
         console.groupEnd();
       }
 
-      const responseGroup = response?.data || null;
+      const responseGroup =
+        response?.data || null;
 
       if (!responseGroup) {
-        throw new Error("Group details were not returned by the server.");
+        throw new Error(
+          "Group details were not returned by the server."
+        );
       }
 
       setGroup(responseGroup);
@@ -134,24 +182,41 @@ export function useGroupDetailsLogic() {
        * with the latest server response.
        */
 
-      setName(responseGroup.name || "");
+      setName(
+        responseGroup.name || ""
+      );
 
-      setDescription(responseGroup.description || "");
+      setDescription(
+        responseGroup.description || ""
+      );
 
-      setManagerId(responseGroup.manager?.id || "");
+      setManagerId(
+        responseGroup.manager?.id || ""
+      );
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.group("[Group Details] Fetch Group Error");
+        console.group(
+          "[Group Details] Fetch Group Error"
+        );
 
         console.log("Payload sent:", {
           groupId,
         });
 
-        console.error("Error:", err);
+        console.error(
+          "Error:",
+          err
+        );
 
-        console.log("Status:", err?.status);
+        console.log(
+          "Status:",
+          err?.status
+        );
 
-        console.log("Message:", err?.message);
+        console.log(
+          "Message:",
+          err?.message
+        );
 
         console.groupEnd();
       }
@@ -159,7 +224,8 @@ export function useGroupDetailsLogic() {
       setGroup(null);
 
       setError(
-        err?.message || "Unable to load group details. Please try again.",
+        err?.message ||
+          "Unable to load group details. Please try again."
       );
     } finally {
       setLoading(false);
@@ -178,6 +244,295 @@ export function useGroupDetailsLogic() {
 
   /*
    * ----------------------------------------
+   * Join group
+   * ----------------------------------------
+   */
+
+  async function handleJoin() {
+    if (!groupId || joining) {
+      return;
+    }
+
+    /*
+     * Backend permission is the final authority.
+     * The frontend check only prevents an
+     * obviously invalid request.
+     */
+
+    if (group?.can_join !== true) {
+      setJoinError(
+        "You cannot join this group."
+      );
+
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.group(
+        "[Group Details] Join Group"
+      );
+
+      console.log(
+        "Group ID:",
+        groupId
+      );
+
+      console.log(
+        "Current user:",
+        user
+      );
+
+      console.log(
+        "Payload sent:",
+        {
+          groupId,
+        }
+      );
+
+      console.groupEnd();
+    }
+
+    try {
+      setJoining(true);
+
+      setJoinError("");
+      setJoinSuccess("");
+
+      const response =
+        await joinGroup(groupId);
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[Group Details] Join Group Response"
+        );
+
+        console.log(
+          "Group ID:",
+          groupId
+        );
+
+        console.log(
+          "Full response:",
+          response
+        );
+
+        console.log(
+          "Response data:",
+          response?.data
+        );
+
+        console.log(
+          "Response message:",
+          response?.message
+        );
+
+        console.groupEnd();
+      }
+
+      /*
+       * Reload the group so that:
+       *
+       * - membership status
+       * - member count
+       * - can_join
+       * - can_leave
+       * - pending request state
+       *
+       * all come from the backend again.
+       */
+
+      await loadGroup();
+
+      setJoinSuccess(
+        response?.message ||
+          "You joined the group successfully."
+      );
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.group(
+          "[Group Details] Join Group Error"
+        );
+
+        console.log(
+          "Group ID:",
+          groupId
+        );
+
+        console.error(
+          "Error:",
+          err
+        );
+
+        console.log(
+          "Status:",
+          err?.status
+        );
+
+        console.log(
+          "Message:",
+          err?.message
+        );
+
+        console.groupEnd();
+      }
+
+      setJoinError(
+        err?.message ||
+          "Unable to join the group. Please try again."
+      );
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  /*
+   * ----------------------------------------
+   * Leave group
+   * ----------------------------------------
+   */
+
+  async function handleLeave() {
+    if (!groupId || joining) {
+      return;
+    }
+
+    /*
+     * Backend permission is the final authority.
+     */
+
+    if (group?.can_leave !== true) {
+      setJoinError(
+        "You cannot leave this group."
+      );
+
+      return;
+    }
+
+    /*
+     * Prevent accidental leaving.
+     */
+
+    const shouldLeave =
+      window.confirm(
+        `Are you sure you want to leave "${group?.name || "this group"}. You will not be able to access/join it once you leave."?`
+      );
+
+    if (!shouldLeave) {
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.group(
+        "[Group Details] Leave Group"
+      );
+
+      console.log(
+        "Group ID:",
+        groupId
+      );
+
+      console.log(
+        "Current user:",
+        user
+      );
+
+      console.log(
+        "Payload sent:",
+        {
+          groupId,
+        }
+      );
+
+      console.groupEnd();
+    }
+
+    try {
+      setJoining(true);
+
+      setJoinError("");
+      setJoinSuccess("");
+
+      const response =
+        await leaveGroup(groupId);
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[Group Details] Leave Group Response"
+        );
+
+        console.log(
+          "Group ID:",
+          groupId
+        );
+
+        console.log(
+          "Full response:",
+          response
+        );
+
+        console.log(
+          "Response data:",
+          response?.data
+        );
+
+        console.log(
+          "Response message:",
+          response?.message
+        );
+
+        console.groupEnd();
+      }
+
+      /*
+       * Reload the group after leaving.
+       */
+
+      await loadGroup();
+
+      setJoinSuccess(
+        response?.message ||
+          "You left the group successfully."
+      );
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.group(
+          "[Group Details] Leave Group Error"
+        );
+
+        console.log(
+          "Group ID:",
+          groupId
+        );
+
+        console.error(
+          "Error:",
+          err
+        );
+
+        console.log(
+          "Status:",
+          err?.status
+        );
+
+        console.log(
+          "Message:",
+          err?.message
+        );
+
+        console.groupEnd();
+      }
+
+      setJoinError(
+        err?.message ||
+          "Unable to leave the group. Please try again."
+      );
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  /*
+   * ----------------------------------------
    * Open edit mode
    * ----------------------------------------
    */
@@ -190,11 +545,17 @@ export function useGroupDetailsLogic() {
     setSaveError("");
     setSaveSuccess("");
 
-    setName(group.name || "");
+    setName(
+      group.name || ""
+    );
 
-    setDescription(group.description || "");
+    setDescription(
+      group.description || ""
+    );
 
-    setManagerId(group.manager?.id || "");
+    setManagerId(
+      group.manager?.id || ""
+    );
 
     setIsEditing(true);
   }
@@ -213,11 +574,17 @@ export function useGroupDetailsLogic() {
     setSaveError("");
     setSaveSuccess("");
 
-    setName(group?.name || "");
+    setName(
+      group?.name || ""
+    );
 
-    setDescription(group?.description || "");
+    setDescription(
+      group?.description || ""
+    );
 
-    setManagerId(group?.manager?.id || "");
+    setManagerId(
+      group?.manager?.id || ""
+    );
 
     setIsEditing(false);
   }
@@ -230,40 +597,49 @@ export function useGroupDetailsLogic() {
 
   async function handleSave() {
     if (!groupId || !group) {
-      setSaveError("A valid group is required.");
+      setSaveError(
+        "A valid group is required."
+      );
 
       return;
     }
 
-    const trimmedName = name.trim();
+    const trimmedName =
+      name.trim();
 
-    const trimmedDescription = description.trim();
+    const trimmedDescription =
+      description.trim();
 
     /*
      * Frontend validation
      */
 
     if (!trimmedName) {
-      setSaveError("Please enter a group name.");
+      setSaveError(
+        "Please enter a group name."
+      );
 
       return;
     }
 
     if (trimmedName.length > 255) {
-      setSaveError("Group name cannot exceed 255 characters.");
+      setSaveError(
+        "Group name cannot exceed 255 characters."
+      );
 
       return;
     }
 
     /*
-     * Only include fields that are
-     * allowed for this frontend user.
+     * Only include fields allowed
+     * for this frontend user.
      */
 
     const payload = {
       name: trimmedName,
 
-      description: trimmedDescription || null,
+      description:
+        trimmedDescription || null,
     };
 
     /*
@@ -274,92 +650,153 @@ export function useGroupDetailsLogic() {
      */
 
     if (isAdmin) {
-      payload.manager_id = managerId.trim() || null;
+      payload.manager_id =
+        managerId.trim() || null;
     }
 
     if (import.meta.env.DEV) {
-      console.group("[Group Details] Update Group");
+      console.group(
+        "[Group Details] Update Group"
+      );
 
-      console.log("Group ID:", groupId);
+      console.log(
+        "Group ID:",
+        groupId
+      );
 
-      console.log("Current user:", user);
+      console.log(
+        "Current user:",
+        user
+      );
 
-      console.log("Is admin:", isAdmin);
+      console.log(
+        "Is admin:",
+        isAdmin
+      );
 
-      console.log("Payload sent:", payload);
+      console.log(
+        "Payload sent:",
+        payload
+      );
 
       console.groupEnd();
     }
 
     try {
       setSaving(true);
+
       setSaveError("");
       setSaveSuccess("");
 
-      const response = await updateGroup(groupId, payload);
+      const response =
+        await updateGroup(
+          groupId,
+          payload
+        );
 
       if (import.meta.env.DEV) {
-        console.group("[Group Details] Update Group Response");
+        console.group(
+          "[Group Details] Update Group Response"
+        );
 
-        console.log("Group ID:", groupId);
+        console.log(
+          "Group ID:",
+          groupId
+        );
 
-        console.log("Payload sent:", payload);
+        console.log(
+          "Payload sent:",
+          payload
+        );
 
-        console.log("Full response:", response);
+        console.log(
+          "Full response:",
+          response
+        );
 
-        console.log("Response data:", response?.data);
+        console.log(
+          "Response data:",
+          response?.data
+        );
 
-        console.log("Response message:", response?.message);
+        console.log(
+          "Response message:",
+          response?.message
+        );
 
         console.groupEnd();
       }
 
       /*
-       * Use the updated group returned
+       * Use updated group returned
        * by the API when available.
        */
 
-      const updatedGroup = response?.data || null;
+      const updatedGroup =
+        response?.data || null;
 
       if (updatedGroup) {
         setGroup(updatedGroup);
 
-        setName(updatedGroup.name || "");
+        setName(
+          updatedGroup.name || ""
+        );
 
-        setDescription(updatedGroup.description || "");
+        setDescription(
+          updatedGroup.description || ""
+        );
 
-        setManagerId(updatedGroup.manager?.id || "");
+        setManagerId(
+          updatedGroup.manager?.id || ""
+        );
       } else {
-        /*
-         * If the update endpoint does not
-         * return the complete group object,
-         * fetch it again.
-         */
-
         await loadGroup();
       }
 
-      setSaveSuccess(response?.message || "Group updated successfully.");
+      setSaveSuccess(
+        response?.message ||
+          "Group updated successfully."
+      );
 
       setIsEditing(false);
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.group("[Group Details] Update Group Error");
+        console.group(
+          "[Group Details] Update Group Error"
+        );
 
-        console.log("Group ID:", groupId);
+        console.log(
+          "Group ID:",
+          groupId
+        );
 
-        console.log("Payload sent:", payload);
+        console.log(
+          "Payload sent:",
+          payload
+        );
 
-        console.error("Error:", err);
+        console.error(
+          "Error:",
+          err
+        );
 
-        console.log("Status:", err?.status);
+        console.log(
+          "Status:",
+          err?.status
+        );
 
-        console.log("Message:", err?.message);
+        console.log(
+          "Message:",
+          err?.message
+        );
 
         console.groupEnd();
       }
 
-      setSaveError(err?.message || "Unable to update group. Please try again.");
+      setSaveError(
+        err?.message ||
+          "Unable to update group. Please try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -403,33 +840,57 @@ export function useGroupDetailsLogic() {
 
   async function handleDelete() {
     if (!groupId) {
-      setDeleteError("A valid group ID is required.");
+      setDeleteError(
+        "A valid group ID is required."
+      );
 
       return;
     }
 
     if (!canDelete) {
-      setDeleteError("You do not have permission to delete this group.");
+      setDeleteError(
+        "You do not have permission to delete this group."
+      );
 
       return;
     }
 
     if (import.meta.env.DEV) {
-      console.group("[Group Details] Delete Group");
+      console.group(
+        "[Group Details] Delete Group"
+      );
 
-      console.log("Group ID:", groupId);
+      console.log(
+        "Group ID:",
+        groupId
+      );
 
-      console.log("Current user:", user);
+      console.log(
+        "Current user:",
+        user
+      );
 
-      console.log("Is admin:", isAdmin);
+      console.log(
+        "Is admin:",
+        isAdmin
+      );
 
-      console.log("Is creator:", isCreator);
+      console.log(
+        "Is creator:",
+        isCreator
+      );
 
-      console.log("Can delete:", canDelete);
+      console.log(
+        "Can delete:",
+        canDelete
+      );
 
-      console.log("Payload sent:", {
-        groupId,
-      });
+      console.log(
+        "Payload sent:",
+        {
+          groupId,
+        }
+      );
 
       console.groupEnd();
     }
@@ -438,46 +899,75 @@ export function useGroupDetailsLogic() {
       setDeleting(true);
       setDeleteError("");
 
-      const response = await deleteGroup(groupId);
+      const response =
+        await deleteGroup(groupId);
 
       if (import.meta.env.DEV) {
-        console.group("[Group Details] Delete Group Response");
+        console.group(
+          "[Group Details] Delete Group Response"
+        );
 
-        console.log("Group ID:", groupId);
+        console.log(
+          "Group ID:",
+          groupId
+        );
 
-        console.log("Full response:", response);
+        console.log(
+          "Full response:",
+          response
+        );
 
-        console.log("Response data:", response?.data);
+        console.log(
+          "Response data:",
+          response?.data
+        );
 
-        console.log("Response message:", response?.message);
+        console.log(
+          "Response message:",
+          response?.message
+        );
 
         console.groupEnd();
       }
 
-      /*
-       * Group was deleted successfully.
-       */
-
-      navigate("/groups", {
-        replace: true,
-      });
+      navigate(
+        "/groups",
+        {
+          replace: true,
+        }
+      );
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.group("[Group Details] Delete Group Error");
+        console.group(
+          "[Group Details] Delete Group Error"
+        );
 
-        console.log("Group ID:", groupId);
+        console.log(
+          "Group ID:",
+          groupId
+        );
 
-        console.error("Error:", err);
+        console.error(
+          "Error:",
+          err
+        );
 
-        console.log("Status:", err?.status);
+        console.log(
+          "Status:",
+          err?.status
+        );
 
-        console.log("Message:", err?.message);
+        console.log(
+          "Message:",
+          err?.message
+        );
 
         console.groupEnd();
       }
 
       setDeleteError(
-        err?.message || "Unable to delete group. Please try again.",
+        err?.message ||
+          "Unable to delete group. Please try again."
       );
     } finally {
       setDeleting(false);
@@ -511,6 +1001,24 @@ export function useGroupDetailsLogic() {
 
     error,
 
+    /*
+     * Membership
+     */
+
+    joining,
+
+    joinError,
+
+    joinSuccess,
+
+    handleJoin,
+
+    handleLeave,
+
+    /*
+     * Edit
+     */
+
     isEditing,
 
     name,
@@ -527,6 +1035,10 @@ export function useGroupDetailsLogic() {
     saveError,
 
     saveSuccess,
+
+    /*
+     * Delete
+     */
 
     showDeleteConfirm,
 
