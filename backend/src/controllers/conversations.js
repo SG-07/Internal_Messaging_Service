@@ -871,3 +871,475 @@ export const updateApprovalStatus = async (req, res) => {
     res.status(500).json({ success: false, message: 'Unable to update approval status.' });
   }
 };
+
+
+/// --- REVIEW REPORT ---
+export const reviewReport = async (req, res) => {
+  const { reportId } = req.params;
+  const { status, resolution_notes } = req.body;
+  const currentUserId = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!reportId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Report ID is required.',
+    });
+  }
+
+  if (!status) {
+    return res.status(400).json({
+      success: false,
+      message: 'Status is required.',
+    });
+  }
+
+  const validStatuses = ['reviewed', 'dismissed', 'resolved'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid status. Must be one of: reviewed, dismissed, resolved.',
+    });
+  }
+
+  if (resolution_notes && resolution_notes.length > 500) {
+    return res.status(400).json({
+      success: false,
+      message: 'Resolution notes must not exceed 500 characters.',
+    });
+  }
+
+  try {
+    // Fetch current user details
+    const { data: currentUser, error: currentUserError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Current user not found.',
+      });
+    }
+
+    // Check permissions: only admin and manager can review reports
+    if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and managers can review reports.',
+      });
+    }
+
+    // Fetch report details
+    const { data: report, error: reportError } = await supabaseAdmin
+      .from('conversation_reports')
+      .select('id, conversation_id, status')
+      .eq('id', reportId)
+      .single();
+
+    if (reportError || !report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found.',
+      });
+    }
+
+    // Check if report is pending
+    if (report.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot review a ${report.status} report.`,
+      });
+    }
+
+    // Fetch conversation details for response
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id, subject')
+      .eq('id', report.conversation_id)
+      .single();
+
+    if (convError || !conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found.',
+      });
+    }
+
+    // Update report status
+    const { data: updatedReport, error: updateError } = await supabaseAdmin
+      .from('conversation_reports')
+      .update({
+        status: status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: currentUserId,
+        resolution_notes: resolution_notes || null,
+      })
+      .eq('id', reportId)
+      .select('id, status, reviewed_at')
+      .single();
+
+    if (updateError) {
+      console.error('[reviewReport] Error updating report:', updateError);
+      throw new Error('Failed to review report');
+    }
+
+    // If resolved, mark conversation as no longer reported (if no other pending reports)
+    if (status === 'resolved' || status === 'dismissed') {
+      const { data: otherPendingReports, error: checkError } = await supabaseAdmin
+        .from('conversation_reports')
+        .select('id')
+        .eq('conversation_id', report.conversation_id)
+        .eq('status', 'pending')
+        .limit(1);
+
+      if (!checkError && (!otherPendingReports || otherPendingReports.length === 0)) {
+        // No more pending reports for this conversation
+        const { error: markClearError } = await supabaseAdmin
+          .from('conversations')
+          .update({
+            is_reported: false,
+          })
+          .eq('id', report.conversation_id);
+
+        if (markClearError) {
+          console.error('[reviewReport] Error clearing conversation report flag:', markClearError);
+          // Don't fail the request, the report review was successful
+        }
+      }
+    }
+
+    if (isDev) {
+      console.log('[reviewReport] Report reviewed:', reportId, 'status:', status, 'by:', currentUserId);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Report has been marked as ${status}.`,
+      data: {
+        report_id: reportId,
+        conversation_id: report.conversation_id,
+        conversation_subject: conversation.subject,
+        status: updatedReport.status,
+        reviewed_at: updatedReport.reviewed_at,
+        resolution_notes: resolution_notes || null,
+      },
+    });
+  } catch (err) {
+    console.error('[reviewReport] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to review report.',
+    });
+  }
+};
+
+/// --- LIST CONVERSATION REPORTS ---
+export const listReports = async (req, res) => {
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { status, sort_by } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  try {
+    // Fetch current user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check permissions: only admin and manager can view reports
+    if (user.role !== 'admin' && user.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and managers can view conversation reports.',
+      });
+    }
+
+    // Build query
+    let query = supabaseAdmin
+      .from('conversation_reports')
+      .select(
+        `
+        id,
+        conversation_id,
+        reported_by,
+        reason,
+        status,
+        created_at,
+        reviewed_at,
+        reviewed_by,
+        resolution_notes,
+        conversations(id, subject, conversation_type, created_by),
+        reported_by_profile:profiles!conversation_reports_reported_by_fkey(id, username, full_name, email),
+        reviewed_by_profile:profiles!conversation_reports_reviewed_by_fkey(id, username, full_name)
+      `,
+        { count: 'exact' }
+      );
+
+    // Filter by status if provided
+    if (status) {
+      const validStatuses = ['pending', 'reviewed', 'dismissed', 'resolved'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status. Must be one of: pending, reviewed, dismissed, resolved.',
+        });
+      }
+      query = query.eq('status', status);
+    }
+
+    // Sort order
+    let orderAscending = true;
+    if (sort_by === 'oldest') {
+      orderAscending = true;
+    } else if (sort_by === 'newest') {
+      orderAscending = false;
+    }
+
+    query = query.order('created_at', { ascending: orderAscending }).range(offset, offset + limit - 1);
+
+    const { data: reports, error, count } = await query;
+
+    if (error) {
+      console.error('[listReports] Error fetching reports:', error);
+      throw new Error('Failed to fetch reports');
+    }
+
+    if (isDev) {
+      console.log('[listReports] user_id:', user_id, 'role:', user.role, 'total reports:', count);
+    }
+
+    // Transform response
+    const transformedReports = reports.map((report) => ({
+      id: report.id,
+      conversation: {
+        id: report.conversation_id,
+        subject: report.conversations?.subject,
+        type: report.conversations?.conversation_type,
+        created_by: report.conversations?.created_by,
+      },
+      reported_by: {
+        id: report.reported_by,
+        username: report.reported_by_profile?.username,
+        full_name: report.reported_by_profile?.full_name,
+        email: report.reported_by_profile?.email,
+      },
+      reason: report.reason,
+      status: report.status,
+      created_at: report.created_at,
+      reviewed_at: report.reviewed_at,
+      reviewed_by: report.reviewed_by_profile
+        ? {
+            id: report.reviewed_by,
+            username: report.reviewed_by_profile.username,
+            full_name: report.reviewed_by_profile.full_name,
+          }
+        : null,
+      resolution_notes: report.resolution_notes,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: transformedReports,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[listReports] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch reports.',
+    });
+  }
+};
+
+
+/// --- REPORT CONVERSATION ---
+export const reportConversation = async (req, res) => {
+  const { conversationId } = req.params;
+  const { reason } = req.body;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!conversationId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Conversation ID is required.',
+    });
+  }
+
+  if (!reason || typeof reason !== 'string' || reason.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Report reason is required and must be a non-empty string.',
+    });
+  }
+
+  if (reason.length > 500) {
+    return res.status(400).json({
+      success: false,
+      message: 'Report reason must not exceed 500 characters.',
+    });
+  }
+
+  try {
+    // Fetch conversation details
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id, subject, conversation_type, created_by, is_group, group_id')
+      .eq('id', conversationId)
+      .single();
+
+    if (convError || !conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found.',
+      });
+    }
+
+    // Check if user is a participant in this conversation
+    let isParticipant = false;
+
+    if (conversation.is_group) {
+      // For group conversations, check if user is a member of the group
+      const { data: groupMembership, error: groupMemberError } = await supabaseAdmin
+        .from('group_members')
+        .select('id')
+        .eq('group_id', conversation.group_id)
+        .eq('user_id', user_id)
+        .is('left_at', null)
+        .maybeSingle();
+
+      if (!groupMemberError && groupMembership) {
+        isParticipant = true;
+      }
+    } else {
+      // For direct conversations, check conversation_participants
+      const { data: participant, error: partError } = await supabaseAdmin
+        .from('conversation_participants')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', user_id)
+        .maybeSingle();
+
+      if (!partError && participant) {
+        isParticipant = true;
+      }
+    }
+
+    // Only participants can report conversations
+    if (!isParticipant) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only report conversations you are a member of.',
+      });
+    }
+
+    // Check if user has already reported this conversation
+    const { data: existingReport, error: existingReportError } = await supabaseAdmin
+      .from('conversation_reports')
+      .select('id, status')
+      .eq('conversation_id', conversationId)
+      .eq('reported_by', user_id)
+      .maybeSingle();
+
+    if (existingReportError) {
+      console.error('[reportConversation] Error checking existing report:', existingReportError);
+      throw new Error('Failed to check existing report');
+    }
+
+    // User can only have one report per conversation at a time
+    if (existingReport) {
+      if (existingReport.status === 'pending') {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already reported this conversation. Your report is pending review.',
+        });
+      }
+      if (existingReport.status === 'resolved') {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already reported this conversation and it has been resolved.',
+        });
+      }
+      // Allow re-reporting if previous was dismissed
+      if (existingReport.status === 'dismissed') {
+        // Delete the old dismissed report so we can create a new one
+        await supabaseAdmin
+          .from('conversation_reports')
+          .delete()
+          .eq('id', existingReport.id);
+      }
+    }
+
+    // Create report
+    const { data: report, error: reportError } = await supabaseAdmin
+      .from('conversation_reports')
+      .insert({
+        conversation_id: conversationId,
+        reported_by: user_id,
+        reason: reason.trim(),
+        status: 'pending',
+      })
+      .select('id, created_at')
+      .single();
+
+    if (reportError) {
+      console.error('[reportConversation] Error creating report:', reportError);
+      throw new Error('Failed to create report');
+    }
+
+    // Mark conversation as reported
+    const { error: markReportedError } = await supabaseAdmin
+      .from('conversations')
+      .update({
+        is_reported: true,
+      })
+      .eq('id', conversationId);
+
+    if (markReportedError) {
+      console.error('[reportConversation] Error marking conversation as reported:', markReportedError);
+      // Don't fail the request, the report was created successfully
+    }
+
+    if (isDev) {
+      console.log('[reportConversation] Conversation reported:', conversationId, 'by user:', user_id, 'report_id:', report.id);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Thank you for reporting this conversation. Our team will review it shortly.',
+      data: {
+        report_id: report.id,
+        conversation_id: conversationId,
+        conversation_subject: conversation.subject,
+        reason: reason.trim(),
+        status: 'pending',
+        reported_at: report.created_at,
+      },
+    });
+  } catch (err) {
+    console.error('[reportConversation] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to report conversation.',
+    });
+  }
+};

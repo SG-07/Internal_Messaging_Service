@@ -13,6 +13,9 @@ import {
   getMyWorkflowRequests,
   updateActionStatus,
   updateApprovalStatus,
+  reportConversation,
+  listReports,
+  reviewReport         
 } from '../controllers/conversations.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -33,5 +36,10 @@ router.delete('/:conversationId', requireAuth, deleteConversation);
 router.post('/:conversationId/messages', requireAuth, addMessage);
 router.patch('/:conversationId/action', requireAuth, updateActionStatus);
 router.patch('/:conversationId/approval', requireAuth, updateApprovalStatus);
+
+router.post('/:conversationId/report', requireAuth, reportConversation);
+router.get('/reports', requireAuth, listReports);
+router.patch('/reports/:reportId', requireAuth, reviewReport);
+
 
 export default router;

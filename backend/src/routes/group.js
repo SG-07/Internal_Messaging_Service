@@ -1,24 +1,36 @@
 // backend/src/routes/group.js
 import { Router } from 'express';
-import {
-   createGroup, 
-   listGroups, 
-   joinGroup,
-   getGroup, 
-//    updateGroup, 
-//    deleteGroup 
+import { 
+  createGroup, 
+  listGroups, 
+  joinGroup,
+  getGroup,
+  leaveGroup,
+  updateGroup,
+  deleteGroup,
+  listGroupMembers,
+  addMember,
+  removeMember,
+  listJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest
 } from '../controllers/group.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
-
-
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-router.post('/create', requireAuth, createGroup);
-router.get('/listGroups', requireAuth, listGroups);
-router.post('/joinGroup', requireAuth, joinGroup);
+router.post('/createGroup', requireAuth, createGroup);
+router.get('/', requireAuth, listGroups);
+router.post('/:groupId/join', requireAuth, joinGroup);
 router.get('/:groupId', requireAuth, getGroup);
-// router.put('/:groupId', requireAuth, updateGroup);
-// router.delete('/:groupId', requireAuth, deleteGroup);
+router.post('/:groupId/leave', requireAuth, leaveGroup);
+router.patch('/:groupId', requireAuth, updateGroup);
+router.delete('/:groupId', requireAuth, deleteGroup);
+router.get('/:groupId/members', requireAuth, listGroupMembers);
+router.post('/:groupId/members', requireAuth, addMember);
+router.delete('/:groupId/members/:userId', requireAuth, removeMember);
+router.get('/:groupId/requests', requireAuth, listJoinRequests);
+router.patch('/:groupId/requests/:requestId/approve', requireAuth, approveJoinRequest);  
+router.patch('/:groupId/requests/:requestId/reject', requireAuth, rejectJoinRequest);   
 
 export default router;

@@ -1536,3 +1536,503 @@ export const removeMember = async (req, res) => {
     });
   }
 };
+
+
+
+/// --- LIST JOIN REQUESTS ---
+export const listJoinRequests = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { status } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, requested_by')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch current user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check permissions: only creator, admin, or manager can view requests
+    const isCreator = group.requested_by === user_id;
+    const isAdmin = user.role === 'admin';
+    const isManager = user.role === 'manager';
+
+    if (!isCreator && !isAdmin && !isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view join requests for this group.',
+      });
+    }
+
+    // Build query
+    let query = supabaseAdmin
+      .from('group_join_requests')
+      .select(
+        `
+        id,
+        user_id,
+        status,
+        requested_at,
+        reviewed_at,
+        reviewed_by,
+        review_notes,
+        profiles:user_id(id, username, full_name, email, department),
+        reviewed_by_profile:profiles!group_join_requests_reviewed_by_fkey(id, username, full_name)
+      `,
+        { count: 'exact' }
+      )
+      .eq('group_id', groupId)
+      .order('requested_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    // Filter by status if provided
+    if (status) {
+      const validStatuses = ['pending', 'approved', 'rejected'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status. Must be one of: pending, approved, rejected.',
+        });
+      }
+      query = query.eq('status', status);
+    }
+
+    const { data: requests, error, count } = await query;
+
+    if (error) {
+      console.error('[listJoinRequests] Error fetching requests:', error);
+      throw new Error('Failed to fetch join requests');
+    }
+
+    if (isDev) {
+      console.log('[listJoinRequests] groupId:', groupId, 'user_id:', user_id, 'total requests:', count);
+    }
+
+    // Transform response
+    const transformedRequests = requests.map((req) => ({
+      id: req.id,
+      user: {
+        id: req.user_id,
+        username: req.profiles.username,
+        full_name: req.profiles.full_name,
+        email: req.profiles.email,
+        department: req.profiles.department,
+      },
+      status: req.status,
+      requested_at: req.requested_at,
+      reviewed_at: req.reviewed_at,
+      reviewed_by: req.reviewed_by_profile
+        ? {
+            id: req.reviewed_by,
+            username: req.reviewed_by_profile.username,
+            full_name: req.reviewed_by_profile.full_name,
+          }
+        : null,
+      review_notes: req.review_notes,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        requests: transformedRequests,
+      },
+      pagination: {
+        page,
+        limit,
+        total: count,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[listJoinRequests] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch join requests.',
+    });
+  }
+};
+
+/// --- APPROVE JOIN REQUEST ---
+export const approveJoinRequest = async (req, res) => {
+  const { groupId, requestId } = req.params;
+  const { review_notes } = req.body;
+  const currentUserId = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId || !requestId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID and Request ID are required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, requested_by')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch current user details
+    const { data: currentUser, error: currentUserError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Current user not found.',
+      });
+    }
+
+    // Check permissions
+    const isCreator = group.requested_by === currentUserId;
+    const isAdmin = currentUser.role === 'admin';
+    const isManager = currentUser.role === 'manager';
+
+    if (!isCreator && !isAdmin && !isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to approve join requests for this group.',
+      });
+    }
+
+    // Fetch join request
+    const { data: joinRequest, error: requestError } = await supabaseAdmin
+      .from('group_join_requests')
+      .select('id, group_id, user_id, status')
+      .eq('id', requestId)
+      .eq('group_id', groupId)
+      .single();
+
+    if (requestError || !joinRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Join request not found.',
+      });
+    }
+
+    // Check if request is pending
+    if (joinRequest.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot approve a ${joinRequest.status} request.`,
+      });
+    }
+
+    // Fetch user details
+    const { data: userToAdd, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('id', joinRequest.user_id)
+      .single();
+
+    if (userError || !userToAdd) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check if user is already a member
+    const { data: existingMembership, error: membershipCheckError } = await supabaseAdmin
+      .from('group_members')
+      .select('id, left_at')
+      .eq('group_id', groupId)
+      .eq('user_id', joinRequest.user_id)
+      .maybeSingle();
+
+    if (membershipCheckError) {
+      console.error('[approveJoinRequest] Error checking membership:', membershipCheckError);
+      throw new Error('Failed to check group membership');
+    }
+
+    // If user is already an active member, just update the request status
+    if (existingMembership && !existingMembership.left_at) {
+      const { error: updateRequestError } = await supabaseAdmin
+        .from('group_join_requests')
+        .update({
+          status: 'approved',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: currentUserId,
+          review_notes: review_notes || null,
+        })
+        .eq('id', requestId);
+
+      if (updateRequestError) {
+        console.error('[approveJoinRequest] Error updating request:', updateRequestError);
+        throw new Error('Failed to approve request');
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `${userToAdd.full_name} is already a member. Request marked as approved.`,
+        data: {
+          group_id: groupId,
+          group_name: group.name,
+          user: {
+            id: userToAdd.id,
+            username: userToAdd.username,
+            full_name: userToAdd.full_name,
+            email: userToAdd.email,
+          },
+          action: 'already_member',
+        },
+      });
+    }
+
+    // If user left before, reactivate them
+    if (existingMembership && existingMembership.left_at) {
+      const { error: rejoinError } = await supabaseAdmin
+        .from('group_members')
+        .update({
+          left_at: null,
+          joined_at: new Date().toISOString(),
+        })
+        .eq('id', existingMembership.id);
+
+      if (rejoinError) {
+        console.error('[approveJoinRequest] Error reactivating member:', rejoinError);
+        throw new Error('Failed to add member to group');
+      }
+    } else {
+      // Add new member
+      const { error: addMemberError } = await supabaseAdmin
+        .from('group_members')
+        .insert({
+          group_id: groupId,
+          user_id: joinRequest.user_id,
+          added_by: currentUserId,
+        });
+
+      if (addMemberError) {
+        console.error('[approveJoinRequest] Error adding member:', addMemberError);
+        throw new Error('Failed to add member to group');
+      }
+    }
+
+    // Update join request status
+    const { error: updateRequestError } = await supabaseAdmin
+      .from('group_join_requests')
+      .update({
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: currentUserId,
+        review_notes: review_notes || null,
+      })
+      .eq('id', requestId);
+
+    if (updateRequestError) {
+      console.error('[approveJoinRequest] Error updating request:', updateRequestError);
+      throw new Error('Failed to approve request');
+    }
+
+    if (isDev) {
+      console.log('[approveJoinRequest] Request approved:', requestId, 'user_id:', joinRequest.user_id, 'by:', currentUserId);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${userToAdd.full_name}'s request to join has been approved.`,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        user: {
+          id: userToAdd.id,
+          username: userToAdd.username,
+          full_name: userToAdd.full_name,
+          email: userToAdd.email,
+        },
+        action: 'approved',
+      },
+    });
+  } catch (err) {
+    console.error('[approveJoinRequest] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to approve join request.',
+    });
+  }
+};
+
+
+/// --- REJECT JOIN REQUEST ---
+export const rejectJoinRequest = async (req, res) => {
+  const { groupId, requestId } = req.params;
+  const { review_notes } = req.body;
+  const currentUserId = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId || !requestId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID and Request ID are required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, requested_by')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Fetch current user details
+    const { data: currentUser, error: currentUserError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUserError || !currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Current user not found.',
+      });
+    }
+
+    // Check permissions
+    const isCreator = group.requested_by === currentUserId;
+    const isAdmin = currentUser.role === 'admin';
+    const isManager = currentUser.role === 'manager';
+
+    if (!isCreator && !isAdmin && !isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to reject join requests for this group.',
+      });
+    }
+
+    // Fetch join request
+    const { data: joinRequest, error: requestError } = await supabaseAdmin
+      .from('group_join_requests')
+      .select('id, group_id, user_id, status')
+      .eq('id', requestId)
+      .eq('group_id', groupId)
+      .single();
+
+    if (requestError || !joinRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'Join request not found.',
+      });
+    }
+
+    // Check if request is pending
+    if (joinRequest.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot reject a ${joinRequest.status} request.`,
+      });
+    }
+
+    // Fetch user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('id', joinRequest.user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Update join request status to rejected
+    const { error: updateRequestError } = await supabaseAdmin
+      .from('group_join_requests')
+      .update({
+        status: 'rejected',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: currentUserId,
+        review_notes: review_notes || null,
+      })
+      .eq('id', requestId);
+
+    if (updateRequestError) {
+      console.error('[rejectJoinRequest] Error rejecting request:', updateRequestError);
+      throw new Error('Failed to reject request');
+    }
+
+    if (isDev) {
+      console.log('[rejectJoinRequest] Request rejected:', requestId, 'user_id:', joinRequest.user_id, 'by:', currentUserId);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${user.full_name}'s request to join has been rejected.`,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        user: {
+          id: user.id,
+          username: user.username,
+          full_name: user.full_name,
+          email: user.email,
+        },
+        action: 'rejected',
+      },
+    });
+  } catch (err) {
+    console.error('[rejectJoinRequest] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to reject join request.',
+    });
+  }
+};
