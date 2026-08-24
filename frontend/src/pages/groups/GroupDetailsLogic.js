@@ -12,7 +12,12 @@ import {
 } from 'react-router';
 
 import {
+  useAuth,
+} from '../../context/AuthContext';
+
+import {
   getGroup,
+  updateGroup,
 } from '../../api/groups';
 
 
@@ -23,10 +28,24 @@ export function useGroupDetailsLogic() {
     groupId,
   } = useParams();
 
+  const {
+    user,
+  } = useAuth();
+
 
   /*
    * ----------------------------------------
-   * State
+   * Permissions
+   * ----------------------------------------
+   */
+
+  const isAdmin =
+    user?.role === 'admin';
+
+
+  /*
+   * ----------------------------------------
+   * Group state
    * ----------------------------------------
    */
 
@@ -37,6 +56,34 @@ export function useGroupDetailsLogic() {
     useState(true);
 
   const [error, setError] =
+    useState('');
+
+
+  /*
+   * ----------------------------------------
+   * Edit state
+   * ----------------------------------------
+   */
+
+  const [isEditing, setIsEditing] =
+    useState(false);
+
+  const [name, setName] =
+    useState('');
+
+  const [description, setDescription] =
+    useState('');
+
+  const [managerId, setManagerId] =
+    useState('');
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [saveError, setSaveError] =
+    useState('');
+
+  const [saveSuccess, setSaveSuccess] =
     useState('');
 
 
@@ -60,12 +107,6 @@ export function useGroupDetailsLogic() {
           return;
         }
 
-
-        /*
-         * ----------------------------------------
-         * Frontend request debug
-         * ----------------------------------------
-         */
 
         if (import.meta.env.DEV) {
           console.group(
@@ -95,19 +136,9 @@ export function useGroupDetailsLogic() {
           setError('');
 
 
-          /*
-           * API request
-           */
-
           const response =
             await getGroup(groupId);
 
-
-          /*
-           * ----------------------------------------
-           * Frontend response debug
-           * ----------------------------------------
-           */
 
           if (import.meta.env.DEV) {
             console.group(
@@ -138,12 +169,6 @@ export function useGroupDetailsLogic() {
           }
 
 
-          /*
-           * ----------------------------------------
-           * Extract group
-           * ----------------------------------------
-           */
-
           const responseGroup =
             response?.data || null;
 
@@ -158,6 +183,25 @@ export function useGroupDetailsLogic() {
           setGroup(
             responseGroup
           );
+
+
+          /*
+           * Keep edit fields synchronized
+           * with the latest server response.
+           */
+
+          setName(
+            responseGroup.name || ''
+          );
+
+          setDescription(
+            responseGroup.description || ''
+          );
+
+          setManagerId(
+            responseGroup.manager?.id || ''
+          );
+
 
         } catch (err) {
 
@@ -228,6 +272,317 @@ export function useGroupDetailsLogic() {
 
   /*
    * ----------------------------------------
+   * Open edit mode
+   * ----------------------------------------
+   */
+
+  function handleStartEdit() {
+    if (!group) {
+      return;
+    }
+
+
+    setSaveError('');
+    setSaveSuccess('');
+
+
+    setName(
+      group.name || ''
+    );
+
+    setDescription(
+      group.description || ''
+    );
+
+    setManagerId(
+      group.manager?.id || ''
+    );
+
+
+    setIsEditing(true);
+  }
+
+
+  /*
+   * ----------------------------------------
+   * Cancel edit
+   * ----------------------------------------
+   */
+
+  function handleCancelEdit() {
+    if (saving) {
+      return;
+    }
+
+
+    setSaveError('');
+    setSaveSuccess('');
+
+
+    setName(
+      group?.name || ''
+    );
+
+    setDescription(
+      group?.description || ''
+    );
+
+    setManagerId(
+      group?.manager?.id || ''
+    );
+
+
+    setIsEditing(false);
+  }
+
+
+  /*
+   * ----------------------------------------
+   * Save group
+   * ----------------------------------------
+   */
+
+  async function handleSave() {
+    if (!groupId || !group) {
+      setSaveError(
+        'A valid group is required.'
+      );
+
+      return;
+    }
+
+
+    const trimmedName =
+      name.trim();
+
+    const trimmedDescription =
+      description.trim();
+
+
+    /*
+     * Frontend validation
+     */
+
+    if (!trimmedName) {
+      setSaveError(
+        'Please enter a group name.'
+      );
+
+      return;
+    }
+
+
+    if (
+      trimmedName.length > 255
+    ) {
+      setSaveError(
+        'Group name cannot exceed 255 characters.'
+      );
+
+      return;
+    }
+
+
+    /*
+     * Only include fields that are
+     * allowed for this frontend user.
+     */
+
+    const payload = {
+      name:
+        trimmedName,
+
+      description:
+        trimmedDescription || null,
+    };
+
+
+    /*
+     * Manager can only be changed
+     * by an admin in the frontend.
+     *
+     * Backend must still enforce this.
+     */
+
+    if (isAdmin) {
+      payload.manager_id =
+        managerId.trim() || null;
+    }
+
+
+    if (import.meta.env.DEV) {
+      console.group(
+        '[Group Details] Update Group'
+      );
+
+      console.log(
+        'Group ID:',
+        groupId
+      );
+
+      console.log(
+        'Current user:',
+        user
+      );
+
+      console.log(
+        'Is admin:',
+        isAdmin
+      );
+
+      console.log(
+        'Payload sent:',
+        payload
+      );
+
+      console.groupEnd();
+    }
+
+
+    try {
+      setSaving(true);
+      setSaveError('');
+      setSaveSuccess('');
+
+
+      const response =
+        await updateGroup(
+          groupId,
+          payload
+        );
+
+
+      if (import.meta.env.DEV) {
+        console.group(
+          '[Group Details] Update Group Response'
+        );
+
+        console.log(
+          'Group ID:',
+          groupId
+        );
+
+        console.log(
+          'Payload sent:',
+          payload
+        );
+
+        console.log(
+          'Full response:',
+          response
+        );
+
+        console.log(
+          'Response data:',
+          response?.data
+        );
+
+        console.log(
+          'Response message:',
+          response?.message
+        );
+
+        console.groupEnd();
+      }
+
+
+      /*
+       * Use the updated group returned
+       * by the API when available.
+       */
+
+      const updatedGroup =
+        response?.data || null;
+
+
+      if (updatedGroup) {
+
+        setGroup(
+          updatedGroup
+        );
+
+        setName(
+          updatedGroup.name || ''
+        );
+
+        setDescription(
+          updatedGroup.description || ''
+        );
+
+        setManagerId(
+          updatedGroup.manager?.id || ''
+        );
+
+      } else {
+
+        /*
+         * If the update endpoint does not
+         * return the complete group object,
+         * fetch it again.
+         */
+
+        await loadGroup();
+      }
+
+
+      setSaveSuccess(
+        response?.message ||
+        'Group updated successfully.'
+      );
+
+
+      setIsEditing(false);
+
+
+    } catch (err) {
+
+      if (import.meta.env.DEV) {
+        console.group(
+          '[Group Details] Update Group Error'
+        );
+
+        console.log(
+          'Group ID:',
+          groupId
+        );
+
+        console.log(
+          'Payload sent:',
+          payload
+        );
+
+        console.error(
+          'Error:',
+          err
+        );
+
+        console.log(
+          'Status:',
+          err?.status
+        );
+
+        console.log(
+          'Message:',
+          err?.message
+        );
+
+        console.groupEnd();
+      }
+
+
+      setSaveError(
+        err?.message ||
+        'Unable to update group. Please try again.'
+      );
+
+    } finally {
+      setSaving(false);
+    }
+  }
+
+
+  /*
+   * ----------------------------------------
    * Navigation
    * ----------------------------------------
    */
@@ -242,9 +597,36 @@ export function useGroupDetailsLogic() {
 
     groupId,
 
+    user,
+
+    isAdmin,
+
     loading,
 
     error,
+
+    isEditing,
+
+    name,
+    setName,
+
+    description,
+    setDescription,
+
+    managerId,
+    setManagerId,
+
+    saving,
+
+    saveError,
+
+    saveSuccess,
+
+    handleStartEdit,
+
+    handleCancelEdit,
+
+    handleSave,
 
     handleBack,
 

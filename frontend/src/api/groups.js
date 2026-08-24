@@ -284,3 +284,72 @@ export async function joinGroup(groupId) {
     throw error;
   }
 }
+
+// ------- Update group -------
+
+export async function updateGroup(
+  groupId,
+  payload
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}`;
+
+
+  debugLog(
+    'UPDATE GROUP → Request',
+    {
+      endpoint,
+      method: 'PATCH',
+      groupId,
+      payload,
+    }
+  );
+
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(
+            payload
+          ),
+        }
+      );
+
+
+    debugLog(
+      'UPDATE GROUP ← Response',
+      {
+        endpoint,
+        response,
+      }
+    );
+
+
+    return response;
+
+  } catch (error) {
+
+    debugLog(
+      'UPDATE GROUP ← Error',
+      {
+        endpoint,
+        groupId,
+        payload,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}

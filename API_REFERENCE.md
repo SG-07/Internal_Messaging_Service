@@ -6,7 +6,7 @@
 |--------|----------|------|---------|
 | POST | /api/groups/createGroup | User | Create new group | DONE
 | GET | /api/groups | User | List all groups | Done
-| GET | /api/groups/:id | User | Get group details |   
+| GET | /api/groups/:id | User | Get group details |  Done
 | PATCH | /api/groups/:id | Creator/Admin/Manager | Update group |
 | DELETE | /api/groups/:id | Creator/Admin | Delete group |
 | POST | /api/groups/:id/join | User | Join group |

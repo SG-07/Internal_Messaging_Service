@@ -564,20 +564,6 @@ function Conversation() {
       return backendWorkflow;
     }
 
-    /*
-     * Fallback only when the backend PATCH response
-     * does not contain workflow data.
-     *
-     * MORE_INFO is NOT final.
-     *
-     * Action final statuses:
-     * - DONE
-     * - REJECTED
-     *
-     * Approval final statuses:
-     * - APPROVED
-     * - REJECTED
-     */
     const isAction =
       fallbackWorkflow?.type === "action";
 
@@ -598,12 +584,6 @@ function Conversation() {
 
       is_final: isFinal,
 
-      /*
-       * Keep interaction enabled for non-final statuses.
-       *
-       * The next API/WebSocket update from the backend
-       * will provide the authoritative can_respond value.
-       */
       can_respond:
         isFinal
           ? false
@@ -823,12 +803,6 @@ function Conversation() {
   const workflowComment =
     workflow?.workflow_comment || "";
 
-  /*
-   * Backend authorization is the primary check.
-   *
-   * We additionally prevent interaction when the
-   * workflow is marked final.
-   */
   const canRespond =
     workflow?.can_respond === true &&
     workflow?.is_final !== true;
