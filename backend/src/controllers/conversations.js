@@ -5,7 +5,7 @@ import supabaseAdmin from "../config/supabaseClient.js";
 
 // ============= WORKFLOW CONFIGURATION =============
 const ACTION_TRANSITIONS = {
-  PENDING: ['WILL_DO', 'REJECTED', 'MORE_INFO'],
+  PENDING: ['DONE', 'WILL_DO', 'REJECTED', 'MORE_INFO'],
   MORE_INFO: ['WILL_DO', 'REJECTED'],
   WILL_DO: ['DONE', 'REJECTED'],
   DONE: [],
@@ -13,7 +13,7 @@ const ACTION_TRANSITIONS = {
 };
 
 const APPROVAL_TRANSITIONS = {
-  PENDING: ['APPROVED', 'REJECTED', 'MORE_INFO'],
+  PENDING: ['DONE', 'APPROVED', 'REJECTED', 'MORE_INFO'],
   MORE_INFO: ['APPROVED', 'REJECTED'],
   APPROVED: [],
   REJECTED: [],

@@ -20,7 +20,7 @@ import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 
 router.post('/createGroup', requireAuth, createGroup);
-router.get('/', requireAuth, listGroups);
+router.get('/listGroups', requireAuth, listGroups);
 router.post('/:groupId/join', requireAuth, joinGroup);
 router.get('/:groupId', requireAuth, getGroup);
 router.post('/:groupId/leave', requireAuth, leaveGroup);

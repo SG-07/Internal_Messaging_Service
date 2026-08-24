@@ -26,7 +26,7 @@ export async function createGroup(
   department = null,
   managerId = null
 ) {
-  const endpoint = '/api/groups/create';
+  const endpoint = '/api/groups/createGroup';
 
   const payload = {
     name,
