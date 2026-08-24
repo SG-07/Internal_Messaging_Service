@@ -1,7 +1,6 @@
 // frontend/src/pages/groups/GroupDetails.jsx
 
 import DashboardLayout from "../dashboard/DashboardLayout";
-
 import { useGroupDetailsLogic } from "./GroupDetailsLogic";
 
 function GroupDetails() {
@@ -12,33 +11,39 @@ function GroupDetails() {
     error,
 
     isAdmin,
+    isCreator,
+    canDelete,
 
     isEditing,
-
     name,
     setName,
-
     description,
     setDescription,
-
     managerId,
     setManagerId,
 
     saving,
-
     saveError,
-
     saveSuccess,
+
+    showDeleteConfirm,
+    deleting,
+    deleteError,
 
     handleStartEdit,
     handleCancelEdit,
     handleSave,
+
+    handleOpenDelete,
+    handleCloseDelete,
+    handleDelete,
 
     handleBack,
     reload,
   } = useGroupDetailsLogic();
 
   const canEdit = group?.can_manage === true;
+
   /*
    * ----------------------------------------
    * Loading
@@ -159,7 +164,7 @@ function GroupDetails() {
 
   /*
    * ----------------------------------------
-   * Group details
+   * Group Details
    * ----------------------------------------
    */
 
@@ -176,9 +181,11 @@ function GroupDetails() {
           ← Back to Groups
         </button>
 
-        {/* Header */}
+        {/* Main Card */}
 
         <div className="rounded-xl bg-white shadow">
+          {/* Header */}
+
           <div className="flex flex-col gap-5 border-b px-6 py-6 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -203,7 +210,7 @@ function GroupDetails() {
                 <button
                   type="button"
                   onClick={handleStartEdit}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
                   Edit Group
                 </button>
@@ -211,8 +218,10 @@ function GroupDetails() {
             </div>
           </div>
 
+          {/* Save Success */}
+
           {saveSuccess && (
-            <div className="border-b bg-green-50 px-6 py-4">
+            <div className="border-b border-green-200 bg-green-50 px-6 py-4">
               <p className="text-sm font-medium text-green-700">
                 {saveSuccess}
               </p>
@@ -227,7 +236,10 @@ function GroupDetails() {
               value={group.total_members ?? members.length}
             />
 
-            <StatItem label="Pending Requests" value={pendingRequests.length} />
+            <StatItem
+              label="Pending Requests"
+              value={pendingRequests.length}
+            />
 
             <StatItem
               label="Department"
@@ -235,13 +247,13 @@ function GroupDetails() {
             />
           </div>
 
-          {/* Main content */}
+          {/* Main Content */}
 
           <div className="grid gap-6 p-6 lg:grid-cols-3">
-            {/* Left / Main Details */}
+            {/* Edit Group */}
 
             {isEditing && (
-              <section className="rounded-xl border border-blue-200 bg-blue-50">
+              <section className="rounded-xl border border-blue-200 bg-blue-50 lg:col-span-3">
                 <div className="border-b border-blue-200 px-5 py-4">
                   <h2 className="font-semibold text-gray-900">Edit Group</h2>
 
@@ -352,6 +364,8 @@ function GroupDetails() {
               </section>
             )}
 
+            {/* Left / Main Details */}
+
             <div className="space-y-6 lg:col-span-2">
               {/* Group Information */}
 
@@ -460,7 +474,7 @@ function GroupDetails() {
               )}
             </div>
 
-            {/* Right sidebar */}
+            {/* Right Sidebar */}
 
             <div className="space-y-6">
               {/* Creator */}
@@ -511,7 +525,9 @@ function GroupDetails() {
                 <div className="divide-y">
                   <DetailRow
                     label="Membership Status"
-                    value={formatMembershipStatus(group.user_membership_status)}
+                    value={formatMembershipStatus(
+                      group.user_membership_status
+                    )}
                   />
 
                   <DetailRow
@@ -546,9 +562,182 @@ function GroupDetails() {
                   </div>
                 </section>
               )}
+
+              {/* Danger Zone */}
+
+              {canDelete && (
+                <section className="overflow-hidden rounded-xl border border-red-200 bg-white">
+                  {/* Danger Zone Header */}
+
+                  <div className="border-b border-red-200 bg-red-50 px-5 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          className="h-5 w-5"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 9v3.5M12 16h.01M10.29 3.86l-8.1 14a2 2 0 001.73 3h16.16a2 2 0 001.73-3l-8.1-14a2 2 0 00-3.46 0z"
+                          />
+                        </svg>
+                      </div>
+
+                      <div>
+                        <h2 className="font-semibold text-red-800">
+                          Danger Zone
+                        </h2>
+
+                        <p className="mt-1 text-sm text-red-700">
+                          Permanently delete this group and its associated
+                          data.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delete Action */}
+
+                  <div className="flex flex-col gap-4 px-5 py-5">
+                    <div>
+                      <h3 className="font-medium text-gray-900">
+                        Delete this group
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-500">
+                        This action cannot be undone.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenDelete}
+                      disabled={deleting}
+                      className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="h-4 w-4"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v12a1 1 0 01-1 1H8a1 1 0 01-1-1V7h10zM10 11v5M14 11v5"
+                        />
+                      </svg>
+
+                      Delete Group
+                    </button>
+                  </div>
+                </section>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+
+        {showDeleteConfirm && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+            role="presentation"
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-group-title"
+            >
+              {/* Modal Header */}
+
+              <div className="border-b border-gray-200 px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="h-5 w-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v3.5M12 16h.01M10.29 3.86l-8.1 14a2 2 0 001.73 3h16.16a2 2 0 001.73-3l-8.1-14a2 2 0 00-3.46 0z"
+                      />
+                    </svg>
+                  </div>
+
+                  <h2
+                    id="delete-group-title"
+                    className="text-lg font-semibold text-gray-900"
+                  >
+                    Delete Group?
+                  </h2>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+
+              <div className="px-6 py-5">
+                <p className="text-sm text-gray-700">
+                  Are you sure you want to delete{" "}
+                  <strong className="font-semibold text-gray-900">
+                    {group.name}
+                  </strong>
+                  ?
+                </p>
+
+                <p className="mt-2 text-sm text-gray-500">
+                  This action cannot be undone. All associated group data will
+                  be permanently deleted.
+                </p>
+
+                {deleteError && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                    <p className="text-sm text-red-700">{deleteError}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+
+              <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={handleCloseDelete}
+                  disabled={deleting}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleting && (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  )}
+
+                  {deleting ? "Deleting..." : "Delete Permanently"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
@@ -565,7 +754,9 @@ function StatItem({ label, value }) {
     <div className="px-6 py-5">
       <p className="text-sm text-gray-500">{label}</p>
 
-      <p className="mt-1 text-xl font-semibold text-gray-900">{value ?? "—"}</p>
+      <p className="mt-1 text-xl font-semibold text-gray-900">
+        {value ?? "—"}
+      </p>
     </div>
   );
 }

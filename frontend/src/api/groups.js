@@ -353,3 +353,67 @@ export async function updateGroup(
     throw error;
   }
 }
+
+// ------- Delete group -------
+
+export async function deleteGroup(groupId) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}`;
+
+
+  debugLog(
+    'DELETE GROUP → Request',
+    {
+      endpoint,
+      method: 'DELETE',
+      payload: {
+        groupId,
+      },
+    }
+  );
+
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'DELETE',
+        }
+      );
+
+
+    debugLog(
+      'DELETE GROUP ← Response',
+      {
+        endpoint,
+        groupId,
+        response,
+      }
+    );
+
+
+    return response;
+
+  } catch (error) {
+
+    debugLog(
+      'DELETE GROUP ← Error',
+      {
+        endpoint,
+        groupId,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
