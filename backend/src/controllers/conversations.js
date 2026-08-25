@@ -1,6 +1,4 @@
 // backend/src/controllers/conversations.js
-// REFACTORED: Extracted utilities, removed duplication, improved maintainability
-
 import supabaseAdmin from "../config/supabaseClient.js";
 
 // ============= WORKFLOW CONFIGURATION =============
@@ -1340,6 +1338,172 @@ export const reportConversation = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to report conversation.',
+    });
+  }
+};
+
+/// --- CREATE GROUP CONVERSATION ---
+export const createGroupConversation = async (req, res) => {
+  const { groupId, subject } = req.body;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  if (!subject || typeof subject !== 'string' || subject.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Conversation subject is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Validate group is approved
+    if (group.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create conversations in unapproved groups.',
+      });
+    }
+
+    // Check if user is an active member of the group
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from('group_members')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('user_id', user_id)
+      .is('left_at', null)
+      .single();
+
+    if (membershipError || !membership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must be an active member of the group to create conversations.',
+      });
+    }
+
+    // Fetch all active group members (including creator)
+    const { data: groupMembers, error: membersError } = await supabaseAdmin
+      .from('group_members')
+      .select('user_id, profiles(id, username, full_name, email)')
+      .eq('group_id', groupId)
+      .is('left_at', null);
+
+    if (membersError || !groupMembers || groupMembers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group has no active members.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[createGroupConversation] groupId:', groupId, 'creator:', user_id, 'members:', groupMembers.length);
+    }
+
+    // Create group conversation
+    const { data: newConversation, error: conversationError } = await supabaseAdmin
+      .from('conversations')
+      .insert({
+        subject: subject.trim(),
+        conversation_type: 'group',
+        category: 'discussion', // Default category for group conversations
+        created_by: user_id,
+        is_group: true,
+        group_id: groupId,
+      })
+      .select('id, subject, conversation_type, category, created_by, created_at, updated_at, is_group, group_id')
+      .single();
+
+    if (conversationError) {
+      console.error('[createGroupConversation] Error creating conversation:', conversationError);
+      throw new Error('Failed to create group conversation');
+    }
+
+    const conversation_id = newConversation.id;
+
+    // Auto-add all active group members as participants
+    const participantsToAdd = groupMembers.map(member => ({
+      conversation_id,
+      user_id: member.user_id,
+    }));
+
+    const { error: participantError } = await supabaseAdmin
+      .from('conversation_participants')
+      .insert(participantsToAdd);
+
+    if (participantError) {
+      console.error('[createGroupConversation] Error adding participants:', participantError);
+      // Delete the conversation if adding participants fails
+      await supabaseAdmin.from('conversations').delete().eq('id', conversation_id);
+      throw new Error('Failed to add participants to conversation');
+    }
+
+    if (isDev) {
+      console.log('[createGroupConversation] Conversation created:', conversation_id, 'participants added:', participantsToAdd.length);
+    }
+
+    // Fetch creator profile
+    const { data: creatorProfile, error: creatorError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('id', user_id)
+      .single();
+
+    if (creatorError) {
+      console.error('[createGroupConversation] Error fetching creator profile:', creatorError);
+    }
+
+    // Format participants for response
+    const formattedParticipants = groupMembers.map(member => ({
+      id: member.profiles.id,
+      username: member.profiles.username,
+      full_name: member.profiles.full_name,
+      email: member.profiles.email,
+    }));
+
+    res.status(201).json({
+      success: true,
+      message: `Group conversation "${subject}" created successfully.`,
+      data: {
+        id: newConversation.id,
+        subject: newConversation.subject,
+        conversation_type: newConversation.conversation_type,
+        category: newConversation.category,
+        created_by: newConversation.created_by,
+        created_by_name: creatorProfile?.full_name || creatorProfile?.username || null,
+        is_group: newConversation.is_group,
+        group_id: newConversation.group_id,
+        group_name: group.name,
+        total_participants: formattedParticipants.length,
+        participants: formattedParticipants,
+        created_at: newConversation.created_at,
+        updated_at: newConversation.updated_at,
+      },
+    });
+  } catch (err) {
+    console.error('[createGroupConversation] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to create group conversation.',
     });
   }
 };
