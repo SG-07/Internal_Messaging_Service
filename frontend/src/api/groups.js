@@ -737,3 +737,42 @@ export async function removeGroupMember(
     throw error;
   }
 }
+
+export async function getGroupJoinRequests(groupId, params = {}) {
+  const query = new URLSearchParams();
+
+  query.set("page", String(params.page || 1));
+  query.set("status", params.status || "pending");
+
+  const response = await api.get(
+    `/api/groups/${groupId}/requests?${query.toString()}`,
+  );
+
+  return response.data;
+}
+
+export async function approveGroupJoinRequest(
+  groupId,
+  requestId,
+  payload = {},
+) {
+  const response = await api.patch(
+    `/api/groups/${groupId}/requests/${requestId}/approve`,
+    payload,
+  );
+
+  return response.data;
+}
+
+export async function rejectGroupJoinRequest(
+  groupId,
+  requestId,
+  payload = {},
+) {
+  const response = await api.patch(
+    `/api/groups/${groupId}/requests/${requestId}/reject`,
+    payload,
+  );
+
+  return response.data;
+}

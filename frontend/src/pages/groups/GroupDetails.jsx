@@ -1,5 +1,4 @@
 // frontend/src/pages/groups/GroupDetails.jsx
-
 import { useState } from "react";
 
 import DashboardLayout from "../dashboard/DashboardLayout";
@@ -21,6 +20,7 @@ function GroupDetails() {
     isAdmin,
     isCreator,
     canDelete,
+    canManage,
 
     joining,
     joinError,
@@ -32,6 +32,21 @@ function GroupDetails() {
     removeMemberError,
     removeMemberSuccess,
     handleRemoveMember,
+
+    /*
+     * Join Requests
+     */
+    joinRequests,
+    requestsLoading,
+    requestsError,
+    requestsHasMore,
+    requestsTotal,
+    processingRequestId,
+    requestActionError,
+    requestActionSuccess,
+    handleLoadMoreRequests,
+    handleApproveRequest,
+    handleRejectRequest,
 
     isEditing,
     name,
@@ -59,8 +74,6 @@ function GroupDetails() {
     handleBack,
     reload,
   } = useGroupDetailsLogic();
-
-  const canManage = group?.can_manage === true;
 
   /*
    * ----------------------------------------
@@ -176,8 +189,14 @@ function GroupDetails() {
 
   const members = Array.isArray(group.members) ? group.members : [];
 
-  const pendingRequests = Array.isArray(group.pending_join_requests)
-    ? group.pending_join_requests
+  /*
+   * We now use the dedicated join-request
+   * endpoint instead of:
+   *
+   * group.pending_join_requests
+   */
+  const pendingRequests = Array.isArray(joinRequests)
+    ? joinRequests
     : [];
 
   /*
@@ -256,7 +275,7 @@ function GroupDetails() {
                 <button
                   type="button"
                   onClick={handleStartEdit}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
                   Edit Group
                 </button>
@@ -288,7 +307,9 @@ function GroupDetails() {
 
           {joinError && (
             <div className="border-b border-red-200 bg-red-50 px-6 py-4">
-              <p className="text-sm font-medium text-red-700">{joinError}</p>
+              <p className="text-sm font-medium text-red-700">
+                {joinError}
+              </p>
             </div>
           )}
 
@@ -312,6 +333,26 @@ function GroupDetails() {
             </div>
           )}
 
+          {/* Join Request Action Success */}
+
+          {requestActionSuccess && (
+            <div className="border-b border-green-200 bg-green-50 px-6 py-4">
+              <p className="text-sm font-medium text-green-700">
+                {requestActionSuccess}
+              </p>
+            </div>
+          )}
+
+          {/* Join Request Action Error */}
+
+          {requestActionError && (
+            <div className="border-b border-red-200 bg-red-50 px-6 py-4">
+              <p className="text-sm font-medium text-red-700">
+                {requestActionError}
+              </p>
+            </div>
+          )}
+
           {/* Statistics */}
 
           <div className="grid grid-cols-1 divide-y border-b sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -320,7 +361,14 @@ function GroupDetails() {
               value={group.total_members ?? members.length}
             />
 
-            <StatItem label="Pending Requests" value={pendingRequests.length} />
+            <StatItem
+              label="Pending Requests"
+              value={
+                canManage
+                  ? requestsTotal
+                  : group.pending_join_requests?.length ?? 0
+              }
+            />
 
             <StatItem
               label="Department"
@@ -336,7 +384,9 @@ function GroupDetails() {
             {isEditing && (
               <section className="rounded-xl border border-blue-200 bg-blue-50 lg:col-span-3">
                 <div className="border-b border-blue-200 px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">Edit Group</h2>
+                  <h2 className="font-semibold text-gray-900">
+                    Edit Group
+                  </h2>
 
                   <p className="mt-1 text-sm text-gray-600">
                     Update the group information.
@@ -346,7 +396,9 @@ function GroupDetails() {
                 <div className="space-y-5 p-5">
                   {saveError && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                      <p className="text-sm text-red-700">{saveError}</p>
+                      <p className="text-sm text-red-700">
+                        {saveError}
+                      </p>
                     </div>
                   )}
 
@@ -364,7 +416,9 @@ function GroupDetails() {
                       id="group-name"
                       type="text"
                       value={name}
-                      onChange={(event) => setName(event.target.value)}
+                      onChange={(event) =>
+                        setName(event.target.value)
+                      }
                       disabled={saving}
                       maxLength={255}
                       className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
@@ -384,7 +438,9 @@ function GroupDetails() {
                     <textarea
                       id="group-description"
                       value={description}
-                      onChange={(event) => setDescription(event.target.value)}
+                      onChange={(event) =>
+                        setDescription(event.target.value)
+                      }
                       disabled={saving}
                       rows={4}
                       className="mt-2 w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
@@ -407,7 +463,9 @@ function GroupDetails() {
                         id="group-manager-id"
                         type="text"
                         value={managerId}
-                        onChange={(event) => setManagerId(event.target.value)}
+                        onChange={(event) =>
+                          setManagerId(event.target.value)
+                        }
                         disabled={saving}
                         className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
                         placeholder="Leave empty to remove manager"
@@ -453,26 +511,40 @@ function GroupDetails() {
                 </div>
 
                 <div className="divide-y">
-                  <DetailRow label="Group Name" value={group.name} />
+                  <DetailRow
+                    label="Group Name"
+                    value={group.name}
+                  />
 
                   <DetailRow
                     label="Department"
-                    value={group.department || "Cross-department"}
+                    value={
+                      group.department || "Cross-department"
+                    }
                   />
 
                   <DetailRow
                     label="Description"
-                    value={group.description || "No description provided."}
+                    value={
+                      group.description ||
+                      "No description provided."
+                    }
                   />
 
                   <DetailRow
                     label="Access Type"
-                    value={group.is_open ? "Open Group" : "Restricted Group"}
+                    value={
+                      group.is_open
+                        ? "Open Group"
+                        : "Restricted Group"
+                    }
                   />
 
                   <DetailRow
                     label="Status"
-                    value={<StatusBadge status={group.status} />}
+                    value={
+                      <StatusBadge status={group.status} />
+                    }
                   />
 
                   <DetailRow
@@ -487,7 +559,9 @@ function GroupDetails() {
               <section className="overflow-hidden rounded-xl border border-gray-200">
                 <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
-                    <h2 className="font-semibold text-gray-900">Members</h2>
+                    <h2 className="font-semibold text-gray-900">
+                      Members
+                    </h2>
 
                     <p className="mt-1 text-sm text-gray-500">
                       {group.total_members ?? members.length}{" "}
@@ -500,7 +574,9 @@ function GroupDetails() {
                   {canManage && (
                     <button
                       type="button"
-                      onClick={() => setShowAddMemberModal(true)}
+                      onClick={() =>
+                        setShowAddMemberModal(true)
+                      }
                       className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                       + Add Member
@@ -510,7 +586,9 @@ function GroupDetails() {
 
                 {members.length === 0 ? (
                   <div className="px-5 py-10 text-center">
-                    <p className="text-sm text-gray-500">No members found.</p>
+                    <p className="text-sm text-gray-500">
+                      No members found.
+                    </p>
                   </div>
                 ) : (
                   <div className="divide-y">
@@ -527,41 +605,114 @@ function GroupDetails() {
                 )}
               </section>
 
-              {/* Pending Join Requests */}
+              {/* Join Requests */}
 
-              {pendingRequests.length > 0 && (
+              {canManage && (
                 <section className="overflow-hidden rounded-xl border border-gray-200">
-                  <div className="border-b px-5 py-4">
-                    <h2 className="font-semibold text-gray-900">
-                      Pending Join Requests
-                    </h2>
+                  <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="font-semibold text-gray-900">
+                        Pending Join Requests
+                      </h2>
 
-                    <p className="mt-1 text-sm text-gray-500">
-                      {pendingRequests.length} pending{" "}
-                      {pendingRequests.length === 1 ? "request" : "requests"}
-                    </p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {requestsTotal} pending{" "}
+                        {requestsTotal === 1
+                          ? "request"
+                          : "requests"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="divide-y">
-                    {pendingRequests.map((request, index) => (
-                      <div
-                        key={request.id || request.user_id || index}
-                        className="px-5 py-4"
+                  {/* Request loading */}
+
+                  {requestsLoading && pendingRequests.length === 0 && (
+                    <div className="px-5 py-10 text-center">
+                      <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+
+                      <p className="mt-3 text-sm text-gray-500">
+                        Loading join requests...
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Request error */}
+
+                  {requestsError && (
+                    <div className="border-b border-red-200 bg-red-50 px-5 py-4">
+                      <p className="text-sm text-red-700">
+                        {requestsError}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleLoadMoreRequests()
+                        }
+                        className="mt-2 text-sm font-medium text-red-700 underline"
                       >
-                        <p className="font-medium text-gray-900">
-                          {request.full_name ||
-                            request.username ||
-                            "Unknown User"}
+                        Try again
+                      </button>
+                    </div>
+                  )}
+
+                  {/* No requests */}
+
+                  {!requestsLoading &&
+                    !requestsError &&
+                    pendingRequests.length === 0 && (
+                      <div className="px-5 py-10 text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-xl">
+                          ✓
+                        </div>
+
+                        <p className="mt-3 font-medium text-gray-900">
+                          No pending requests
                         </p>
 
-                        {request.email && (
-                          <p className="mt-1 text-sm text-gray-500">
-                            {request.email}
-                          </p>
-                        )}
+                        <p className="mt-1 text-sm text-gray-500">
+                          New join requests will appear here.
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                    )}
+
+                  {/* Request list */}
+
+                  {pendingRequests.length > 0 && (
+                    <div className="divide-y">
+                      {pendingRequests.map((request) => (
+                        <JoinRequestRow
+                          key={request.id}
+                          request={request}
+                          processing={
+                            processingRequestId === request.id
+                          }
+                          anyProcessing={
+                            processingRequestId !== null
+                          }
+                          onApprove={handleApproveRequest}
+                          onReject={handleRejectRequest}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Load more */}
+
+                  {requestsHasMore && (
+                    <div className="border-t bg-gray-50 px-5 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={handleLoadMoreRequests}
+                        disabled={requestsLoading}
+                        className="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {requestsLoading
+                          ? "Loading..."
+                          : "Load More Requests"}
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
             </div>
@@ -573,7 +724,9 @@ function GroupDetails() {
 
               <section className="rounded-xl border border-gray-200">
                 <div className="border-b px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">Created By</h2>
+                  <h2 className="font-semibold text-gray-900">
+                    Created By
+                  </h2>
                 </div>
 
                 <div className="p-5">
@@ -591,7 +744,9 @@ function GroupDetails() {
 
               <section className="rounded-xl border border-gray-200">
                 <div className="border-b px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">Group Manager</h2>
+                  <h2 className="font-semibold text-gray-900">
+                    Group Manager
+                  </h2>
                 </div>
 
                 <div className="p-5">
@@ -617,22 +772,30 @@ function GroupDetails() {
                 <div className="divide-y">
                   <DetailRow
                     label="Membership Status"
-                    value={formatMembershipStatus(group.user_membership_status)}
+                    value={formatMembershipStatus(
+                      group.user_membership_status,
+                    )}
                   />
 
                   <DetailRow
                     label="Can Join"
-                    value={<BooleanBadge value={group.can_join} />}
+                    value={
+                      <BooleanBadge value={group.can_join} />
+                    }
                   />
 
                   <DetailRow
                     label="Can Leave"
-                    value={<BooleanBadge value={group.can_leave} />}
+                    value={
+                      <BooleanBadge value={group.can_leave} />
+                    }
                   />
 
                   <DetailRow
                     label="Can Manage"
-                    value={<BooleanBadge value={group.can_manage} />}
+                    value={
+                      <BooleanBadge value={group.can_manage} />
+                    }
                   />
                 </div>
               </section>
@@ -647,7 +810,8 @@ function GroupDetails() {
                     </h2>
 
                     <p className="mt-2 text-sm text-yellow-800">
-                      You already have a pending request to join this group.
+                      You already have a pending request to join
+                      this group.
                     </p>
                   </div>
                 </section>
@@ -658,10 +822,13 @@ function GroupDetails() {
               {canDelete && (
                 <section className="overflow-hidden rounded-xl border border-red-200 bg-white">
                   <div className="border-b border-red-200 bg-red-50 px-5 py-4">
-                    <h2 className="font-semibold text-red-800">Danger Zone</h2>
+                    <h2 className="font-semibold text-red-800">
+                      Danger Zone
+                    </h2>
 
                     <p className="mt-1 text-sm text-red-700">
-                      Permanently delete this group and its associated data.
+                      Permanently delete this group and its
+                      associated data.
                     </p>
                   </div>
 
@@ -736,13 +903,15 @@ function GroupDetails() {
                 </p>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  This action cannot be undone. All associated group data will
-                  be permanently deleted.
+                  This action cannot be undone. All associated group
+                  data will be permanently deleted.
                 </p>
 
                 {deleteError && (
                   <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                    <p className="text-sm text-red-700">{deleteError}</p>
+                    <p className="text-sm text-red-700">
+                      {deleteError}
+                    </p>
                   </div>
                 )}
               </div>
@@ -763,7 +932,9 @@ function GroupDetails() {
                   disabled={deleting}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {deleting ? "Deleting..." : "Delete Permanently"}
+                  {deleting
+                    ? "Deleting..."
+                    : "Delete Permanently"}
                 </button>
               </div>
             </div>
@@ -771,6 +942,103 @@ function GroupDetails() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+/*
+ * --------------------------------------------------
+ * Join Request Row
+ * --------------------------------------------------
+ */
+
+function JoinRequestRow({
+  request,
+  processing,
+  anyProcessing,
+  onApprove,
+  onReject,
+}) {
+  const requestUser = request?.user || {};
+
+  const displayName =
+    requestUser.full_name ||
+    requestUser.username ||
+    "Unknown User";
+
+  const initials = getInitials(
+    requestUser.full_name || requestUser.username,
+  );
+
+  return (
+    <div className="px-5 py-5">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        {/* User information */}
+
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
+            {initials}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-gray-900">
+                {displayName}
+              </p>
+
+              <span className="rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-medium capitalize text-yellow-700">
+                {request.status || "pending"}
+              </span>
+            </div>
+
+            {requestUser.username && (
+              <p className="mt-1 text-sm text-gray-500">
+                @{requestUser.username}
+              </p>
+            )}
+
+            {requestUser.email && (
+              <p className="mt-1 break-all text-sm text-gray-500">
+                {requestUser.email}
+              </p>
+            )}
+
+            {requestUser.department && (
+              <p className="mt-1 text-sm text-gray-500">
+                Department: {requestUser.department}
+              </p>
+            )}
+
+            {request.requested_at && (
+              <p className="mt-2 text-xs text-gray-400">
+                Requested {formatDateTime(request.requested_at)}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onApprove(request)}
+            disabled={anyProcessing}
+            className="rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {processing ? "Processing..." : "Approve"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onReject(request)}
+            disabled={anyProcessing}
+            className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {processing ? "Processing..." : "Reject"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -785,7 +1053,9 @@ function StatItem({ label, value }) {
     <div className="px-6 py-5">
       <p className="text-sm text-gray-500">{label}</p>
 
-      <p className="mt-1 text-xl font-semibold text-gray-900">{value ?? "—"}</p>
+      <p className="mt-1 text-xl font-semibold text-gray-900">
+        {value ?? "—"}
+      </p>
     </div>
   );
 }
@@ -829,11 +1099,15 @@ function UserInfo({ user }) {
         </p>
 
         {user.username && (
-          <p className="mt-1 text-sm text-gray-500">@{user.username}</p>
+          <p className="mt-1 text-sm text-gray-500">
+            @{user.username}
+          </p>
         )}
 
         {user.email && (
-          <p className="mt-1 break-all text-sm text-gray-500">{user.email}</p>
+          <p className="mt-1 break-all text-sm text-gray-500">
+            {user.email}
+          </p>
         )}
       </div>
     </div>
@@ -846,8 +1120,15 @@ function UserInfo({ user }) {
  * --------------------------------------------------
  */
 
-function MemberRow({ member, canManage, onRemove, removingMemberId }) {
-  const initials = getInitials(member.full_name || member.username);
+function MemberRow({
+  member,
+  canManage,
+  onRemove,
+  removingMemberId,
+}) {
+  const initials = getInitials(
+    member.full_name || member.username,
+  );
 
   return (
     <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -858,13 +1139,19 @@ function MemberRow({ member, canManage, onRemove, removingMemberId }) {
 
         <div className="min-w-0">
           <p className="truncate font-medium text-gray-900">
-            {member.full_name || member.username || "Unknown User"}
+            {member.full_name ||
+              member.username ||
+              "Unknown User"}
           </p>
 
           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-sm text-gray-500">
-            {member.username && <span>@{member.username}</span>}
+            {member.username && (
+              <span>@{member.username}</span>
+            )}
 
-            {member.department && <span>{member.department}</span>}
+            {member.department && (
+              <span>{member.department}</span>
+            )}
           </div>
 
           {member.email && (
@@ -893,7 +1180,9 @@ function MemberRow({ member, canManage, onRemove, removingMemberId }) {
             disabled={removingMemberId !== null}
             className="mt-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {removingMemberId === member.id ? "Removing..." : "Remove"}
+            {removingMemberId === member.id
+              ? "Removing..."
+              : "Remove"}
           </button>
         )}
       </div>
