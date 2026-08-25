@@ -23,6 +23,7 @@ const router = Router();
 
 router.post('/createGroup', requireAuth, createGroup);
 router.get('/listGroups', requireAuth, listGroups);
+router.get('/me/groups', requireAuth, listUserGroups);
 router.post('/:groupId/join', requireAuth, joinGroup);
 router.get('/:groupId', requireAuth, getGroup);
 router.post('/:groupId/leave', requireAuth, leaveGroup);
@@ -35,5 +36,5 @@ router.get('/:groupId/requests', requireAuth, listJoinRequests);
 router.patch('/:groupId/requests/:requestId/approve', requireAuth, approveJoinRequest);  
 router.patch('/:groupId/requests/:requestId/reject', requireAuth, rejectJoinRequest);   
 router.get('/:groupId/potential-members', requireAuth, listPotentialMembers);  
-router.get('/user/:userId/groups', requireAuth, listUserGroups);
+
 export default router;

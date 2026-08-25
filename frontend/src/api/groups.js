@@ -776,3 +776,72 @@ export async function rejectGroupJoinRequest(
 
   return response.data;
 }
+
+// ------- Get user's groups -------
+export async function getMyGroups(params = {}) {
+  const query = new URLSearchParams();
+
+  query.set(
+    "page",
+    String(params.page || 1),
+  );
+
+  if (params.status) {
+    query.set(
+      "status",
+      params.status,
+    );
+  }
+
+  query.set(
+    "sort_by",
+    params.sort_by || "newest",
+  );
+
+  const endpoint =
+    `/api/groups/me/groups?${query.toString()}`;
+
+  debugLog(
+    "GET MY GROUPS → Request",
+    {
+      endpoint,
+      method: "GET",
+      params: {
+        page: params.page || 1,
+        status: params.status || "all",
+        sort_by: params.sort_by || "newest",
+      },
+    },
+  );
+
+  try {
+    const response = await request(
+      endpoint,
+      {
+        method: "GET",
+      },
+    );
+
+    debugLog(
+      "GET MY GROUPS ← Response",
+      {
+        endpoint,
+        response,
+      },
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      "GET MY GROUPS ← Error",
+      {
+        endpoint,
+        status: error?.status,
+        message: error?.message,
+        error,
+      },
+    );
+
+    throw error;
+  }
+}

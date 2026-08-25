@@ -12,11 +12,9 @@ function DashboardSidebar({ onCompose }) {
 
   const isAdmin = user?.role === "admin";
 
-  const isInbox =
-    location.pathname === "/dashboard";
+  const isInbox = location.pathname === "/dashboard";
 
-  const isSent =
-    location.pathname === "/dashboard/sent";
+  const isSent = location.pathname === "/dashboard/sent";
 
   const isPendingWorkflows =
     location.pathname === "/dashboard/workflows/pending";
@@ -24,17 +22,18 @@ function DashboardSidebar({ onCompose }) {
   const isMyWorkflowRequests =
     location.pathname === "/dashboard/workflows/mine";
 
-  const isCreateGroup =
-    location.pathname === "/groups/create";
+  const isCreateGroup = location.pathname === "/groups/create";
 
-  const isGroups =
-    location.pathname === "/groups";
+  const isGroups = location.pathname === "/groups";
 
-  const isAdminUsers =
-    location.pathname === "/admin/users";
+  /*
+   * My Groups
+   */
+  const isMyGroups = location.pathname === "/groups/my";
 
-  const isAdminTeams =
-    location.pathname === "/admin/teams";
+  const isAdminUsers = location.pathname === "/admin/users";
+
+  const isAdminTeams = location.pathname === "/admin/teams";
 
   function getNavClass(active) {
     return `w-full rounded-lg px-4 py-3 text-left text-sm transition ${
@@ -46,7 +45,6 @@ function DashboardSidebar({ onCompose }) {
 
   return (
     <aside className="flex min-h-[calc(100vh-130px)] w-56 shrink-0 flex-col rounded-xl bg-white p-4 shadow">
-
       {/* Compose */}
       <button
         type="button"
@@ -58,7 +56,6 @@ function DashboardSidebar({ onCompose }) {
 
       {/* Main Navigation */}
       <nav className="space-y-1">
-
         {/* Inbox */}
         <button
           type="button"
@@ -76,24 +73,19 @@ function DashboardSidebar({ onCompose }) {
         >
           Sent
         </button>
-
       </nav>
 
       {/* Workflow Navigation */}
       <div className="mt-8">
-
         <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
           Workflows
         </p>
 
         <nav className="space-y-1">
-
           {/* Pending Workflows */}
           <button
             type="button"
-            onClick={() =>
-              navigate("/dashboard/workflows/pending")
-            }
+            onClick={() => navigate("/dashboard/workflows/pending")}
             className={getNavClass(isPendingWorkflows)}
           >
             Pending Workflows
@@ -102,32 +94,25 @@ function DashboardSidebar({ onCompose }) {
           {/* My Workflow Requests */}
           <button
             type="button"
-            onClick={() =>
-              navigate("/dashboard/workflows/mine")
-            }
+            onClick={() => navigate("/dashboard/workflows/mine")}
             className={getNavClass(isMyWorkflowRequests)}
           >
             My Workflow Requests
           </button>
-
         </nav>
       </div>
 
       {/* Group Navigation */}
       <div className="mt-8">
-
         <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
           Groups
         </p>
 
         <nav className="space-y-1">
-
           {/* Create Group */}
           <button
             type="button"
-            onClick={() =>
-              navigate("/groups/create")
-            }
+            onClick={() => navigate("/groups/create")}
             className={getNavClass(isCreateGroup)}
           >
             + Create Group
@@ -136,33 +121,35 @@ function DashboardSidebar({ onCompose }) {
           {/* All Groups */}
           <button
             type="button"
-            onClick={() =>
-              navigate("/groups")
-            }
+            onClick={() => navigate("/groups")}
             className={getNavClass(isGroups)}
           >
             All Groups
           </button>
 
+          {/* My Groups */}
+          <button
+            type="button"
+            onClick={() => navigate("/my-groups")}
+            className={getNavClass(isMyGroups)}
+          >
+            My Groups
+          </button>
         </nav>
       </div>
 
       {/* Admin Navigation */}
       {isAdmin && (
         <div className="mt-8">
-
           <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
             Administration
           </p>
 
           <nav className="space-y-1">
-
             {/* Users */}
             <button
               type="button"
-              onClick={() =>
-                navigate("/admin/users")
-              }
+              onClick={() => navigate("/admin/users")}
               className={getNavClass(isAdminUsers)}
             >
               Users
@@ -171,18 +158,14 @@ function DashboardSidebar({ onCompose }) {
             {/* Teams */}
             <button
               type="button"
-              onClick={() =>
-                navigate("/admin/teams")
-              }
+              onClick={() => navigate("/admin/teams")}
               className={getNavClass(isAdminTeams)}
             >
               Teams
             </button>
-
           </nav>
         </div>
       )}
-
     </aside>
   );
 }

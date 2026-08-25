@@ -29,9 +29,13 @@ import {
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 
+//group general
 import CreateGroup from "./pages/groups/Group";
 import AllGroups from "./pages/groups/AllGroups";
 import GroupDetails from './pages/groups/GroupDetails';
+
+//user group
+import MyGroups from "./pages/groups/MyGroups";
 
 
 function App() {
@@ -192,7 +196,17 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
+          {/* My Groups */}
+          <Route
+            path="/my-groups"
+            element={
+              <ProtectedRoute>
+                <MyGroups />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Group Details */}
           <Route
             path="/groups/:groupId"
