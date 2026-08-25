@@ -28,6 +28,11 @@ function GroupDetails() {
     handleJoin,
     handleLeave,
 
+    removingMemberId,
+    removeMemberError,
+    removeMemberSuccess,
+    handleRemoveMember,
+
     isEditing,
     name,
     setName,
@@ -51,7 +56,6 @@ function GroupDetails() {
     handleOpenDelete,
     handleCloseDelete,
     handleDelete,
-
     handleBack,
     reload,
   } = useGroupDetailsLogic();
@@ -288,6 +292,26 @@ function GroupDetails() {
             </div>
           )}
 
+          {/* Remove Member Success */}
+
+          {removeMemberSuccess && (
+            <div className="border-b border-green-200 bg-green-50 px-6 py-4">
+              <p className="text-sm font-medium text-green-700">
+                {removeMemberSuccess}
+              </p>
+            </div>
+          )}
+
+          {/* Remove Member Error */}
+
+          {removeMemberError && (
+            <div className="border-b border-red-200 bg-red-50 px-6 py-4">
+              <p className="text-sm font-medium text-red-700">
+                {removeMemberError}
+              </p>
+            </div>
+          )}
+
           {/* Statistics */}
 
           <div className="grid grid-cols-1 divide-y border-b sm:grid-cols-3 sm:divide-x sm:divide-y-0">
@@ -491,7 +515,13 @@ function GroupDetails() {
                 ) : (
                   <div className="divide-y">
                     {members.map((member) => (
-                      <MemberRow key={member.id} member={member} />
+                      <MemberRow
+                        key={member.id}
+                        member={member}
+                        canManage={canManage}
+                        onRemove={handleRemoveMember}
+                        removingMemberId={removingMemberId}
+                      />
                     ))}
                   </div>
                 )}
@@ -816,7 +846,7 @@ function UserInfo({ user }) {
  * --------------------------------------------------
  */
 
-function MemberRow({ member }) {
+function MemberRow({ member, canManage, onRemove, removingMemberId }) {
   const initials = getInitials(member.full_name || member.username);
 
   return (
@@ -854,6 +884,17 @@ function MemberRow({ member }) {
           <p className="mt-2 text-xs text-gray-400">
             Joined {formatDateTime(member.joined_at)}
           </p>
+        )}
+
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onRemove(member)}
+            disabled={removingMemberId !== null}
+            className="mt-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {removingMemberId === member.id ? "Removing..." : "Remove"}
+          </button>
         )}
       </div>
     </div>

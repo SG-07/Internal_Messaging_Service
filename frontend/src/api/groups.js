@@ -670,3 +670,70 @@ export async function getPotentialMembers(
   }
 }
 
+// ------- Remove member from group -------
+export async function removeGroupMember(
+  groupId,
+  userId
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  if (!userId) {
+    throw new Error(
+      'A valid user ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/members/${userId}`;
+
+  debugLog(
+    'REMOVE GROUP MEMBER → Request',
+    {
+      endpoint,
+      method: 'DELETE',
+      groupId,
+      userId,
+    }
+  );
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'DELETE',
+        }
+      );
+
+    debugLog(
+      'REMOVE GROUP MEMBER ← Response',
+      {
+        endpoint,
+        groupId,
+        userId,
+        response,
+      }
+    );
+
+    return response;
+
+  } catch (error) {
+    debugLog(
+      'REMOVE GROUP MEMBER ← Error',
+      {
+        endpoint,
+        groupId,
+        userId,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}

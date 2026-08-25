@@ -16,9 +16,9 @@
 
 | Method | Endpoint | Auth | Purpose |
 |--------|----------|------|---------|
-| GET | /api/groups/:id/members | User | List members |
-| POST | /api/groups/:id/members | Admin/Manager | Add member |
-| DELETE | /api/groups/:id/members/:uid | Admin/Manager | Remove member |
+| GET | /api/groups/:id/members | User | List members |  Done
+| POST | /api/groups/:id/members | Admin/Manager | Add member | Done
+| DELETE | /api/groups/:id/members/:uid | Admin/Manager | Remove member | Done
 
 ## Join Requests
 
