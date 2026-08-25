@@ -1342,9 +1342,9 @@ export const reportConversation = async (req, res) => {
   }
 };
 
-/// --- CREATE GROUP CONVERSATION ---
+/// --- CREATE GROUP CONVERSATION  ---
 export const createGroupConversation = async (req, res) => {
-  const { groupId, subject } = req.body;
+  const { groupId } = req.params;
   const user_id = req.user.id;
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -1352,13 +1352,6 @@ export const createGroupConversation = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'Group ID is required.',
-    });
-  }
-
-  if (!subject || typeof subject !== 'string' || subject.trim() === '') {
-    return res.status(400).json({
-      success: false,
-      message: 'Conversation subject is required.',
     });
   }
 
@@ -1401,14 +1394,14 @@ export const createGroupConversation = async (req, res) => {
       });
     }
 
-    // Fetch all active group members (including creator)
-    const { data: groupMembers, error: membersError } = await supabaseAdmin
+    // Fetch all active group members (user_id only first)
+    const { data: groupMemberIds, error: membersError } = await supabaseAdmin
       .from('group_members')
-      .select('user_id, profiles(id, username, full_name, email)')
+      .select('user_id')
       .eq('group_id', groupId)
       .is('left_at', null);
 
-    if (membersError || !groupMembers || groupMembers.length === 0) {
+    if (membersError || !groupMemberIds || groupMemberIds.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Group has no active members.',
@@ -1416,14 +1409,32 @@ export const createGroupConversation = async (req, res) => {
     }
 
     if (isDev) {
-      console.log('[createGroupConversation] groupId:', groupId, 'creator:', user_id, 'members:', groupMembers.length);
+      console.log('[createGroupConversation] Found member IDs:', groupMemberIds.map(m => m.user_id));
     }
 
-    // Create group conversation
+    // Fetch profiles for each member
+    const userIds = groupMemberIds.map(m => m.user_id);
+    const { data: memberProfiles, error: profilesError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .in('id', userIds);
+
+    if (profilesError || !memberProfiles || memberProfiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to fetch member profiles.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[createGroupConversation] groupId:', groupId, 'creator:', user_id, 'members:', memberProfiles.length);
+    }
+
+    // Create group conversation (NO subject needed)
     const { data: newConversation, error: conversationError } = await supabaseAdmin
       .from('conversations')
       .insert({
-        subject: subject.trim(),
+        subject: null, // No subject for group conversations
         conversation_type: 'group',
         category: 'discussion', // Default category for group conversations
         created_by: user_id,
@@ -1441,9 +1452,9 @@ export const createGroupConversation = async (req, res) => {
     const conversation_id = newConversation.id;
 
     // Auto-add all active group members as participants
-    const participantsToAdd = groupMembers.map(member => ({
+    const participantsToAdd = memberProfiles.map(profile => ({
       conversation_id,
-      user_id: member.user_id,
+      user_id: profile.id,
     }));
 
     const { error: participantError } = await supabaseAdmin
@@ -1473,19 +1484,18 @@ export const createGroupConversation = async (req, res) => {
     }
 
     // Format participants for response
-    const formattedParticipants = groupMembers.map(member => ({
-      id: member.profiles.id,
-      username: member.profiles.username,
-      full_name: member.profiles.full_name,
-      email: member.profiles.email,
+    const formattedParticipants = memberProfiles.map(profile => ({
+      id: profile.id,
+      username: profile.username,
+      full_name: profile.full_name,
+      email: profile.email,
     }));
 
     res.status(201).json({
       success: true,
-      message: `Group conversation "${subject}" created successfully.`,
+      message: `Group conversation created successfully.`,
       data: {
         id: newConversation.id,
-        subject: newConversation.subject,
         conversation_type: newConversation.conversation_type,
         category: newConversation.category,
         created_by: newConversation.created_by,

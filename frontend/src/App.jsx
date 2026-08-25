@@ -36,6 +36,7 @@ import GroupDetails from './pages/groups/GroupDetails';
 
 //user group
 import MyGroups from "./pages/groups/MyGroups";
+import ChatPage from "./pages/conversation/chat/ChatPage";
 
 
 function App() {
@@ -213,6 +214,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <GroupDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Group Chat */}
+          <Route
+            path="/groups/:groupId/chat"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
               </ProtectedRoute>
             }
           />

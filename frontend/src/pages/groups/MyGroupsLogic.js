@@ -243,7 +243,7 @@ export function useMyGroupsLogic() {
       return;
     }
 
-    navigate(`/groups/${groupId}`);
+    navigate(`/groups/${groupId}/chat`);
   }
 
   /*

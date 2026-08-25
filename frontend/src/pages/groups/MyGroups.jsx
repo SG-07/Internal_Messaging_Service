@@ -1,3 +1,4 @@
+// src/pages/groups/MyGroups.jsx
 import DashboardLayout from "../dashboard/DashboardLayout";
 
 import { useMyGroupsLogic } from "./MyGroupsLogic";

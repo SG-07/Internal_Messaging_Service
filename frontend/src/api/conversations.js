@@ -1,10 +1,14 @@
 // frontend/src/api/conversations.js
 
-import { request } from './client';
+import { request } from "./client";
+
+// ============================================================
+// Conversations
+// ============================================================
 
 // Get all conversations for the logged-in user
 export async function getConversations() {
-  const response = await request('/api/conversations');
+  const response = await request("/api/conversations");
 
   return response.data || [];
 }
@@ -27,8 +31,8 @@ export async function getConversationMessages(conversationId) {
 
 // Create a new conversation and its first message
 export async function createConversation(payload) {
-  return request('/api/conversations', {
-    method: 'POST',
+  return request("/api/conversations", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -38,13 +42,41 @@ export async function sendMessage(conversationId, body) {
   return request(
     `/api/conversations/${conversationId}/messages`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({
         body,
       }),
     }
   );
 }
+
+// ============================================================
+// Group Conversations
+// ============================================================
+
+// Create or get the existing conversation for a group
+//
+// The backend is responsible for:
+// 1. Checking that the group exists
+// 2. Checking that the current user is an active member
+// 3. Checking that the group is approved
+// 4. Returning the existing group conversation if one exists
+// 5. Creating a new group conversation if one does not exist
+//
+// Endpoint:
+// POST /api/conversations/group/:groupId
+export async function createGroupConversation(groupId) {
+  return request(
+    `/api/conversations/group/${groupId}`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+// ============================================================
+// Conversation Workflow
+// ============================================================
 
 // Update conversation status
 export async function updateConversationStatus(
@@ -54,7 +86,7 @@ export async function updateConversationStatus(
   return request(
     `/api/conversations/${conversationId}/status`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     }
   );
@@ -68,7 +100,7 @@ export async function updateConversationDecision(
   return request(
     `/api/conversations/${conversationId}/decision`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     }
   );
@@ -82,57 +114,10 @@ export async function updateConversationFollowUp(
   return request(
     `/api/conversations/${conversationId}/follow-up`,
     {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     }
   );
-}
-
-// Mark a message as read
-export async function markMessageAsRead(messageId) {
-  return request(
-    `/api/messages/${messageId}/read`,
-    {
-      method: 'PATCH',
-    }
-  );
-}
-
-// Delete a message
-export async function deleteMessage(messageId) {
-  return request(
-    `/api/messages/${messageId}`,
-    {
-      method: 'DELETE',
-    }
-  );
-}
-
-// ---- Get conversations with another user ----
-export async function getConversationsWithUser(identifier) {
-  const response = await request(
-    '/api/conversations/with-user',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        identifier,
-      }),
-    }
-  );
-
-  return response;
-}
-
-// ---- Get sent conversations ----
-export async function getSentConversations(page = 1) {
-  const response = await request(
-    `/api/conversations/sent?page=${page}`,
-    {
-      method: 'GET',
-    }
-  );
-
-  return response;
 }
 
 // Get workflow items awaiting the current user's response
@@ -148,6 +133,65 @@ export async function getPendingWorkflows(page = 1) {
 export async function getMyWorkflowRequests(page = 1) {
   const response = await request(
     `/api/conversations/workflow/mine?page=${page}`
+  );
+
+  return response;
+}
+
+// ============================================================
+// Messages
+// ============================================================
+
+// Mark a message as read
+export async function markMessageAsRead(messageId) {
+  return request(
+    `/api/messages/${messageId}/read`,
+    {
+      method: "PATCH",
+    }
+  );
+}
+
+// Delete a message
+export async function deleteMessage(messageId) {
+  return request(
+    `/api/messages/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+// ============================================================
+// User Conversations
+// ============================================================
+
+// Get conversations with another user
+export async function getConversationsWithUser(identifier) {
+  const response = await request(
+    "/api/conversations/with-user",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        identifier,
+      }),
+    }
+  );
+
+  return response;
+}
+
+// ============================================================
+// Sent Conversations
+// ============================================================
+
+// Get sent conversations
+export async function getSentConversations(page = 1) {
+  const response = await request(
+    `/api/conversations/sent?page=${page}`,
+    {
+      method: "GET",
+    }
   );
 
   return response;
