@@ -24,9 +24,9 @@
 
 | Method | Endpoint | Auth | Purpose |
 |--------|----------|------|---------|
-| GET | /api/groups/:id/requests | Creator/Admin/Manager | List requests |
-| PATCH | /api/groups/:id/requests/:rid/approve | Creator/Admin/Manager | Approve request |
-| PATCH | /api/groups/:id/requests/:rid/reject | Creator/Admin/Manager | Reject request |
+| GET | /api/groups/:id/requests | Creator/Admin/Manager | List requests | Testing pending
+| PATCH | /api/groups/:id/requests/:rid/approve | Creator/Admin/Manager | Approve request | Testing pending
+| PATCH | /api/groups/:id/requests/:rid/reject | Creator/Admin/Manager | Reject request | Testing pending
 
 ## Reporting
 

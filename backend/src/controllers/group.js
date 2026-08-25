@@ -2254,3 +2254,148 @@ export const listPotentialMembers = async (req, res) => {
     });
   }
 };
+
+
+/// --- LIST USER'S JOINED GROUPS ---
+export const listUserGroups = async (req, res) => {
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { status, sort_by } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  try {
+    // Fetch current user details
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role, department')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[listUserGroups] user_id:', user_id, 'role:', user.role, 'department:', user.department);
+    }
+
+    // Build query to get groups where user is a member (not left)
+    let query = supabaseAdmin
+      .from('group_members')
+      .select(
+        `
+        group_id,
+        joined_at,
+        teams!group_id(
+          id,
+          name,
+          is_open,
+          department,
+          manager_id,
+          status,
+          requested_by,
+          approved_by,
+          created_at,
+          updated_at,
+          profiles!teams_manager_id_fkey(id, username, full_name, email)
+        )
+      `,
+        { count: 'exact' }
+      )
+      .eq('user_id', user_id)
+      .is('left_at', null) // Only active members (not left)
+      .order('joined_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    const { data: groupMemberships, error, count } = await query;
+
+    if (error) {
+      console.error('[listUserGroups] Error fetching groups:', error);
+      throw new Error('Failed to fetch user groups');
+    }
+
+    if (!groupMemberships) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          has_more: false,
+        },
+      });
+    }
+
+    if (isDev) {
+      console.log('[listUserGroups] Found groups:', groupMemberships.length, 'total count:', count);
+    }
+
+    // Transform response
+    let transformedGroups = groupMemberships.map(membership => ({
+      id: membership.teams.id,
+      name: membership.teams.name,
+      is_open: membership.teams.is_open,
+      department: membership.teams.department,
+      manager: membership.teams.profiles
+        ? {
+            id: membership.teams.profiles.id,
+            username: membership.teams.profiles.username,
+            full_name: membership.teams.profiles.full_name,
+            email: membership.teams.profiles.email,
+          }
+        : null,
+      status: membership.teams.status,
+      created_by: membership.teams.requested_by,
+      user_joined_at: membership.joined_at,
+      group_created_at: membership.teams.created_at,
+      updated_at: membership.teams.updated_at,
+    }));
+
+    // Apply status filter if provided
+    if (status) {
+      const validStatuses = ['open', 'closed'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status. Must be one of: open, closed.',
+        });
+      }
+      const isOpenFilter = status === 'open';
+      transformedGroups = transformedGroups.filter(g => g.is_open === isOpenFilter);
+      if (isDev) {
+        console.log('[listUserGroups] Filtered by status:', status, 'remaining:', transformedGroups.length);
+      }
+    }
+
+    // Apply sort
+    if (sort_by === 'oldest') {
+      transformedGroups.sort((a, b) => new Date(a.user_joined_at) - new Date(b.user_joined_at));
+    } else {
+      // Default: newest first (already sorted by query)
+      transformedGroups.sort((a, b) => new Date(b.user_joined_at) - new Date(a.user_joined_at));
+    }
+
+    res.status(200).json({
+      success: true,
+      data: transformedGroups,
+      pagination: {
+        page,
+        limit,
+        total: transformedGroups.length,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[listUserGroups] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch user groups.',
+    });
+  }
+};

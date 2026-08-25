@@ -14,7 +14,8 @@ import {
   listJoinRequests,
   approveJoinRequest,
   rejectJoinRequest,
-  listPotentialMembers
+  listPotentialMembers,
+  listUserGroups
 } from '../controllers/group.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -34,5 +35,5 @@ router.get('/:groupId/requests', requireAuth, listJoinRequests);
 router.patch('/:groupId/requests/:requestId/approve', requireAuth, approveJoinRequest);  
 router.patch('/:groupId/requests/:requestId/reject', requireAuth, rejectJoinRequest);   
 router.get('/:groupId/potential-members', requireAuth, listPotentialMembers);  
-
+router.get('/user/:userId/groups', requireAuth, listUserGroups);
 export default router;
