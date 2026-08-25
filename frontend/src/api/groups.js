@@ -462,3 +462,211 @@ export async function deleteGroup(groupId) {
     throw error;
   }
 }
+
+// ------- Get group members -------
+export async function getGroupMembers(groupId) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/members`;
+
+  debugLog(
+    'GET GROUP MEMBERS → Request',
+    {
+      endpoint,
+      method: 'GET',
+      groupId,
+    }
+  );
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'GET',
+        }
+      );
+
+    debugLog(
+      'GET GROUP MEMBERS ← Response',
+      {
+        endpoint,
+        groupId,
+        response,
+      }
+    );
+
+    return response;
+
+  } catch (error) {
+    debugLog(
+      'GET GROUP MEMBERS ← Error',
+      {
+        endpoint,
+        groupId,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
+// ------- Add member to group -------
+export async function addGroupMember(
+  groupId,
+  userId
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  if (!userId) {
+    throw new Error(
+      'A valid user ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/members`;
+
+  const payload = {
+    user_id: userId,
+  };
+
+  debugLog(
+    'ADD GROUP MEMBER → Request',
+    {
+      endpoint,
+      method: 'POST',
+      groupId,
+      userId,
+      payload,
+    }
+  );
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }
+      );
+
+    debugLog(
+      'ADD GROUP MEMBER ← Response',
+      {
+        endpoint,
+        groupId,
+        userId,
+        response,
+      }
+    );
+
+    return response;
+
+  } catch (error) {
+    debugLog(
+      'ADD GROUP MEMBER ← Error',
+      {
+        endpoint,
+        groupId,
+        userId,
+        payload,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+// ------- Get potential members -------
+export async function getPotentialMembers(
+  groupId,
+  {
+    page = 1,
+    email = '',
+  } = {}
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const query = new URLSearchParams();
+
+  query.set('page', page);
+
+  if (
+    email !== undefined &&
+    email !== null &&
+    email.trim() !== ''
+  ) {
+    query.set(
+      'email',
+      email.trim()
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/potential-members?${query.toString()}`;
+
+  debugLog(
+    'GET POTENTIAL GROUP MEMBERS → Request',
+    {
+      endpoint,
+      method: 'GET',
+      groupId,
+      params: {
+        page,
+        email,
+      },
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint);
+
+    debugLog(
+      'GET POTENTIAL GROUP MEMBERS ← Response',
+      {
+        endpoint,
+        groupId,
+        response,
+      }
+    );
+
+    return response;
+
+  } catch (error) {
+    debugLog(
+      'GET POTENTIAL GROUP MEMBERS ← Error',
+      {
+        endpoint,
+        groupId,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+

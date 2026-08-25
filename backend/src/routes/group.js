@@ -13,7 +13,8 @@ import {
   removeMember,
   listJoinRequests,
   approveJoinRequest,
-  rejectJoinRequest
+  rejectJoinRequest,
+  listPotentialMembers
 } from '../controllers/group.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -32,5 +33,6 @@ router.delete('/:groupId/members/:userId', requireAuth, removeMember);
 router.get('/:groupId/requests', requireAuth, listJoinRequests);
 router.patch('/:groupId/requests/:requestId/approve', requireAuth, approveJoinRequest);  
 router.patch('/:groupId/requests/:requestId/reject', requireAuth, rejectJoinRequest);   
+router.get('/:groupId/potential-members', requireAuth, listPotentialMembers);  
 
 export default router;

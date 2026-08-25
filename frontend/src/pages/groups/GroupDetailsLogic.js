@@ -1,3 +1,4 @@
+//frontend/src/pages/groups/GroupDetailsLogic.js
 import { useCallback, useEffect, useState } from "react";
 
 import { useNavigate, useParams } from "react-router";

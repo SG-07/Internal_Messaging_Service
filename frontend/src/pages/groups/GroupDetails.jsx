@@ -1,9 +1,17 @@
 // frontend/src/pages/groups/GroupDetails.jsx
 
+import { useState } from "react";
+
 import DashboardLayout from "../dashboard/DashboardLayout";
+import AddMemberModal from "../../component/AddMemberModal";
+
 import { useGroupDetailsLogic } from "./GroupDetailsLogic";
 
+import { getPotentialMembers, addGroupMember } from "../../api/groups";
+
 function GroupDetails() {
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+
   const {
     group,
     groupId,
@@ -48,7 +56,7 @@ function GroupDetails() {
     reload,
   } = useGroupDetailsLogic();
 
-  const canEdit = group?.can_manage === true;
+  const canManage = group?.can_manage === true;
 
   /*
    * ----------------------------------------
@@ -132,7 +140,7 @@ function GroupDetails() {
 
   /*
    * ----------------------------------------
-   * No group
+   * No Group
    * ----------------------------------------
    */
 
@@ -238,7 +246,9 @@ function GroupDetails() {
                 </button>
               )}
 
-              {canEdit && !isEditing && (
+              {/* Edit Group */}
+
+              {canManage && !isEditing && (
                 <button
                   type="button"
                   onClick={handleStartEdit}
@@ -260,6 +270,8 @@ function GroupDetails() {
             </div>
           )}
 
+          {/* Join Success */}
+
           {joinSuccess && (
             <div className="border-b border-green-200 bg-green-50 px-6 py-4">
               <p className="text-sm font-medium text-green-700">
@@ -267,6 +279,8 @@ function GroupDetails() {
               </p>
             </div>
           )}
+
+          {/* Join Error */}
 
           {joinError && (
             <div className="border-b border-red-200 bg-red-50 px-6 py-4">
@@ -354,7 +368,7 @@ function GroupDetails() {
                     />
                   </div>
 
-                  {/* Manager - Admin Only */}
+                  {/* Manager */}
 
                   {isAdmin && (
                     <div>
@@ -374,11 +388,6 @@ function GroupDetails() {
                         className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
                         placeholder="Leave empty to remove manager"
                       />
-
-                      <p className="mt-2 text-xs text-gray-500">
-                        Only administrators can change the group manager. The
-                        backend will validate this permission.
-                      </p>
                     </div>
                   )}
 
@@ -407,7 +416,7 @@ function GroupDetails() {
               </section>
             )}
 
-            {/* Left / Main Details */}
+            {/* Left Content */}
 
             <div className="space-y-6 lg:col-span-2">
               {/* Group Information */}
@@ -452,7 +461,7 @@ function GroupDetails() {
               {/* Members */}
 
               <section className="overflow-hidden rounded-xl border border-gray-200">
-                <div className="flex items-center justify-between border-b px-5 py-4">
+                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
                     <h2 className="font-semibold text-gray-900">Members</h2>
 
@@ -463,6 +472,16 @@ function GroupDetails() {
                         : "members"}
                     </p>
                   </div>
+
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMemberModal(true)}
+                      className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      + Add Member
+                    </button>
+                  )}
                 </div>
 
                 {members.length === 0 ? (
@@ -608,40 +627,13 @@ function GroupDetails() {
 
               {canDelete && (
                 <section className="overflow-hidden rounded-xl border border-red-200 bg-white">
-                  {/* Danger Zone Header */}
-
                   <div className="border-b border-red-200 bg-red-50 px-5 py-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="h-5 w-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 9v3.5M12 16h.01M10.29 3.86l-8.1 14a2 2 0 001.73 3h16.16a2 2 0 001.73-3l-8.1-14a2 2 0 00-3.46 0z"
-                          />
-                        </svg>
-                      </div>
+                    <h2 className="font-semibold text-red-800">Danger Zone</h2>
 
-                      <div>
-                        <h2 className="font-semibold text-red-800">
-                          Danger Zone
-                        </h2>
-
-                        <p className="mt-1 text-sm text-red-700">
-                          Permanently delete this group and its associated data.
-                        </p>
-                      </div>
-                    </div>
+                    <p className="mt-1 text-sm text-red-700">
+                      Permanently delete this group and its associated data.
+                    </p>
                   </div>
-
-                  {/* Delete Action */}
 
                   <div className="flex flex-col gap-4 px-5 py-5">
                     <div>
@@ -660,20 +652,6 @@ function GroupDetails() {
                       disabled={deleting}
                       className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="h-4 w-4"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v12a1 1 0 01-1 1H8a1 1 0 01-1-1V7h10zM10 11v5M14 11v5"
-                        />
-                      </svg>
                       Delete Group
                     </button>
                   </div>
@@ -682,6 +660,19 @@ function GroupDetails() {
             </div>
           </div>
         </div>
+
+        {/* Add Member Modal */}
+
+        <AddMemberModal
+          open={showAddMemberModal}
+          groupId={groupId}
+          getPotentialMembers={getPotentialMembers}
+          addMember={addGroupMember}
+          onClose={() => setShowAddMemberModal(false)}
+          onAdded={async () => {
+            await reload();
+          }}
+        />
 
         {/* Delete Confirmation Modal */}
 
@@ -696,37 +687,14 @@ function GroupDetails() {
               aria-modal="true"
               aria-labelledby="delete-group-title"
             >
-              {/* Modal Header */}
-
               <div className="border-b border-gray-200 px-6 py-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="h-5 w-5"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 9v3.5M12 16h.01M10.29 3.86l-8.1 14a2 2 0 001.73 3h16.16a2 2 0 001.73-3l-8.1-14a2 2 0 00-3.46 0z"
-                      />
-                    </svg>
-                  </div>
-
-                  <h2
-                    id="delete-group-title"
-                    className="text-lg font-semibold text-gray-900"
-                  >
-                    Delete Group?
-                  </h2>
-                </div>
+                <h2
+                  id="delete-group-title"
+                  className="text-lg font-semibold text-gray-900"
+                >
+                  Delete Group?
+                </h2>
               </div>
-
-              {/* Modal Content */}
 
               <div className="px-6 py-5">
                 <p className="text-sm text-gray-700">
@@ -749,8 +717,6 @@ function GroupDetails() {
                 )}
               </div>
 
-              {/* Modal Actions */}
-
               <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
                 <button
                   type="button"
@@ -767,10 +733,6 @@ function GroupDetails() {
                   disabled={deleting}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {deleting && (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  )}
-
                   {deleting ? "Deleting..." : "Delete Permanently"}
                 </button>
               </div>

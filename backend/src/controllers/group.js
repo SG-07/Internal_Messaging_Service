@@ -2036,3 +2036,221 @@ export const rejectJoinRequest = async (req, res) => {
     });
   }
 };
+
+/// --- LIST POTENTIAL MEMBERS ---
+export const listPotentialMembers = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { email } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  // Validate groupId
+  if (!groupId || groupId.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, department, requested_by, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError) {
+      if (groupError.code === 'PGRST116') {
+        return res.status(404).json({
+          success: false,
+          message: 'Group not found.',
+        });
+      }
+      console.error('[listPotentialMembers] Supabase group error:', groupError);
+      throw new Error('Failed to fetch group');
+    }
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Validate group is approved
+    if (group.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot view members for unapproved groups.',
+      });
+    }
+
+    // Fetch current user details
+    const { data: currentUser, error: currentUserError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .eq('id', user_id)
+      .single();
+
+    if (currentUserError) {
+      console.error('[listPotentialMembers] Supabase user error:', currentUserError);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Check permissions: only creator, admin, or manager can view
+    const isCreator = group.requested_by === user_id;
+    const isAdmin = currentUser.role === 'admin';
+    const isManager = currentUser.role === 'manager';
+
+    if (!isCreator && !isAdmin && !isManager) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view potential members for this group.',
+      });
+    }
+
+    if (isDev) {
+      console.log(
+        '[listPotentialMembers] groupId:',
+        groupId,
+        'user_id:',
+        user_id,
+        'isCreator:',
+        isCreator,
+        'isAdmin:',
+        isAdmin,
+        'isManager:',
+        isManager
+      );
+    }
+
+    // Build base query for potential members
+    let query = supabaseAdmin
+      .from('profiles')
+      .select('id, email, username, full_name, department, is_active', { count: 'exact' })
+      .eq('is_active', true)
+      .order('full_name', { ascending: true });
+
+    // Department filtering
+    if (group.department) {
+      // Group is department-specific: only show users from that department
+      query = query.eq('department', group.department);
+      if (isDev) {
+        console.log('[listPotentialMembers] Filtering by department:', group.department);
+      }
+    } else {
+      // Group is cross-department: show all active users
+      if (isDev) {
+        console.log('[listPotentialMembers] Cross-department group - showing all users');
+      }
+    }
+
+    // Email search filter (if provided)
+    if (email && email.trim() !== '') {
+      const searchEmail = email.trim().toLowerCase();
+      query = query.ilike('email', `%${searchEmail}%`);
+      if (isDev) {
+        console.log('[listPotentialMembers] Email search filter:', searchEmail);
+      }
+    }
+
+    // Execute query
+    const { data: potentialUsers, error, count } = await query.range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('[listPotentialMembers] Error fetching users:', error);
+      throw new Error('Failed to fetch potential members');
+    }
+
+    if (!potentialUsers) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          group_id: groupId,
+          group_name: group.name,
+          group_department: group.department,
+          addable_users: [],
+        },
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          has_more: false,
+        },
+      });
+    }
+
+    if (isDev) {
+      console.log('[listPotentialMembers] Found users:', potentialUsers.length, 'total count:', count);
+    }
+
+    // Fetch users already in group (active members only)
+    const { data: existingMembers, error: membersError } = await supabaseAdmin
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId)
+      .is('left_at', null);
+
+    if (membersError) {
+      console.error('[listPotentialMembers] Error fetching members:', membersError);
+      throw new Error('Failed to fetch group members');
+    }
+
+    const existingMemberIds = new Set(existingMembers?.map(m => m.user_id) || []);
+
+    if (isDev) {
+      console.log('[listPotentialMembers] Existing members:', existingMemberIds.size);
+    }
+
+    // Transform and filter response
+    const addableUsers = potentialUsers
+      .filter(user => !existingMemberIds.has(user.id))
+      .map(user => ({
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        full_name: user.full_name,
+        department: user.department,
+      }));
+
+    if (isDev) {
+      console.log('[listPotentialMembers] Addable users after filtering:', addableUsers.length);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        group_id: groupId,
+        group_name: group.name,
+        group_department: group.department,
+        addable_users: addableUsers,
+      },
+      pagination: {
+        page,
+        limit,
+        total: addableUsers.length,
+        has_more: offset + limit < count,
+      },
+    });
+  } catch (err) {
+    console.error('[listPotentialMembers] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch potential members.',
+    });
+  }
+};
