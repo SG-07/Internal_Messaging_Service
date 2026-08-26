@@ -3,11 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { useAuth } from "../../../context/AuthContext";
-import {
-  createGroupConversation,
-  getConversation,
-  sendMessage,
-} from "../../../api/conversations";
+import { getConversation, sendMessage } from "../../../api/conversations";
+
+import { getGroupConversation } from "../../../api/groups";
 
 export function useChatLogic() {
   const { groupId } = useParams();
@@ -100,42 +98,20 @@ export function useChatLogic() {
        * ----------------------------------------
        */
 
-      const groupConversationResponse =
-        await createGroupConversation(groupId);
+      const groupConversationResponse = await getGroupConversation(groupId);
 
       if (import.meta.env.DEV) {
-        console.group(
-          "[Group Chat] Create/Get Conversation Response"
-        );
+        console.group("[Group Chat] Create/Get Conversation Response");
 
-        console.log(
-          "Response:",
-          groupConversationResponse
-        );
+        console.log("Response:", groupConversationResponse);
 
         console.groupEnd();
       }
 
-      /*
-       * createGroupConversation() currently
-       * returns the complete request() response.
-       *
-       * Expected:
-       *
-       * {
-       *   success: true,
-       *   message: "...",
-       *   data: {...}
-       * }
-       */
-
-      const conversationData =
-        groupConversationResponse?.data;
+      const conversationData = groupConversationResponse?.data;
 
       if (!conversationData?.id) {
-        throw new Error(
-          "Unable to create or retrieve the group conversation."
-        );
+        throw new Error("Unable to create or retrieve the group conversation.");
       }
 
       /*
@@ -148,13 +124,9 @@ export function useChatLogic() {
        */
 
       setGroup({
-        id:
-          conversationData.group_id ||
-          groupId,
+        id: conversationData.group_id || groupId,
 
-        name:
-          conversationData.group_name ||
-          "Group",
+        name: conversationData.group_name || "Group",
       });
 
       /*
@@ -171,7 +143,7 @@ export function useChatLogic() {
       setMembers(
         Array.isArray(conversationData.participants)
           ? conversationData.participants
-          : []
+          : [],
       );
 
       /*
@@ -184,20 +156,12 @@ export function useChatLogic() {
        * ----------------------------------------
        */
 
-      const conversationResponse =
-        await getConversation(
-          conversationData.id
-        );
+      const conversationResponse = await getConversation(conversationData.id);
 
       if (import.meta.env.DEV) {
-        console.group(
-          "[Group Chat] Conversation Details"
-        );
+        console.group("[Group Chat] Conversation Details");
 
-        console.log(
-          "Response:",
-          conversationResponse
-        );
+        console.log("Response:", conversationResponse);
 
         console.groupEnd();
       }
@@ -215,13 +179,10 @@ export function useChatLogic() {
        * again here.
        */
 
-      const details =
-        conversationResponse;
+      const details = conversationResponse;
 
       if (!details?.id) {
-        throw new Error(
-          "Unable to load the group conversation."
-        );
+        throw new Error("Unable to load the group conversation.");
       }
 
       setConversation(details);
@@ -232,11 +193,7 @@ export function useChatLogic() {
        * ----------------------------------------
        */
 
-      setMessages(
-        Array.isArray(details.messages)
-          ? details.messages
-          : []
-      );
+      setMessages(Array.isArray(details.messages) ? details.messages : []);
 
       /*
        * ----------------------------------------
@@ -247,11 +204,9 @@ export function useChatLogic() {
       setMembers(
         Array.isArray(details.participants)
           ? details.participants
-          : Array.isArray(
-              conversationData.participants
-            )
+          : Array.isArray(conversationData.participants)
             ? conversationData.participants
-            : []
+            : [],
       );
 
       /*
@@ -261,76 +216,42 @@ export function useChatLogic() {
        */
 
       setGroup({
-        id:
-          details.group_id ||
-          conversationData.group_id ||
-          groupId,
+        id: details.group_id || conversationData.group_id || groupId,
 
-        name:
-          details.group_name ||
-          conversationData.group_name ||
-          "Group",
+        name: details.group_name || conversationData.group_name || "Group",
       });
 
       if (import.meta.env.DEV) {
-        console.group(
-          "[Group Chat] Loaded Successfully"
-        );
+        console.group("[Group Chat] Loaded Successfully");
 
         console.log("Group:", {
-          id:
-            details.group_id ||
-            conversationData.group_id ||
-            groupId,
+          id: details.group_id || conversationData.group_id || groupId,
 
-          name:
-            details.group_name ||
-            conversationData.group_name ||
-            "Group",
+          name: details.group_name || conversationData.group_name || "Group",
         });
 
-        console.log(
-          "Conversation ID:",
-          details.id
-        );
+        console.log("Conversation ID:", details.id);
 
-        console.log(
-          "Messages:",
-          details.messages || []
-        );
+        console.log("Messages:", details.messages || []);
 
-        console.log(
-          "Members:",
-          details.participants || []
-        );
+        console.log("Members:", details.participants || []);
 
         console.groupEnd();
       }
     } catch (err) {
       if (import.meta.env.DEV) {
-        console.group(
-          "[Group Chat] Load Error"
-        );
+        console.group("[Group Chat] Load Error");
 
         console.error("Error:", err);
 
-        console.log(
-          "Status:",
-          err?.status
-        );
+        console.log("Status:", err?.status);
 
-        console.log(
-          "Message:",
-          err?.message
-        );
+        console.log("Message:", err?.message);
 
         console.groupEnd();
       }
 
-      setError(
-        err?.message ||
-          "Unable to load the group conversation."
-      );
+      setError(err?.message || "Unable to load the group conversation.");
 
       setGroup(null);
       setConversation(null);
@@ -359,116 +280,123 @@ export function useChatLogic() {
 
   const handleSendMessage = useCallback(
     async (content) => {
-      const trimmedContent =
-        content?.trim();
+      const trimmedContent = content?.trim();
 
       if (!trimmedContent) {
+        console.warn("[Group Chat] Empty message. Not sending.");
         return;
       }
 
       if (!conversation?.id) {
-        setError(
-          "Conversation is not available."
-        );
+        console.error("[Group Chat] Conversation is not available.", {
+          conversation,
+        });
 
+        setError("Conversation is not available.");
         return;
       }
 
       if (sending) {
+        console.warn("[Group Chat] Message already being sent.");
         return;
+      }
+
+      /*
+       * ----------------------------------------
+       * DEBUG: REQUEST INFORMATION
+       * ----------------------------------------
+       */
+
+      const payload = {
+        body: trimmedContent,
+      };
+
+      const apiInfo = {
+        method: "POST",
+        conversationId: conversation.id,
+        payload,
+      };
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "%c[Group Chat] SEND MESSAGE REQUEST",
+          "color: #2563eb; font-weight: bold;",
+        );
+
+        console.log("API function:", "sendMessage(conversationId, body)");
+
+        console.log("Conversation ID:", conversation.id);
+
+        console.log("Payload:", payload);
+
+        console.log(
+          "Expected API:",
+          `/api/conversations/${conversation.id}/messages`,
+        );
+
+        console.log("Request details:", apiInfo);
+
+        console.groupEnd();
       }
 
       try {
         setSending(true);
         setError("");
 
+        /*
+         * ----------------------------------------
+         * SEND REQUEST
+         * ----------------------------------------
+         */
+
+        const response = await sendMessage(conversation.id, trimmedContent);
+
+        /*
+         * ----------------------------------------
+         * DEBUG: RESPONSE
+         * ----------------------------------------
+         */
+
         if (import.meta.env.DEV) {
           console.group(
-            "[Group Chat] Send Message"
+            "%c[Group Chat] SEND MESSAGE RESPONSE",
+            "color: #16a34a; font-weight: bold;",
           );
 
-          console.log(
-            "Conversation ID:",
-            conversation.id
-          );
+          console.log("Response:", response);
 
-          console.log(
-            "Message:",
-            trimmedContent
-          );
+          console.log("Response data:", response?.data);
+
+          console.log("Message ID:", response?.data?.message_id);
+
+          console.log("Conversation ID:", response?.data?.conversation_id);
+
+          console.log("Sender ID:", response?.data?.sender_id);
+
+          console.log("Content:", response?.data?.content);
+
+          console.log("Sent At:", response?.data?.sent_at);
 
           console.groupEnd();
         }
 
         /*
-         * Existing API expects:
-         *
-         * sendMessage(conversationId, body)
-         *
-         * and internally sends:
-         *
-         * {
-         *   body
-         * }
+         * ----------------------------------------
+         * ADD MESSAGE TO UI
+         * ----------------------------------------
          */
 
-        const response =
-          await sendMessage(
-            conversation.id,
-            trimmedContent
-          );
+        const sentMessage = response?.data;
 
-        if (import.meta.env.DEV) {
-          console.group(
-            "[Group Chat] Send Message Response"
-          );
-
-          console.log(
-            "Response:",
-            response
-          );
-
-          console.groupEnd();
-        }
-
-        /*
-         * Existing backend response:
-         *
-         * {
-         *   success: true,
-         *   message: "...",
-         *   data: {
-         *     content,
-         *     conversation_id,
-         *     message_id,
-         *     sender_id,
-         *     sender_name,
-         *     sent_at
-         *   }
-         * }
-         */
-
-        const sentMessage =
-          response?.data;
-
-        if (
-          sentMessage?.message_id
-        ) {
+        if (sentMessage?.message_id) {
           const newMessage = {
-            id:
-              sentMessage.message_id,
+            id: sentMessage.message_id,
 
-            content:
-              sentMessage.content ||
-              trimmedContent,
+            content: sentMessage.content || trimmedContent,
 
-            created_at:
-              sentMessage.sent_at ||
-              new Date().toISOString(),
+            created_at: sentMessage.sent_at || new Date().toISOString(),
 
-            sender_id:
-              sentMessage.sender_id ||
-              user?.id,
+            sender_id: sentMessage.sender_id || user?.id,
 
             sender_name:
               sentMessage.sender_name ||
@@ -477,56 +405,57 @@ export function useChatLogic() {
               "You",
           };
 
-          setMessages(
-            (previousMessages) => [
-              ...previousMessages,
-              newMessage,
-            ]
+          setMessages((previousMessages) => [...previousMessages, newMessage]);
+
+          if (import.meta.env.DEV) {
+            console.log("[Group Chat] Message added to UI:", newMessage);
+          }
+        } else {
+          console.warn(
+            "[Group Chat] Backend response does not contain message_id.",
+            response,
           );
         }
 
         return response;
       } catch (err) {
+        /*
+         * ----------------------------------------
+         * DEBUG: ERROR
+         * ----------------------------------------
+         */
+
         if (import.meta.env.DEV) {
           console.group(
-            "[Group Chat] Send Message Error"
+            "%c[Group Chat] SEND MESSAGE ERROR",
+            "color: #dc2626; font-weight: bold;",
           );
 
-          console.error(
-            "Error:",
-            err
-          );
+          console.error("Error:", err);
 
-          console.log(
-            "Status:",
-            err?.status
-          );
+          console.error("Status:", err?.status);
 
-          console.log(
-            "Message:",
-            err?.message
-          );
+          console.error("Message:", err?.message);
+
+          console.error("Response:", err?.response);
+
+          console.error("Response data:", err?.response?.data);
+
+          console.error("Request payload:", payload);
+
+          console.error("Conversation ID:", conversation.id);
 
           console.groupEnd();
         }
 
-        setError(
-          err?.message ||
-            "Unable to send message."
-        );
+        setError(err?.message || "Unable to send message.");
 
         throw err;
       } finally {
         setSending(false);
       }
     },
-    [
-      conversation?.id,
-      sending,
-      user?.id,
-      user?.full_name,
-      user?.username,
-    ]
+    [conversation?.id, sending, user?.id, user?.full_name, user?.username],
   );
 
   /*
@@ -535,12 +464,9 @@ export function useChatLogic() {
    * ----------------------------------------
    */
 
-  const handleRetry = useCallback(
-    async () => {
-      await loadConversation();
-    },
-    [loadConversation]
-  );
+  const handleRetry = useCallback(async () => {
+    await loadConversation();
+  }, [loadConversation]);
 
   /*
    * ----------------------------------------

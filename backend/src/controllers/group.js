@@ -3,160 +3,190 @@ import supabaseAdmin from '../config/supabaseClient.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-// --- CREATE GROUP ---
+/// --- CREATE GROUP (Updated - Auto-approve for admins) ---
 export const createGroup = async (req, res) => {
-  const { name, is_open, department, manager_id } = req.body;
-  const user_id = req.user.id;
+  const { name, is_open, department } = req.body;
+  const creator_id = req.user.id;
   const isDev = process.env.NODE_ENV === 'development';
 
-  // Validation: name is required
+  // Validation
   if (!name || typeof name !== 'string' || name.trim() === '') {
     return res.status(400).json({
       success: false,
-      message: 'Group name is required and must be a non-empty string.',
-    });
-  }
-
-  // Validation: is_open is required (boolean)
-  if (is_open === undefined || typeof is_open !== 'boolean') {
-    return res.status(400).json({
-      success: false,
-      message: 'is_open is required and must be a boolean (true/false).',
+      message: 'Group name is required.',
     });
   }
 
   try {
-    // Fetch current user details (role and department)
-    const { data: user, error: userError } = await supabaseAdmin
+    // Fetch creator profile
+    const { data: creator, error: creatorError } = await supabaseAdmin
       .from('profiles')
-      .select('id, role, department')
-      .eq('id', user_id)
+      .select('id, username, full_name, email, role, department')
+      .eq('id', creator_id)
       .single();
 
-    if (userError || !user) {
+    if (creatorError || !creator) {
       return res.status(404).json({
         success: false,
         message: 'User not found.',
       });
     }
 
-    // Determine group department and status
-    let groupDepartment = null;
-    let groupStatus = 'approved'; // Default: auto-approved for open groups
-    let approvedBy = null;
+    // Validate department rules
+    const userDept = creator.department;
+    const isAdmin = creator.role === 'admin';
 
-    if (user.role === 'admin') {
-      // ADMIN: Can create groups with or without department
-      groupDepartment = department !== undefined ? department : null;
-      groupStatus = 'approved'; // Admin groups are auto-approved
-      approvedBy = user_id;
-    } else if (user.role === 'manager') {
-      // MANAGER: Can only create groups in their own department
-      if (!user.department) {
-        return res.status(400).json({
+    if (department && !isAdmin) {
+      // Non-admins can only create groups in their own department
+      if (department !== userDept) {
+        return res.status(403).json({
           success: false,
-          message: 'Your account has no department assigned. Contact admin to assign one.',
+          message: 'You can only create groups in your own department.',
         });
       }
-      groupDepartment = user.department; // Manager's group belongs to their department only
-      // Manager groups: closed groups require approval, open groups auto-approve
-      groupStatus = is_open ? 'approved' : 'pending';
-      approvedBy = is_open ? user_id : null;
-    } else {
-      // REGULAR USER: Can only create groups in their own department
-      if (!user.department) {
-        return res.status(400).json({
-          success: false,
-          message: 'Your account has no department assigned. Contact admin to assign one.',
-        });
-      }
-      groupDepartment = user.department; // User's group belongs to their department only
-      // User groups: closed groups require approval, open groups auto-approve
-      groupStatus = is_open ? 'approved' : 'pending';
-      approvedBy = is_open ? user_id : null;
     }
 
-    if (isDev) {
-      console.log(
-        '[createGroup] user_id:',
-        user_id,
-        'role:',
-        user.role,
-        'department:',
-        groupDepartment,
-        'is_open:',
-        is_open,
-        'status:',
-        groupStatus
-      );
+    if (!department && !isAdmin) {
+      // Non-admins cannot create cross-department groups
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can create department-less groups.',
+      });
     }
 
-    // Validate manager_id if provided
-    let finalManagerId = manager_id || null;
-    if (manager_id) {
-      const { data: manager, error: managerError } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('id', manager_id)
-        .single();
-
-      if (managerError || !manager) {
-        return res.status(400).json({
-          success: false,
-          message: 'Specified manager not found.',
-        });
-      }
-      finalManagerId = manager_id;
-    }
+    // Determine group status
+    // Admins: auto-approve (status: approved, approved_by: creator_id)
+    // Non-admins: pending approval (status: pending, approved_by: null)
+    const status = isAdmin ? 'approved' : 'pending';
+    const approvedBy = isAdmin ? creator_id : null;
 
     // Create the group
     const { data: newGroup, error: groupError } = await supabaseAdmin
       .from('teams')
       .insert({
         name: name.trim(),
-        is_open,
-        department: groupDepartment,
-        manager_id: finalManagerId,
-        status: groupStatus,
-        requested_by: user_id,
-        approved_by: approvedBy,
+        is_open: is_open !== false,
+        status: status,
+        department: department || null,
+        manager_id: isAdmin ? null : creator_id,
+        requested_by: creator_id,  // Always set to creator
+        approved_by: approvedBy,   // Set to creator if admin, null if non-admin
+        type: 'group',             // Specify this is a group
       })
-      .select('id, name, is_open, department, manager_id, status, requested_by, approved_by, created_at, updated_at')
+      .select('id, name, is_open, status, department, manager_id, requested_by, approved_by, created_at, updated_at, type')
       .single();
 
     if (groupError) {
-      console.error('[createGroup] Supabase insert error:', groupError);
+      console.error('[createGroup] Error creating group:', groupError);
       throw new Error('Failed to create group');
     }
 
-    // Add creator as member (except if admin created it)
-    if (user.role !== 'admin') {
-      const { error: memberError } = await supabaseAdmin
-        .from('group_members')
-        .insert({
-          group_id: newGroup.id,
-          user_id: user_id,
-          added_by: user_id,
-        });
+    const group_id = newGroup.id;
 
-      if (memberError) {
-        console.error('[createGroup] Error adding creator as member:', memberError);
-        // Don't fail the group creation if member add fails, but log it
+    if (isDev) {
+      console.log('[createGroup] Group created:', group_id, 'by:', creator_id, 'status:', status, 'isAdmin:', isAdmin);
+    }
+
+    // ===== CREATE GROUP CONVERSATION =====
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .insert({
+        subject: null,
+        conversation_type: 'group',
+        category: 'discussion',
+        created_by: creator_id,
+        is_group: true,
+        group_id: group_id,
+      })
+      .select('id')
+      .single();
+
+    if (convError) {
+      console.error('[createGroup] Error creating conversation:', convError);
+      // Delete group if conversation creation fails
+      await supabaseAdmin.from('teams').delete().eq('id', group_id);
+      throw new Error('Failed to create group conversation');
+    }
+
+    const conversation_id = conversation.id;
+
+    // ===== ADD INITIAL MESSAGE "Group created" =====
+    const { error: messageError } = await supabaseAdmin
+      .from('messages')
+      .insert({
+        conversation_id: conversation_id,
+        sender_id: creator_id,
+        content: `Group created by ${creator.full_name || creator.username}`,
+      });
+
+    if (messageError) {
+      console.error('[createGroup] Error creating initial message:', messageError);
+      // Continue anyway - group is created, just no initial message
+    }
+
+    // ===== ADD CREATOR AS GROUP MEMBER =====
+    const { error: memberError } = await supabaseAdmin
+      .from('group_members')
+      .insert({
+        group_id: group_id,
+        user_id: creator_id,
+        added_by: creator_id,
+      });
+
+    if (memberError) {
+      console.error('[createGroup] Error adding creator as member:', memberError);
+      // Continue anyway
+    }
+
+    // ===== ADD ALL GROUP MEMBERS AS CONVERSATION PARTICIPANTS =====
+    const { data: members, error: membersError } = await supabaseAdmin
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', group_id)
+      .is('left_at', null);
+
+    if (!membersError && members && members.length > 0) {
+      const participants = members.map(m => ({
+        conversation_id: conversation_id,
+        user_id: m.user_id,
+      }));
+
+      const { error: participantError } = await supabaseAdmin
+        .from('conversation_participants')
+        .insert(participants);
+
+      if (participantError) {
+        console.error('[createGroup] Error adding participants:', participantError);
       }
 
       if (isDev) {
-        console.log('[createGroup] Creator added as member to group:', newGroup.id);
+        console.log('[createGroup] Added', participants.length, 'participants to conversation');
       }
     }
 
     if (isDev) {
-      console.log('[createGroup] Group created:', newGroup.id, 'status:', newGroup.status);
+      console.log('[createGroup] Conversation created:', conversation_id, 'with initial message');
     }
 
     res.status(201).json({
       success: true,
-      message: `Group "${name}" created successfully.${groupStatus === 'pending' ? ' Awaiting approval.' : ''}`,
-      data: newGroup,
+      message: 'Group created successfully.',
+      data: {
+        id: newGroup.id,
+        name: newGroup.name,
+        is_open: newGroup.is_open,
+        status: newGroup.status,
+        department: newGroup.department,
+        manager_id: newGroup.manager_id,
+        requested_by: newGroup.requested_by,
+        approved_by: newGroup.approved_by,
+        created_by: creator_id,
+        created_at: newGroup.created_at,
+        updated_at: newGroup.updated_at,
+        type: newGroup.type,
+        conversation_id: conversation_id,
+        auto_approved: isAdmin,  // Indicate if auto-approved by admin
+      },
     });
   } catch (err) {
     console.error('[createGroup] error:', err);
@@ -168,7 +198,7 @@ export const createGroup = async (req, res) => {
 };
 
 
-/// --- LIST ALL GROUPS (UPDATED WITH MEMBERSHIP STATUS) ---
+/// --- LIST ALL GROUPS (Updated - filter by type) ---
 export const listGroups = async (req, res) => {
   const user_id = req.user.id;
   const page = parseInt(req.query.page) || 1;
@@ -205,12 +235,14 @@ export const listGroups = async (req, res) => {
         status,
         requested_by,
         approved_by,
+        type,
         created_at,
         updated_at,
         profiles!teams_manager_id_fkey(id, username, full_name, email)
       `,
         { count: 'exact' }
       )
+      .eq('type', 'group')  // IMPORTANT: Only fetch groups, not teams
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -263,64 +295,27 @@ export const listGroups = async (req, res) => {
       throw new Error('Failed to fetch groups');
     }
 
-    // Fetch user's membership status for ALL groups at once (more efficient)
-    const groupIds = groups.map((g) => g.id);
-    let userMemberships = {};
-
-    if (groupIds.length > 0) {
-      const { data: memberships, error: membershipError } = await supabaseAdmin
-        .from('group_members')
-        .select('group_id, joined_at, left_at')
-        .eq('user_id', user_id)
-        .in('group_id', groupIds);
-
-      if (!membershipError && memberships) {
-        // Build a map of group_id -> membership info
-        memberships.forEach((m) => {
-          userMemberships[m.group_id] = {
-            joined_at: m.joined_at,
-            left_at: m.left_at,
-          };
-        });
-      }
-    }
-
-    // Transform response - flatten manager details and add membership_status
-    const transformedGroups = groups.map((group) => {
-      let membership_status = 'not_member';
-
-      // Determine membership status
-      if (userMemberships[group.id]) {
-        const membership = userMemberships[group.id];
-        if (membership.left_at) {
-          membership_status = 'left';  // User left the group
-        } else {
-          membership_status = 'member';  // User is an active member
-        }
-      }
-
-      return {
-        id: group.id,
-        name: group.name,
-        is_open: group.is_open,
-        department: group.department,
-        manager: group.profiles
-          ? {
-              id: group.profiles.id,
-              username: group.profiles.username,
-              full_name: group.profiles.full_name,
-              email: group.profiles.email,
-            }
-          : null,
-        status: group.status,
-        requested_by: group.requested_by,
-        approved_by: group.approved_by,
-        created_at: group.created_at,
-        updated_at: group.updated_at,
-        membership_status: membership_status,  // NEW FIELD
-        can_join: membership_status === 'not_member' && group.is_open && group.status === 'approved',  // NEW FIELD
-      };
-    });
+    // Transform response - flatten manager details
+    const transformedGroups = groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      is_open: group.is_open,
+      department: group.department,
+      manager: group.profiles
+        ? {
+            id: group.profiles.id,
+            username: group.profiles.username,
+            full_name: group.profiles.full_name,
+            email: group.profiles.email,
+          }
+        : null,
+      status: group.status,
+      requested_by: group.requested_by,
+      approved_by: group.approved_by,
+      type: group.type,
+      created_at: group.created_at,
+      updated_at: group.updated_at,
+    }));
 
     res.status(200).json({
       success: true,
@@ -342,7 +337,7 @@ export const listGroups = async (req, res) => {
 };
 
 
-/// --- JOIN GROUP ---
+/// --- JOIN GROUP (Fixed - proper error handling) ---
 export const joinGroup = async (req, res) => {
   const { groupId } = req.params;
   const user_id = req.user.id;
@@ -361,6 +356,7 @@ export const joinGroup = async (req, res) => {
       .from('teams')
       .select('id, name, is_open, status, department')
       .eq('id', groupId)
+      .eq('type', 'group')  // Only join groups, not teams
       .single();
 
     if (groupError || !group) {
@@ -392,163 +388,117 @@ export const joinGroup = async (req, res) => {
       });
     }
 
-    // Check if user is already a member (active or left)
-    const { data: existingMembership, error: membershipCheckError } = await supabaseAdmin
+    // Validate department rules
+    if (group.department && user.department !== group.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only join groups in your own department.',
+      });
+    }
+
+    // Check if user is already a member
+    const { data: membership, error: membershipError } = await supabaseAdmin
       .from('group_members')
       .select('id, left_at')
       .eq('group_id', groupId)
       .eq('user_id', user_id)
-      .maybeSingle();
+      .single();
 
-    if (membershipCheckError) {
-      console.error('[joinGroup] Error checking membership:', membershipCheckError);
+    // PGRST116 = no rows returned (user not a member - this is expected)
+    if (membershipError && membershipError.code !== 'PGRST116') {
+      console.error('[joinGroup] Error checking membership:', membershipError);
       throw new Error('Failed to check group membership');
     }
 
-    // If user is already an active member
-    if (existingMembership && !existingMembership.left_at) {
-      return res.status(400).json({
+    let action = 'joined';
+
+    // If user already is an active member, return error
+    if (membership && !membership.left_at) {
+      return res.status(403).json({
         success: false,
         message: 'You are already a member of this group.',
       });
     }
 
-    // If user left before, allow rejoining
-    if (existingMembership && existingMembership.left_at) {
-      const { error: rejoinError } = await supabaseAdmin
+    // If user previously left, reactivate membership
+    if (membership && membership.left_at) {
+      const { error: updateError } = await supabaseAdmin
         .from('group_members')
-        .update({
-          left_at: null,
-          joined_at: new Date().toISOString(),
-        })
-        .eq('id', existingMembership.id);
+        .update({ left_at: null })
+        .eq('id', membership.id);
 
-      if (rejoinError) {
-        console.error('[joinGroup] Error rejoining group:', rejoinError);
+      if (updateError) {
+        console.error('[joinGroup] Error reactivating membership:', updateError);
         throw new Error('Failed to rejoin group');
       }
 
+      action = 'rejoined';
+
       if (isDev) {
-        console.log('[joinGroup] User rejoined group:', groupId, 'user_id:', user_id);
+        console.log('[joinGroup] User rejoined group:', groupId, 'user:', user_id);
       }
-
-      return res.status(200).json({
-        success: true,
-        message: `You have rejoined the group "${group.name}".`,
-        data: {
-          group_id: groupId,
-          group_name: group.name,
-          action: 'rejoined',
-        },
-      });
-    }
-
-    // NEW MEMBER FLOW
-    // Case 1: OPEN GROUP - directly add to group_members
-    if (group.is_open) {
-      // Validate department eligibility for open groups in specific department
-      if (group.department && group.department !== user.department) {
-        return res.status(403).json({
-          success: false,
-          message: `This group is limited to the ${group.department} department. You are in the ${user.department} department.`,
-        });
-      }
-
-      const { data: newMember, error: addMemberError } = await supabaseAdmin
+    } else {
+      // New membership - insert into group_members
+      const { error: insertError } = await supabaseAdmin
         .from('group_members')
         .insert({
           group_id: groupId,
           user_id: user_id,
-          added_by: user_id, // User added themselves
-        })
-        .select('id, joined_at')
-        .single();
+          added_by: user_id,  // User added themselves
+        });
 
-      if (addMemberError) {
-        console.error('[joinGroup] Error adding member:', addMemberError);
+      if (insertError) {
+        console.error('[joinGroup] Error adding member:', insertError);
         throw new Error('Failed to join group');
       }
 
       if (isDev) {
-        console.log('[joinGroup] User joined open group:', groupId, 'user_id:', user_id);
+        console.log('[joinGroup] User joined group:', groupId, 'user:', user_id);
       }
-
-      return res.status(201).json({
-        success: true,
-        message: `You have successfully joined the group "${group.name}".`,
-        data: {
-          group_id: groupId,
-          group_name: group.name,
-          action: 'joined',
-          joined_at: newMember.joined_at,
-        },
-      });
     }
 
-    // Case 2: CLOSED GROUP - create join request
-    if (!group.is_open) {
-      // Check if there's already a pending request
-      const { data: existingRequest, error: requestCheckError } = await supabaseAdmin
-        .from('group_join_requests')
-        .select('id, status')
-        .eq('group_id', groupId)
+    // Add user to conversation participants (if group conversation exists)
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('is_group', true)
+      .single();
+
+    if (!convError && conversation) {
+      // Check if already a participant
+      const { data: existingParticipant } = await supabaseAdmin
+        .from('conversation_participants')
+        .select('id')
+        .eq('conversation_id', conversation.id)
         .eq('user_id', user_id)
-        .maybeSingle();
-
-      if (requestCheckError) {
-        console.error('[joinGroup] Error checking join request:', requestCheckError);
-        throw new Error('Failed to check join request status');
-      }
-
-      // If there's already a pending or approved request
-      if (existingRequest) {
-        if (existingRequest.status === 'pending') {
-          return res.status(400).json({
-            success: false,
-            message: 'You have already requested to join this group. Please wait for approval.',
-          });
-        }
-        if (existingRequest.status === 'approved') {
-          // This shouldn't happen, but handle it just in case
-          return res.status(400).json({
-            success: false,
-            message: 'Your join request was already approved. You should be a member.',
-          });
-        }
-      }
-
-      // Create new join request
-      const { data: joinRequest, error: requestError } = await supabaseAdmin
-        .from('group_join_requests')
-        .insert({
-          group_id: groupId,
-          user_id: user_id,
-          status: 'pending',
-        })
-        .select('id, requested_at')
         .single();
 
-      if (requestError) {
-        console.error('[joinGroup] Error creating join request:', requestError);
-        throw new Error('Failed to request group membership');
-      }
+      // Only add if not already a participant
+      if (!existingParticipant) {
+        const { error: participantError } = await supabaseAdmin
+          .from('conversation_participants')
+          .insert({
+            conversation_id: conversation.id,
+            user_id: user_id,
+          });
 
-      if (isDev) {
-        console.log('[joinGroup] User requested to join closed group:', groupId, 'user_id:', user_id);
+        if (participantError) {
+          console.error('[joinGroup] Error adding conversation participant:', participantError);
+        }
       }
-
-      return res.status(201).json({
-        success: true,
-        message: `Your request to join the closed group "${group.name}" has been sent. Please wait for approval from an admin or manager.`,
-        data: {
-          group_id: groupId,
-          group_name: group.name,
-          action: 'request_sent',
-          request_id: joinRequest.id,
-          requested_at: joinRequest.requested_at,
-        },
-      });
     }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully ${action} the group.`,
+      data: {
+        group_id: groupId,
+        user_id: user_id,
+        action: action,  // 'joined' or 'rejoined'
+        group_name: group.name,
+      },
+    });
   } catch (err) {
     console.error('[joinGroup] error:', err);
     res.status(500).json({
@@ -2396,6 +2346,335 @@ export const listUserGroups = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to fetch user groups.',
+    });
+  }
+};
+
+// --- CREATE GROUP CONVERSATION  ---
+export const createGroupConversation = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Validate group is approved
+    if (group.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create conversations in unapproved groups.',
+      });
+    }
+
+    // Check if user is an active member of the group
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from('group_members')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('user_id', user_id)
+      .is('left_at', null)
+      .single();
+
+    if (membershipError || !membership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must be an active member of the group to create conversations.',
+      });
+    }
+
+    // Fetch all active group members (user_id only first)
+    const { data: groupMemberIds, error: membersError } = await supabaseAdmin
+      .from('group_members')
+      .select('user_id')
+      .eq('group_id', groupId)
+      .is('left_at', null);
+
+    if (membersError || !groupMemberIds || groupMemberIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group has no active members.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[createGroupConversation] Found member IDs:', groupMemberIds.map(m => m.user_id));
+    }
+
+    // Fetch profiles for each member
+    const userIds = groupMemberIds.map(m => m.user_id);
+    const { data: memberProfiles, error: profilesError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .in('id', userIds);
+
+    if (profilesError || !memberProfiles || memberProfiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to fetch member profiles.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[createGroupConversation] groupId:', groupId, 'creator:', user_id, 'members:', memberProfiles.length);
+    }
+
+    // Create group conversation (NO subject needed)
+    const { data: newConversation, error: conversationError } = await supabaseAdmin
+      .from('conversations')
+      .insert({
+        subject: null, // No subject for group conversations
+        conversation_type: 'group',
+        category: 'discussion', // Default category for group conversations
+        created_by: user_id,
+        is_group: true,
+        group_id: groupId,
+      })
+      .select('id, subject, conversation_type, category, created_by, created_at, updated_at, is_group, group_id')
+      .single();
+
+    if (conversationError) {
+      console.error('[createGroupConversation] Error creating conversation:', conversationError);
+      throw new Error('Failed to create group conversation');
+    }
+
+    const conversation_id = newConversation.id;
+
+    // Auto-add all active group members as participants
+    const participantsToAdd = memberProfiles.map(profile => ({
+      conversation_id,
+      user_id: profile.id,
+    }));
+
+    const { error: participantError } = await supabaseAdmin
+      .from('conversation_participants')
+      .insert(participantsToAdd);
+
+    if (participantError) {
+      console.error('[createGroupConversation] Error adding participants:', participantError);
+      // Delete the conversation if adding participants fails
+      await supabaseAdmin.from('conversations').delete().eq('id', conversation_id);
+      throw new Error('Failed to add participants to conversation');
+    }
+
+    if (isDev) {
+      console.log('[createGroupConversation] Conversation created:', conversation_id, 'participants added:', participantsToAdd.length);
+    }
+
+    // Fetch creator profile
+    const { data: creatorProfile, error: creatorError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('id', user_id)
+      .single();
+
+    if (creatorError) {
+      console.error('[createGroupConversation] Error fetching creator profile:', creatorError);
+    }
+
+    // Format participants for response
+    const formattedParticipants = memberProfiles.map(profile => ({
+      id: profile.id,
+      username: profile.username,
+      full_name: profile.full_name,
+      email: profile.email,
+    }));
+
+    res.status(201).json({
+      success: true,
+      message: `Group conversation created successfully.`,
+      data: {
+        id: newConversation.id,
+        conversation_type: newConversation.conversation_type,
+        category: newConversation.category,
+        created_by: newConversation.created_by,
+        created_by_name: creatorProfile?.full_name || creatorProfile?.username || null,
+        is_group: newConversation.is_group,
+        group_id: newConversation.group_id,
+        group_name: group.name,
+        total_participants: formattedParticipants.length,
+        participants: formattedParticipants,
+        created_at: newConversation.created_at,
+        updated_at: newConversation.updated_at,
+      },
+    });
+  } catch (err) {
+    console.error('[createGroupConversation] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to create group conversation.',
+    });
+  }
+};
+
+/// --- GET GROUP CONVERSATION (Simplified) ---
+export const getGroupConversation = async (req, res) => {
+  const { groupId } = req.params;
+  const user_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (!groupId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Group ID is required.',
+    });
+  }
+
+  try {
+    // Fetch group details
+    const { data: group, error: groupError } = await supabaseAdmin
+      .from('teams')
+      .select('id, name, status')
+      .eq('id', groupId)
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found.',
+      });
+    }
+
+    // Check if user is an active member of the group
+    const { data: membership, error: membershipError } = await supabaseAdmin
+      .from('group_members')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('user_id', user_id)
+      .is('left_at', null)
+      .single();
+
+    if (membershipError || !membership) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must be an active member of the group.',
+      });
+    }
+
+    // Fetch the group conversation (always exists, created when group was created)
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('conversations')
+      .select('id, subject, conversation_type, category, created_by, created_at, updated_at, is_group, group_id')
+      .eq('group_id', groupId)
+      .eq('is_group', true)
+      .single();
+
+    if (convError || !conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group conversation not found.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[getGroupConversation] Fetching conversation for group:', groupId, 'user:', user_id);
+    }
+
+    // Fetch messages
+    const { data: messages, error: messagesError } = await supabaseAdmin
+      .from('messages')
+      .select(
+        `
+        id,
+        conversation_id,
+        sender_id,
+        content,
+        created_at,
+        updated_at,
+        profiles:sender_id(id, username, full_name, email)
+      `
+      )
+      .eq('conversation_id', conversation.id)
+      .order('created_at', { ascending: true });
+
+    if (messagesError) {
+      console.error('[getGroupConversation] Error fetching messages:', messagesError);
+    }
+
+    // Fetch all participants
+    const { data: participants, error: participantsError } = await supabaseAdmin
+      .from('conversation_participants')
+      .select(`user_id, profiles:user_id(id, username, full_name, email, department, role)`)
+      .eq('conversation_id', conversation.id);
+
+    if (participantsError) {
+      console.error('[getGroupConversation] Error fetching participants:', participantsError);
+    }
+
+    // Format messages with sender details
+    const formattedMessages = (messages || []).map(msg => ({
+      id: msg.id,
+      conversation_id: msg.conversation_id,
+      sender_id: msg.sender_id,
+      content: msg.content,
+      created_at: msg.created_at,
+      updated_at: msg.updated_at,
+      sender: msg.profiles ? {
+        id: msg.profiles.id,
+        username: msg.profiles.username,
+        full_name: msg.profiles.full_name,
+        email: msg.profiles.email,
+      } : null,
+    }));
+
+    // Format participants
+    const formattedParticipants = (participants || []).map(p => ({
+      id: p.profiles.id,
+      username: p.profiles.username,
+      full_name: p.profiles.full_name,
+      email: p.profiles.email,
+      department: p.profiles.department,
+      role: p.profiles.role,
+    }));
+
+    if (isDev) {
+      console.log('[getGroupConversation] Conversation found:', conversation.id, 'messages:', formattedMessages.length);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Group conversation retrieved.',
+      data: {
+        id: conversation.id,
+        subject: conversation.subject,
+        conversation_type: conversation.conversation_type,
+        category: conversation.category,
+        created_by: conversation.created_by,
+        created_at: conversation.created_at,
+        updated_at: conversation.updated_at,
+        is_group: conversation.is_group,
+        group_id: conversation.group_id,
+        group_name: group.name,
+        messages: formattedMessages,
+        participants: formattedParticipants,
+        total_messages: formattedMessages.length,
+        total_participants: formattedParticipants.length,
+      },
+    });
+  } catch (err) {
+    console.error('[getGroupConversation] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch group conversation.',
     });
   }
 };

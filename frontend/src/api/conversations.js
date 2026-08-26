@@ -39,40 +39,83 @@ export async function createConversation(payload) {
 
 // Send a reply/message in an existing conversation
 export async function sendMessage(conversationId, body) {
-  return request(
-    `/api/conversations/${conversationId}/messages`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        body,
-      }),
+  const endpoint =
+    `/api/conversations/${conversationId}/messages`;
+
+  const payload = {
+    body,
+  };
+
+  if (import.meta.env.DEV) {
+    console.group(
+      "%c[API] Send Message",
+      "color: #2563eb; font-weight: bold;"
+    );
+
+    console.log("Method:", "POST");
+    console.log("Endpoint:", endpoint);
+    console.log(
+      "Full URL:",
+      `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${endpoint}`
+    );
+    console.log("Conversation ID:", conversationId);
+    console.log("Payload:", payload);
+    console.log(
+      "Payload JSON:",
+      JSON.stringify(payload)
+    );
+
+    console.groupEnd();
+  }
+
+  try {
+    const response = await request(
+      endpoint,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (import.meta.env.DEV) {
+      console.group(
+        "%c[API] Send Message Response",
+        "color: #16a34a; font-weight: bold;"
+      );
+
+      console.log("Endpoint:", endpoint);
+      console.log("Response:", response);
+      console.log("Response data:", response?.data);
+
+      console.groupEnd();
     }
-  );
+
+    return response;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.group(
+        "%c[API] Send Message Error",
+        "color: #dc2626; font-weight: bold;"
+      );
+
+      console.error("Endpoint:", endpoint);
+      console.error("Conversation ID:", conversationId);
+      console.error("Payload:", payload);
+      console.error("Error:", error);
+      console.error("Error response:", error?.response);
+      console.error(
+        "Error response data:",
+        error?.response?.data
+      );
+
+      console.groupEnd();
+    }
+
+    throw error;
+  }
 }
 
-// ============================================================
-// Group Conversations
-// ============================================================
 
-// Create or get the existing conversation for a group
-//
-// The backend is responsible for:
-// 1. Checking that the group exists
-// 2. Checking that the current user is an active member
-// 3. Checking that the group is approved
-// 4. Returning the existing group conversation if one exists
-// 5. Creating a new group conversation if one does not exist
-//
-// Endpoint:
-// POST /api/conversations/group/:groupId
-export async function createGroupConversation(groupId) {
-  return request(
-    `/api/conversations/group/${groupId}`,
-    {
-      method: "POST",
-    }
-  );
-}
 
 // ============================================================
 // Conversation Workflow

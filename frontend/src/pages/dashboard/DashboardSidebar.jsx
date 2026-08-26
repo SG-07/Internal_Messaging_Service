@@ -26,10 +26,7 @@ function DashboardSidebar({ onCompose }) {
 
   const isGroups = location.pathname === "/groups";
 
-  /*
-   * My Groups
-   */
-  const isMyGroups = location.pathname === "/groups/my";
+  const isMyGroups = location.pathname === "/my-groups";
 
   const isAdminUsers = location.pathname === "/admin/users";
 

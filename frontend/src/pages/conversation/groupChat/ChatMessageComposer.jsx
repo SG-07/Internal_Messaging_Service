@@ -45,13 +45,6 @@ function ChatMessageComposer({
     try {
       await onSend(trimmedMessage);
 
-      /*
-       * Clear only after the API call succeeds.
-       *
-       * If sending fails, the user's message
-       * remains in the composer.
-       */
-
       setMessage("");
 
       /*

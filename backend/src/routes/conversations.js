@@ -15,8 +15,7 @@ import {
   updateApprovalStatus,
   reportConversation,
   listReports,
-  reviewReport,
-  createGroupConversation    
+  reviewReport, 
 } from '../controllers/conversations.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -31,7 +30,6 @@ router.get('/workflow/pending', requireAuth, getPendingWorkflows);
 router.get('/workflow/mine', requireAuth, getMyWorkflowRequests);
 
 
-router.post('/group/:groupId', requireAuth, createGroupConversation);
 // dynamic routes for specific conversationId
 router.get('/:conversationId', requireAuth, getConversation);
 router.patch('/:conversationId', requireAuth, updateConversation);

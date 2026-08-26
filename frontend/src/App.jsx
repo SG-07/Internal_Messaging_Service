@@ -36,7 +36,7 @@ import GroupDetails from './pages/groups/GroupDetails';
 
 //user group
 import MyGroups from "./pages/groups/MyGroups";
-import ChatPage from "./pages/conversation/chat/ChatPage";
+import ChatPage from "./pages/conversation/groupChat/ChatPage";
 
 
 function App() {

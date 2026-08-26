@@ -1,5 +1,3 @@
-// frontend/src/api/groups.js
-
 import { request } from './client';
 
 const isDevelopment = import.meta.env.DEV;
@@ -15,9 +13,9 @@ function debugLog(label, data) {
 }
 
 /*
- * --------------------------------------------------
+ * ============================================================
  * CREATE GROUP
- * --------------------------------------------------
+ * ============================================================
  */
 
 export async function createGroup(
@@ -75,9 +73,9 @@ export async function createGroup(
 }
 
 /*
- * --------------------------------------------------
+ * ============================================================
  * GET GROUPS
- * --------------------------------------------------
+ * ============================================================
  */
 
 export async function getGroups({
@@ -88,7 +86,7 @@ export async function getGroups({
 } = {}) {
   const query = new URLSearchParams();
 
-  query.set('page', page);
+  query.set('page', String(page));
 
   if (
     department !== undefined &&
@@ -110,7 +108,7 @@ export async function getGroups({
     isOpen !== undefined &&
     isOpen !== null
   ) {
-    query.set('is_open', isOpen);
+    query.set('is_open', String(isOpen));
   }
 
   const endpoint =
@@ -147,7 +145,12 @@ export async function getGroups({
   }
 }
 
-// ------- Get group details -------
+/*
+ * ============================================================
+ * GET GROUP DETAILS
+ * ============================================================
+ */
+
 export async function getGroup(groupId) {
   if (!groupId) {
     throw new Error(
@@ -158,22 +161,11 @@ export async function getGroup(groupId) {
   const endpoint =
     `/api/groups/${groupId}`;
 
-  /*
-   * ----------------------------------------
-   * Request debug log
-   * ----------------------------------------
-   */
   debugLog(
     'GET GROUP DETAILS → Request',
     {
       endpoint,
       method: 'GET',
-
-      /*
-       * GET requests do not normally contain
-       * a request body, so the group ID is
-       * sent through the URL path.
-       */
       payload: {
         groupId,
       },
@@ -188,50 +180,26 @@ export async function getGroup(groupId) {
       }
     );
 
-
-    /*
-     * ----------------------------------------
-     * Response debug log
-     * ----------------------------------------
-     */
     debugLog(
       'GET GROUP DETAILS ← Response',
       {
         endpoint,
         groupId,
-
         response,
-
-        data:
-          response?.data || null,
-
-        message:
-          response?.message || null,
+        data: response?.data || null,
+        message: response?.message || null,
       }
     );
 
-
     return response;
-
   } catch (error) {
-
-    /*
-     * ----------------------------------------
-     * Error debug log
-     * ----------------------------------------
-     */
     debugLog(
       'GET GROUP DETAILS ← Error',
       {
         endpoint,
         groupId,
-
-        status:
-          error?.status,
-
-        message:
-          error?.message,
-
+        status: error?.status,
+        message: error?.message,
         error,
       }
     );
@@ -240,8 +208,12 @@ export async function getGroup(groupId) {
   }
 }
 
+/*
+ * ============================================================
+ * JOIN GROUP
+ * ============================================================
+ */
 
-// ------- Join a group -------
 export async function joinGroup(groupId) {
   if (!groupId) {
     throw new Error(
@@ -285,8 +257,12 @@ export async function joinGroup(groupId) {
   }
 }
 
+/*
+ * ============================================================
+ * LEAVE GROUP
+ * ============================================================
+ */
 
-// ------- Leave a group -------
 export async function leaveGroup(groupId) {
   if (!groupId) {
     throw new Error(
@@ -330,8 +306,12 @@ export async function leaveGroup(groupId) {
   }
 }
 
+/*
+ * ============================================================
+ * UPDATE GROUP
+ * ============================================================
+ */
 
-// ------- Update group -------
 export async function updateGroup(
   groupId,
   payload
@@ -345,7 +325,6 @@ export async function updateGroup(
   const endpoint =
     `/api/groups/${groupId}`;
 
-
   debugLog(
     'UPDATE GROUP → Request',
     {
@@ -356,19 +335,15 @@ export async function updateGroup(
     }
   );
 
-
   try {
     const response =
       await request(
         endpoint,
         {
           method: 'PATCH',
-          body: JSON.stringify(
-            payload
-          ),
+          body: JSON.stringify(payload),
         }
       );
-
 
     debugLog(
       'UPDATE GROUP ← Response',
@@ -378,11 +353,8 @@ export async function updateGroup(
       }
     );
 
-
     return response;
-
   } catch (error) {
-
     debugLog(
       'UPDATE GROUP ← Error',
       {
@@ -399,7 +371,11 @@ export async function updateGroup(
   }
 }
 
-// ------- Delete group -------
+/*
+ * ============================================================
+ * DELETE GROUP
+ * ============================================================
+ */
 
 export async function deleteGroup(groupId) {
   if (!groupId) {
@@ -410,7 +386,6 @@ export async function deleteGroup(groupId) {
 
   const endpoint =
     `/api/groups/${groupId}`;
-
 
   debugLog(
     'DELETE GROUP → Request',
@@ -423,7 +398,6 @@ export async function deleteGroup(groupId) {
     }
   );
 
-
   try {
     const response =
       await request(
@@ -432,7 +406,6 @@ export async function deleteGroup(groupId) {
           method: 'DELETE',
         }
       );
-
 
     debugLog(
       'DELETE GROUP ← Response',
@@ -443,11 +416,8 @@ export async function deleteGroup(groupId) {
       }
     );
 
-
     return response;
-
   } catch (error) {
-
     debugLog(
       'DELETE GROUP ← Error',
       {
@@ -463,7 +433,12 @@ export async function deleteGroup(groupId) {
   }
 }
 
-// ------- Get group members -------
+/*
+ * ============================================================
+ * GET GROUP MEMBERS
+ * ============================================================
+ */
+
 export async function getGroupMembers(groupId) {
   if (!groupId) {
     throw new Error(
@@ -502,7 +477,6 @@ export async function getGroupMembers(groupId) {
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'GET GROUP MEMBERS ← Error',
@@ -519,8 +493,12 @@ export async function getGroupMembers(groupId) {
   }
 }
 
+/*
+ * ============================================================
+ * ADD GROUP MEMBER
+ * ============================================================
+ */
 
-// ------- Add member to group -------
 export async function addGroupMember(
   groupId,
   userId
@@ -576,7 +554,6 @@ export async function addGroupMember(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'ADD GROUP MEMBER ← Error',
@@ -594,7 +571,13 @@ export async function addGroupMember(
     throw error;
   }
 }
-// ------- Get potential members -------
+
+/*
+ * ============================================================
+ * GET POTENTIAL MEMBERS
+ * ============================================================
+ */
+
 export async function getPotentialMembers(
   groupId,
   {
@@ -610,7 +593,7 @@ export async function getPotentialMembers(
 
   const query = new URLSearchParams();
 
-  query.set('page', page);
+  query.set('page', String(page));
 
   if (
     email !== undefined &&
@@ -653,7 +636,6 @@ export async function getPotentialMembers(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'GET POTENTIAL GROUP MEMBERS ← Error',
@@ -670,7 +652,12 @@ export async function getPotentialMembers(
   }
 }
 
-// ------- Remove member from group -------
+/*
+ * ============================================================
+ * REMOVE GROUP MEMBER
+ * ============================================================
+ */
+
 export async function removeGroupMember(
   groupId,
   userId
@@ -720,7 +707,6 @@ export async function removeGroupMember(
     );
 
     return response;
-
   } catch (error) {
     debugLog(
       'REMOVE GROUP MEMBER ← Error',
@@ -738,109 +724,422 @@ export async function removeGroupMember(
   }
 }
 
-export async function getGroupJoinRequests(groupId, params = {}) {
-  const query = new URLSearchParams();
+/*
+ * ============================================================
+ * GROUP JOIN REQUESTS
+ * ============================================================
+ */
 
-  query.set("page", String(params.page || 1));
-  query.set("status", params.status || "pending");
-
-  const response = await api.get(
-    `/api/groups/${groupId}/requests?${query.toString()}`,
-  );
-
-  return response.data;
-}
-
-export async function approveGroupJoinRequest(
+/*
+ * GET /api/groups/:groupId/requests
+ */
+export async function getGroupJoinRequests(
   groupId,
-  requestId,
-  payload = {},
+  params = {}
 ) {
-  const response = await api.patch(
-    `/api/groups/${groupId}/requests/${requestId}/approve`,
-    payload,
-  );
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
 
-  return response.data;
-}
-
-export async function rejectGroupJoinRequest(
-  groupId,
-  requestId,
-  payload = {},
-) {
-  const response = await api.patch(
-    `/api/groups/${groupId}/requests/${requestId}/reject`,
-    payload,
-  );
-
-  return response.data;
-}
-
-// ------- Get user's groups -------
-export async function getMyGroups(params = {}) {
   const query = new URLSearchParams();
 
   query.set(
-    "page",
-    String(params.page || 1),
+    'page',
+    String(params.page || 1)
+  );
+
+  query.set(
+    'status',
+    params.status || 'pending'
+  );
+
+  const endpoint =
+    `/api/groups/${groupId}/requests?${query.toString()}`;
+
+  debugLog(
+    'GET GROUP JOIN REQUESTS → Request',
+    {
+      endpoint,
+      method: 'GET',
+      groupId,
+      params: {
+        page: params.page || 1,
+        status: params.status || 'pending',
+      },
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint);
+
+    debugLog(
+      'GET GROUP JOIN REQUESTS ← Response',
+      {
+        endpoint,
+        groupId,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      'GET GROUP JOIN REQUESTS ← Error',
+      {
+        endpoint,
+        groupId,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+
+/*
+ * PATCH /api/groups/:groupId/requests/:requestId/approve
+ */
+export async function approveGroupJoinRequest(
+  groupId,
+  requestId,
+  payload = {}
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  if (!requestId) {
+    throw new Error(
+      'A valid request ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/requests/${requestId}/approve`;
+
+  debugLog(
+    'APPROVE GROUP JOIN REQUEST → Request',
+    {
+      endpoint,
+      method: 'PATCH',
+      groupId,
+      requestId,
+      payload,
+    }
+  );
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }
+      );
+
+    debugLog(
+      'APPROVE GROUP JOIN REQUEST ← Response',
+      {
+        endpoint,
+        groupId,
+        requestId,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      'APPROVE GROUP JOIN REQUEST ← Error',
+      {
+        endpoint,
+        groupId,
+        requestId,
+        payload,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+
+/*
+ * PATCH /api/groups/:groupId/requests/:requestId/reject
+ */
+export async function rejectGroupJoinRequest(
+  groupId,
+  requestId,
+  payload = {}
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  if (!requestId) {
+    throw new Error(
+      'A valid request ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/requests/${requestId}/reject`;
+
+  debugLog(
+    'REJECT GROUP JOIN REQUEST → Request',
+    {
+      endpoint,
+      method: 'PATCH',
+      groupId,
+      requestId,
+      payload,
+    }
+  );
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }
+      );
+
+    debugLog(
+      'REJECT GROUP JOIN REQUEST ← Response',
+      {
+        endpoint,
+        groupId,
+        requestId,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      'REJECT GROUP JOIN REQUEST ← Error',
+      {
+        endpoint,
+        groupId,
+        requestId,
+        payload,
+        status: error?.status,
+        message: error?.message,
+        error,
+      }
+    );
+
+    throw error;
+  }
+}
+
+/*
+ * ============================================================
+ * GET USER'S GROUPS
+ * ============================================================
+ */
+
+export async function getMyGroups(
+  params = {}
+) {
+  const query = new URLSearchParams();
+
+  query.set(
+    'page',
+    String(params.page || 1)
   );
 
   if (params.status) {
     query.set(
-      "status",
-      params.status,
+      'status',
+      params.status
     );
   }
 
   query.set(
-    "sort_by",
-    params.sort_by || "newest",
+    'sort_by',
+    params.sort_by || 'newest'
   );
 
   const endpoint =
     `/api/groups/me/groups?${query.toString()}`;
 
   debugLog(
-    "GET MY GROUPS → Request",
+    'GET MY GROUPS → Request',
     {
       endpoint,
-      method: "GET",
+      method: 'GET',
       params: {
         page: params.page || 1,
-        status: params.status || "all",
-        sort_by: params.sort_by || "newest",
+        status: params.status || 'all',
+        sort_by: params.sort_by || 'newest',
       },
-    },
+    }
   );
 
   try {
-    const response = await request(
-      endpoint,
-      {
-        method: "GET",
-      },
-    );
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'GET',
+        }
+      );
 
     debugLog(
-      "GET MY GROUPS ← Response",
+      'GET MY GROUPS ← Response',
       {
         endpoint,
         response,
-      },
+      }
     );
 
     return response;
   } catch (error) {
     debugLog(
-      "GET MY GROUPS ← Error",
+      'GET MY GROUPS ← Error',
       {
         endpoint,
         status: error?.status,
         message: error?.message,
         error,
-      },
+      }
     );
+
+    throw error;
+  }
+}
+
+/*
+ * ============================================================
+ * GROUP CONVERSATION
+ * ============================================================
+ */
+
+/*
+ * GET /api/groups/:groupId/conversation
+ *
+ * Backend route:
+ * router.get(
+ *   '/:groupId/conversation',
+ *   requireAuth,
+ *   getGroupConversation
+ * );
+ */
+export async function getGroupConversation(
+  groupId
+) {
+  if (!groupId) {
+    throw new Error(
+      'A valid group ID is required.'
+    );
+  }
+
+  const endpoint =
+    `/api/groups/${groupId}/conversation`;
+
+  if (isDevelopment) {
+    console.group(
+      '[API] Get Group Conversation'
+    );
+
+    console.log('Method:', 'GET');
+    console.log('Endpoint:', endpoint);
+    console.log('Group ID:', groupId);
+
+    console.groupEnd();
+  }
+
+  try {
+    const response =
+      await request(
+        endpoint,
+        {
+          method: 'GET',
+        }
+      );
+
+    if (isDevelopment) {
+      console.group(
+        '[API] Get Group Conversation Response'
+      );
+
+      console.log(
+        'Endpoint:',
+        endpoint
+      );
+
+      console.log(
+        'Response:',
+        response
+      );
+
+      console.log(
+        'Conversation ID:',
+        response?.data?.id
+      );
+
+      console.log(
+        'Group ID:',
+        response?.data?.group_id
+      );
+
+      console.groupEnd();
+    }
+
+    return response;
+  } catch (error) {
+    if (isDevelopment) {
+      console.group(
+        '[API] Get Group Conversation Error'
+      );
+
+      console.error(
+        'Endpoint:',
+        endpoint
+      );
+
+      console.error(
+        'Group ID:',
+        groupId
+      );
+
+      console.error(
+        'Error:',
+        error
+      );
+
+      console.error(
+        'Status:',
+        error?.status
+      );
+
+      console.error(
+        'Message:',
+        error?.message
+      );
+
+      console.error(
+        'Response:',
+        error?.response
+      );
+
+      console.groupEnd();
+    }
 
     throw error;
   }
