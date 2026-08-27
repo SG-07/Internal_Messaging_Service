@@ -452,7 +452,6 @@ export const managerRemoveTeamMember = async (req, res) => {
 // ===== DEPARTMENT USERS =====
 
 export const managerGetDepartmentUsers = async (req, res) => {
-  const manager_id = req.user.id;
   const manager_dept = req.user.department;
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -546,145 +545,230 @@ export const managerGetDepartmentUser = async (req, res) => {
   }
 };
 
-// ===== REPORTED CONVERSATIONS (Manager Oversight - ONLY REPORTED) =====
+// ===== REPORTED ITEMS OVERSIGHT (global — not department-scoped) =====
 
-export const managerListReportedConversations = async (req, res) => {
-  const manager_dept = req.user.department;
+export const managerListReportedItems = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
   const isDev = process.env.NODE_ENV === 'development';
 
   try {
-    if (!manager_dept) {
-      return res.status(400).json({
-        success: false,
-        message: 'Department not assigned to your account.',
-      });
-    }
-
-    // Get reported conversations where reporter is in manager's department
-    const { data: reports, error: reportsError, count } = await supabaseAdmin
+    const { data: reports, error, count } = await supabaseAdmin
       .from('conversation_reports')
       .select(
         `
-        id, conversation_id, reported_by, reason, status, created_at,
-        conversations(id, subject, conversation_type, created_by),
+        id, entity_type, entity_id, reason, status, description, created_at,
         profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)
       `,
         { count: 'exact' }
       )
-      .eq('profiles.department', manager_dept)
       .eq('status', 'pending')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
-    if (reportsError) throw reportsError;
+    if (error) throw error;
 
     if (isDev) {
-      console.log('[managerListReportedConversations] dept:', manager_dept, 'count:', count);
+      console.log('[managerListReportedItems] count:', count);
     }
 
     const formatted = (reports || []).map(r => ({
       id: r.id,
-      conversation_id: r.conversation_id,
-      conversation_type: r.conversations?.conversation_type,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      reason: r.reason,
+      status: r.status,
+      description: r.description,
       reported_by: r.profiles ? {
         id: r.profiles.id,
         username: r.profiles.username,
         full_name: r.profiles.full_name,
         email: r.profiles.email,
+        department: r.profiles.department,
       } : null,
-      reason: r.reason,
-      status: r.status,
       created_at: r.created_at,
     }));
 
     res.status(200).json({
       success: true,
-      message: 'Reported conversations retrieved successfully.',
+      message: 'Reported items retrieved successfully.',
       data: formatted,
       pagination: {
+        page,
+        limit,
         total: count || 0,
+        has_more: offset + limit < (count || 0),
       },
     });
   } catch (err) {
-    console.error('[managerListReportedConversations] error:', err);
+    console.error('[managerListReportedItems] error:', err);
     res.status(500).json({
       success: false,
-      message: 'Unable to fetch reported conversations.',
+      message: 'Unable to fetch reported items.',
     });
   }
 };
 
-export const managerGetReportedConversation = async (req, res) => {
-  const { conversationId } = req.params;
-  const manager_dept = req.user.department;
+export const managerGetReportedItem = async (req, res) => {
+  const { reportId } = req.params;
   const isDev = process.env.NODE_ENV === 'development';
 
-  if (!conversationId) {
+  if (!reportId) {
     return res.status(400).json({
       success: false,
-      message: 'Conversation ID is required.',
+      message: 'Report ID is required.',
     });
   }
 
   try {
-    // Get report for this conversation
+    // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
       .select(
         `
-        id, conversation_id, reported_by, reason, status, created_at,
+        id, entity_type, entity_id, reason, status, description, created_at,
         profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)
       `
       )
-      .eq('conversation_id', conversationId)
-      .eq('status', 'pending')
+      .eq('id', reportId)
       .single();
 
     if (reportError || !report) {
       return res.status(404).json({
         success: false,
-        message: 'Reported conversation not found.',
+        message: 'Report not found.',
       });
     }
 
-    // Verify reporter is in manager's department
-    if (report.profiles.department !== manager_dept) {
-      return res.status(403).json({
-        success: false,
-        message: 'You can only view reports from your department.',
-      });
-    }
+    // Get entity details based on type
+    let entityDetails = null;
 
-    // Get conversation details
-    const { data: conversation, error: convError } = await supabaseAdmin
-      .from('conversations')
-      .select(
-        `
-        id, subject, conversation_type, category, created_by, created_at, updated_at,
-        messages(id, content, created_at, sender_id, profiles:sender_id(id, username, full_name))
-      `
-      )
-      .eq('id', conversationId)
-      .single();
+    switch (report.entity_type) {
+      case 'conversation':
+        const { data: conv } = await supabaseAdmin
+          .from('conversations')
+          .select(
+            `
+            id, subject, conversation_type, created_at,
+            messages(id, content, created_at, sender_id, profiles:sender_id(id, username, full_name))
+          `
+          )
+          .eq('id', report.entity_id)
+          .single();
 
-    if (convError || !conversation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Conversation not found.',
-      });
+        if (conv) {
+          entityDetails = {
+            type: 'conversation',
+            id: conv.id,
+            subject: conv.subject,
+            conversation_type: conv.conversation_type,
+            created_at: conv.created_at,
+            messages: (conv.messages || []).map(m => ({
+              id: m.id,
+              content: m.content,
+              sender: m.profiles ? {
+                id: m.profiles.id,
+                username: m.profiles.username,
+                full_name: m.profiles.full_name,
+              } : null,
+              created_at: m.created_at,
+            })),
+          };
+        }
+        break;
+
+      case 'group':
+        const { data: group } = await supabaseAdmin
+          .from('teams')
+          .select('id, name, department')
+          .eq('id', report.entity_id)
+          .eq('type', 'group')
+          .single();
+
+        if (group) {
+          entityDetails = {
+            type: 'group',
+            id: group.id,
+            name: group.name,
+            department: group.department,
+          };
+        }
+        break;
+
+      case 'team':
+        const { data: team } = await supabaseAdmin
+          .from('teams')
+          .select('id, name, department')
+          .eq('id', report.entity_id)
+          .eq('type', 'team')
+          .single();
+
+        if (team) {
+          entityDetails = {
+            type: 'team',
+            id: team.id,
+            name: team.name,
+            department: team.department,
+          };
+        }
+        break;
+
+      case 'message':
+        const { data: msg } = await supabaseAdmin
+          .from('messages')
+          .select('id, content, created_at, sender_id, profiles:sender_id(id, username, full_name)')
+          .eq('id', report.entity_id)
+          .single();
+
+        if (msg) {
+          entityDetails = {
+            type: 'message',
+            id: msg.id,
+            content: msg.content,
+            sender: msg.profiles ? {
+              id: msg.profiles.id,
+              username: msg.profiles.username,
+              full_name: msg.profiles.full_name,
+            } : null,
+            created_at: msg.created_at,
+          };
+        }
+        break;
+
+      case 'user':
+        const { data: user } = await supabaseAdmin
+          .from('profiles')
+          .select('id, username, full_name, email, department')
+          .eq('id', report.entity_id)
+          .single();
+
+        if (user) {
+          entityDetails = {
+            type: 'user',
+            id: user.id,
+            username: user.username,
+            full_name: user.full_name,
+            email: user.email,
+            department: user.department,
+          };
+        }
+        break;
     }
 
     if (isDev) {
-      console.log('[managerGetReportedConversation] conversation_id:', conversationId, 'manager_dept:', manager_dept);
+      console.log('[managerGetReportedItem] report_id:', reportId);
     }
 
     res.status(200).json({
       success: true,
-      message: 'Reported conversation retrieved successfully.',
+      message: 'Report retrieved successfully.',
       data: {
         report: {
           id: report.id,
           reason: report.reason,
           status: report.status,
+          description: report.description,
           reported_by: {
             id: report.profiles.id,
             username: report.profiles.username,
@@ -692,76 +776,56 @@ export const managerGetReportedConversation = async (req, res) => {
           },
           reported_at: report.created_at,
         },
-        conversation: {
-          id: conversation.id,
-          subject: conversation.subject,
-          conversation_type: conversation.conversation_type,
-          created_by: conversation.created_by,
-          messages: (conversation.messages || []).map(m => ({
-            id: m.id,
-            content: m.content,
-            sender: m.profiles ? {
-              id: m.profiles.id,
-              username: m.profiles.username,
-              full_name: m.profiles.full_name,
-            } : null,
-            created_at: m.created_at,
-          })),
-        },
+        entity: entityDetails,
       },
     });
   } catch (err) {
-    console.error('[managerGetReportedConversation] error:', err);
+    console.error('[managerGetReportedItem] error:', err);
     res.status(500).json({
       success: false,
-      message: 'Unable to fetch reported conversation.',
+      message: 'Unable to fetch report details.',
     });
   }
 };
 
-// ===== REPORTS MANAGEMENT =====
-
 export const managerListReports = async (req, res) => {
-  const manager_dept = req.user.department;
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
   const isDev = process.env.NODE_ENV === 'development';
 
   try {
-    if (!manager_dept) {
-      return res.status(400).json({
-        success: false,
-        message: 'Department not assigned to your account.',
-      });
-    }
-
     const { data: reports, error, count } = await supabaseAdmin
       .from('conversation_reports')
       .select(
         `
-        id, conversation_id, reported_by, reason, status, created_at,
+        id, entity_type, entity_id, reason, status, created_at, reviewed_at,
         profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)
       `,
         { count: 'exact' }
       )
-      .eq('profiles.department', manager_dept)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
     if (isDev) {
-      console.log('[managerListReports] dept:', manager_dept, 'count:', count);
+      console.log('[managerListReports] count:', count);
     }
 
     const formatted = (reports || []).map(r => ({
       id: r.id,
-      conversation_id: r.conversation_id,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      reason: r.reason,
+      status: r.status,
       reported_by: r.profiles ? {
         id: r.profiles.id,
         username: r.profiles.username,
         full_name: r.profiles.full_name,
       } : null,
-      reason: r.reason,
-      status: r.status,
       created_at: r.created_at,
+      reviewed_at: r.reviewed_at,
     }));
 
     res.status(200).json({
@@ -769,7 +833,10 @@ export const managerListReports = async (req, res) => {
       message: 'Reports retrieved successfully.',
       data: formatted,
       pagination: {
+        page,
+        limit,
         total: count || 0,
+        has_more: offset + limit < (count || 0),
       },
     });
   } catch (err) {
@@ -783,9 +850,8 @@ export const managerListReports = async (req, res) => {
 
 export const managerReviewReport = async (req, res) => {
   const { reportId } = req.params;
-  const { status, review_notes } = req.body;
+  const { status, resolution_notes } = req.body;
   const manager_id = req.user.id;
-  const manager_dept = req.user.department;
   const isDev = process.env.NODE_ENV === 'development';
 
   if (!reportId || !status) {
@@ -795,10 +861,11 @@ export const managerReviewReport = async (req, res) => {
     });
   }
 
-  if (!['reviewed', 'dismissed', 'resolved'].includes(status)) {
+  const VALID_STATUSES = ['pending', 'reviewed', 'resolved', 'dismissed'];
+  if (!VALID_STATUSES.includes(status)) {
     return res.status(400).json({
       success: false,
-      message: 'Invalid status. Must be: reviewed, dismissed, or resolved.',
+      message: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
     });
   }
 
@@ -806,7 +873,7 @@ export const managerReviewReport = async (req, res) => {
     // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
-      .select('id, reported_by, profiles!conversation_reports_reported_by_fkey(department)')
+      .select('id, status')
       .eq('id', reportId)
       .single();
 
@@ -817,14 +884,6 @@ export const managerReviewReport = async (req, res) => {
       });
     }
 
-    // Verify reporter is in manager's department
-    if (report.profiles.department !== manager_dept) {
-      return res.status(403).json({
-        success: false,
-        message: 'You can only review reports from your department.',
-      });
-    }
-
     // Update report
     const { error: updateError } = await supabaseAdmin
       .from('conversation_reports')
@@ -832,7 +891,7 @@ export const managerReviewReport = async (req, res) => {
         status: status,
         reviewed_by: manager_id,
         reviewed_at: new Date().toISOString(),
-        resolution_notes: review_notes || null,
+        resolution_notes: resolution_notes || null,
       })
       .eq('id', reportId);
 

@@ -1,6 +1,7 @@
 // backend/src/routes/manager.js
 import { Router } from 'express';
 import {
+  // Team Management (existing)
   managerGetTeams,
   managerGetTeam,
   managerListTeamMembers,
@@ -8,8 +9,9 @@ import {
   managerRemoveTeamMember,
   managerGetDepartmentUsers,
   managerGetDepartmentUser,
-  managerListReportedConversations,
-  managerGetReportedConversation,
+  // Reporting Oversight 
+  managerListReportedItems,
+  managerGetReportedItem,
   managerListReports,
   managerReviewReport,
 } from '../controllers/manager.js';
@@ -28,11 +30,9 @@ router.delete('/teams/:teamId/members/:userId', requireAuth, requireManager, man
 router.get('/department/users', requireAuth, requireManager, managerGetDepartmentUsers);
 router.get('/department/users/:userId', requireAuth, requireManager, managerGetDepartmentUser);
 
-// ===== REPORTED CONVERSATIONS (Manager Oversight) =====
-router.get('/reported-conversations', requireAuth, requireManager, managerListReportedConversations);
-router.get('/reported-conversations/:conversationId', requireAuth, requireManager, managerGetReportedConversation);
-
-// ===== REPORTS MANAGEMENT =====
+// ===== REPORTING OVERSIGHT (Department-scoped) =====
+router.get('/reported-items', requireAuth, requireManager, managerListReportedItems);
+router.get('/reported-items/:reportId', requireAuth, requireManager, managerGetReportedItem);
 router.get('/reports', requireAuth, requireManager, managerListReports);
 router.patch('/reports/:reportId', requireAuth, requireManager, managerReviewReport);
 
