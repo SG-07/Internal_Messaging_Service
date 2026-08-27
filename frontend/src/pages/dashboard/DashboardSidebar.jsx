@@ -1,3 +1,4 @@
+// frontend/src/pages/dashboard/DashboardSidebar.jsx
 import { useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
@@ -50,6 +51,14 @@ function DashboardSidebar({ onCompose }) {
 
 
   // ============================================================
+  // REPORTS
+  // ============================================================
+
+  const isMyReports =
+    location.pathname === "/reports/my-reports";
+
+
+  // ============================================================
   // MANAGER
   // ============================================================
 
@@ -60,12 +69,12 @@ function DashboardSidebar({ onCompose }) {
     location.pathname ===
     "/manager/department/users";
 
-  const isReports =
+  const isManagerReports =
     location.pathname === "/manager/reports";
 
-  const isReportedConversations =
+  const isReportedItems =
     location.pathname ===
-    "/manager/reported-conversations";
+    "/manager/reported-items";
 
 
   // ============================================================
@@ -230,6 +239,35 @@ function DashboardSidebar({ onCompose }) {
 
 
       {/* ======================================================
+          REPORTS
+      ====================================================== */}
+
+      <div className="mt-8">
+
+        <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          Reports
+        </p>
+
+        <nav className="space-y-1">
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/reports/my-reports")
+            }
+            className={getNavClass(
+              isMyReports
+            )}
+          >
+            My Reports
+          </button>
+
+        </nav>
+
+      </div>
+
+
+      {/* ======================================================
           MANAGER NAVIGATION
       ====================================================== */}
 
@@ -274,7 +312,7 @@ function DashboardSidebar({ onCompose }) {
             </button>
 
 
-            {/* Reports */}
+            {/* All Reports */}
 
             <button
               type="button"
@@ -282,27 +320,27 @@ function DashboardSidebar({ onCompose }) {
                 navigate("/manager/reports")
               }
               className={getNavClass(
-                isReports
+                isManagerReports
               )}
             >
               Reports
             </button>
 
 
-            {/* Reported Conversations */}
+            {/* Reported Items */}
 
             <button
               type="button"
               onClick={() =>
                 navigate(
-                  "/manager/reported-conversations"
+                  "/manager/reported-items"
                 )
               }
               className={getNavClass(
-                isReportedConversations
+                isReportedItems
               )}
             >
-              Reported Conversations
+              Reported Items
             </button>
 
           </nav>

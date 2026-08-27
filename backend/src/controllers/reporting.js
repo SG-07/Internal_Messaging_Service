@@ -1,3 +1,6 @@
+// backend/src/controllers/reporting.js
+import supabaseAdmin from '../config/supabaseClient.js';
+
 /// --- REPORTING CONTROLLER (Global) ---
 
 const VALID_REASONS = [

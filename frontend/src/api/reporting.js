@@ -6,34 +6,98 @@ import { request } from "./client";
 // REPORTING - CREATE REPORT
 // ============================================================
 
-// POST /api/reports
 export async function createReport(payload) {
   const endpoint = "/api/reports";
 
-  return request(endpoint, {
+  console.log("[REPORTING] CREATE REPORT → Request", {
+    endpoint,
     method: "POST",
-    body: JSON.stringify(payload),
+    payload,
   });
+
+  try {
+    const response = await request(endpoint, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    console.log("[REPORTING] CREATE REPORT ← Response", {
+      endpoint,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("[REPORTING] CREATE REPORT ← Error", {
+      endpoint,
+      error: error.message,
+    });
+
+    throw error;
+  }
 }
 
 // ============================================================
 // REPORTING - MY REPORTS
 // ============================================================
 
-// GET /api/reports/my-reports
 export async function getMyReports() {
   const endpoint = "/api/reports/my-reports";
 
-  return request(endpoint);
+  console.log("[REPORTING] MY REPORTS → Request", {
+    endpoint,
+    method: "GET",
+  });
+
+  try {
+    const response = await request(endpoint);
+
+    console.log("[REPORTING] MY REPORTS ← Response", {
+      endpoint,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("[REPORTING] MY REPORTS ← Error", {
+      endpoint,
+      error: error.message,
+    });
+
+    throw error;
+  }
 }
 
 // ============================================================
 // REPORTING - REPORT DETAILS
 // ============================================================
 
-// GET /api/reports/:reportId
 export async function getReport(reportId) {
   const endpoint = `/api/reports/${reportId}`;
 
-  return request(endpoint);
+  console.log("[REPORTING] REPORT DETAILS → Request", {
+    endpoint,
+    method: "GET",
+    reportId,
+  });
+
+  try {
+    const response = await request(endpoint);
+
+    console.log("[REPORTING] REPORT DETAILS ← Response", {
+      endpoint,
+      reportId,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("[REPORTING] REPORT DETAILS ← Error", {
+      endpoint,
+      reportId,
+      error: error.message,
+    });
+
+    throw error;
+  }
 }

@@ -1,6 +1,4 @@
 // frontend/src/App.jsx
-
-import React from "react";
 import { Navigate, Route, Routes } from "react-router";
 
 import Login from "./pages/auth/login";
@@ -27,21 +25,42 @@ import { WebSocketProvider } from "./websocket/WebSocketProvider";
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 
-//group general
+import MyReports from "./pages/reports/MyReports";
+
+// ============================================================
+// GROUPS
+// ============================================================
+
+// General groups
 import CreateGroup from "./pages/groups/Group";
 import AllGroups from "./pages/groups/AllGroups";
 import GroupDetails from "./pages/groups/GroupDetails";
 
-//user group
+// User groups
 import MyGroups from "./pages/groups/MyGroups";
 import ChatPage from "./pages/conversation/groupChat/ChatPage";
 
-//manager
+// ============================================================
+// MANAGER
+// ============================================================
+
 import ManagerTeams from "./pages/manager/ManagerTeams";
 import ManagerTeamDetails from "./pages/manager/ManagerTeamDetails";
 import ManagerAddTeamMember from "./pages/manager/ManagerAddTeamMember";
 import ManagerDepartmentUsers from "./pages/manager/ManagerDepartmentUsers";
 import ManagerDepartmentUserDetails from "./pages/manager/ManagerDepartmentUserDetails";
+
+// ============================================================
+// MANAGER REPORTING
+// ============================================================
+// These pages do not exist yet.
+// Keep the imports commented until we build the manager
+// reporting UI.
+
+import ManagerReports from "./pages/manager/ManagerReports";
+import ManagerReportedItems from "./pages/manager/ManagerReportedItems";
+import ManagerReportedItemDetails from "./pages/manager/ManagerReportedItemDetails";
+// import ManagerReportedItemDetails from "./pages/manager/ManagerReportedItemDetails";
 
 function App() {
   return (
@@ -51,13 +70,13 @@ function App() {
 
         <Routes>
           {/* ==================================================
-              Default
+              DEFAULT
           ================================================== */}
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           {/* ==================================================
-              Authentication
+              AUTHENTICATION
           ================================================== */}
 
           <Route
@@ -88,7 +107,7 @@ function App() {
           />
 
           {/* ==================================================
-              Dashboard
+              DASHBOARD
           ================================================== */}
 
           <Route
@@ -101,7 +120,7 @@ function App() {
           />
 
           {/* ==================================================
-              Sent
+              SENT
           ================================================== */}
 
           <Route
@@ -114,7 +133,7 @@ function App() {
           />
 
           {/* ==================================================
-              Workflows
+              WORKFLOWS
           ================================================== */}
 
           <Route
@@ -136,7 +155,7 @@ function App() {
           />
 
           {/* ==================================================
-              Compose
+              COMPOSE
           ================================================== */}
 
           <Route
@@ -149,7 +168,7 @@ function App() {
           />
 
           {/* ==================================================
-              Conversation
+              CONVERSATION
           ================================================== */}
 
           <Route
@@ -162,10 +181,11 @@ function App() {
           />
 
           {/* ==================================================
-              Groups
+              GROUPS
           ================================================== */}
 
           {/* Create Group */}
+
           <Route
             path="/groups/create"
             element={
@@ -176,6 +196,7 @@ function App() {
           />
 
           {/* All Groups */}
+
           <Route
             path="/groups"
             element={
@@ -186,6 +207,7 @@ function App() {
           />
 
           {/* My Groups */}
+
           <Route
             path="/my-groups"
             element={
@@ -196,6 +218,7 @@ function App() {
           />
 
           {/* Group Details */}
+
           <Route
             path="/groups/:groupId"
             element={
@@ -206,6 +229,7 @@ function App() {
           />
 
           {/* Group Chat */}
+
           <Route
             path="/groups/:groupId/chat"
             element={
@@ -215,7 +239,13 @@ function App() {
             }
           />
 
-          {/* Manager Teams */}
+          {/* ==================================================
+              MANAGER
+          ================================================== */}
+
+          {/* --------------------------------------------------
+              Manager Teams
+          -------------------------------------------------- */}
 
           <Route
             path="/manager/teams"
@@ -226,6 +256,8 @@ function App() {
             }
           />
 
+          {/* Manager Team Details */}
+
           <Route
             path="/manager/teams/:teamId"
             element={
@@ -235,6 +267,21 @@ function App() {
             }
           />
 
+          {/* Add Team Member */}
+
+          <Route
+            path="/manager/teams/:teamId/add-member"
+            element={
+              <ProtectedRoute>
+                <ManagerAddTeamMember />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* --------------------------------------------------
+              Manager Department Users
+          -------------------------------------------------- */}
+
           <Route
             path="/manager/department/users"
             element={
@@ -243,6 +290,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Department User Details */}
 
           <Route
             path="/manager/department/users/:userId"
@@ -254,15 +303,19 @@ function App() {
           />
 
           <Route
-            path="/manager/teams/:teamId/add-member"
+            path="/reports/my-reports"
             element={
               <ProtectedRoute>
-                <ManagerAddTeamMember />
+                <MyReports />
               </ProtectedRoute>
             }
           />
 
-          {/* <Route
+          {/* ==================================================
+              MANAGER REPORTING
+          ================================================== */}
+
+          <Route
             path="/manager/reports"
             element={
               <ProtectedRoute>
@@ -272,25 +325,44 @@ function App() {
           />
 
           <Route
-            path="/manager/reported-conversations"
+            path="/manager/reported-items"
             element={
               <ProtectedRoute>
-                <ManagerReportedConversations />
+                <ManagerReportedItems />
               </ProtectedRoute>
             }
           />
 
           <Route
-            path="/manager/reported-conversations/:conversationId"
+            path="/manager/reported-items/:reportId"
             element={
               <ProtectedRoute>
-                <ManagerReportedConversation />
+                <ManagerReportedItemDetails />
               </ProtectedRoute>
             }
-          /> */}
+          />
+
+          {/*
+          ----------------------------------------------------
+          Manager Report Details
+
+          Backend endpoint:
+          GET /api/manager/reported-items/:reportId
+
+          UI page will be created later.
+
+          <Route
+            path="/manager/reported-items/:reportId"
+            element={
+              <ProtectedRoute>
+                <ManagerReportedItemDetails />
+              </ProtectedRoute>
+            }
+          />
+          */}
 
           {/* ==================================================
-              Admin Users
+              ADMIN USERS
           ================================================== */}
 
           <Route
@@ -312,7 +384,7 @@ function App() {
           />
 
           {/* ==================================================
-              Teams Management
+              ADMIN TEAMS
           ================================================== */}
 
           <Route
