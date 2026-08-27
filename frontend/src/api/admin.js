@@ -196,15 +196,6 @@ export async function updateUserRole(
 }
 
 
-// PATCH /api/admin/users/:userId/manager
-//
-// Accepts either:
-// updateUserManager(userId, managerId)
-//
-// or:
-// updateUserManager(userId, {
-//   manager_id: 'uuid'
-// })
 export async function updateUserManager(
   userId,
   payload
@@ -261,19 +252,7 @@ export async function updateUserManager(
 
 
 // PATCH /api/admin/users/:userId/department
-//
-// Backend endpoint to add:
-// PATCH /api/admin/users/:userId/department
-//
-// Expected body:
-// {
-//   department: 'HR'
-// }
-//
-// or:
-// {
-//   department: null
-// }
+
 export async function updateUserDepartment(
   userId,
   payload

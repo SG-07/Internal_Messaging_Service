@@ -22,9 +22,7 @@ import UserDetails from "./pages/admin/UserDetails";
 
 import ChangePassword from "./pages/auth/ChangePassword";
 
-import {
-  WebSocketProvider,
-} from "./websocket/WebSocketProvider";
+import { WebSocketProvider } from "./websocket/WebSocketProvider";
 
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
@@ -32,36 +30,24 @@ import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 //group general
 import CreateGroup from "./pages/groups/Group";
 import AllGroups from "./pages/groups/AllGroups";
-import GroupDetails from './pages/groups/GroupDetails';
+import GroupDetails from "./pages/groups/GroupDetails";
 
 //user group
 import MyGroups from "./pages/groups/MyGroups";
 import ChatPage from "./pages/conversation/groupChat/ChatPage";
 
-
 function App() {
   return (
     <WebSocketProvider>
-
       <>
         <Navbar />
 
         <Routes>
-
           {/* ==================================================
               Default
           ================================================== */}
 
-          <Route
-            path="/"
-            element={
-              <Navigate
-                to="/dashboard"
-                replace
-              />
-            }
-          />
-
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           {/* ==================================================
               Authentication
@@ -94,7 +80,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Dashboard
           ================================================== */}
@@ -108,7 +93,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Sent
           ================================================== */}
@@ -121,7 +105,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
 
           {/* ==================================================
               Workflows
@@ -145,7 +128,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Compose
           ================================================== */}
@@ -159,7 +141,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Conversation
           ================================================== */}
@@ -172,7 +153,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
 
           {/* ==================================================
               Groups
@@ -229,6 +209,7 @@ function App() {
           />
 
 
+
           {/* ==================================================
               Admin Users
           ================================================== */}
@@ -251,13 +232,12 @@ function App() {
             }
           />
 
-
           {/* ==================================================
-              Admin Teams
+              Teams Management
           ================================================== */}
 
           <Route
-            path="/admin/teams"
+            path="/teams"
             element={
               <ProtectedRoute>
                 <AdminTeams />
@@ -266,17 +246,15 @@ function App() {
           />
 
           <Route
-            path="/admin/teams/:teamId/edit"
+            path="/teams/:teamId/edit"
             element={
               <ProtectedRoute>
                 <TeamEdit />
               </ProtectedRoute>
             }
           />
-
         </Routes>
       </>
-
     </WebSocketProvider>
   );
 }
