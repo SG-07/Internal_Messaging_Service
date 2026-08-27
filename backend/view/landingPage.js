@@ -56,7 +56,7 @@ export function getLandingPageHtml(frontendUrl) {
 
   <script>
     const FRONTEND_URL = ${JSON.stringify(frontendUrl)};
-    let secondsLeft = 10;
+    let secondsLeft = 5;
     const countdownEl = document.getElementById('countdown');
 
     function redirectNow() {

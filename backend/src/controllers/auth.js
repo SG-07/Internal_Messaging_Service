@@ -105,7 +105,7 @@ export const signup = async (req, res) => {
 
     res.cookie('access_token', accessToken, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 60 * 60 * 1000, // 15 minutes
     });
 
     res.cookie('refresh_token', refreshToken, {
@@ -141,7 +141,7 @@ export const login = async (req, res) => {
     // Fetch user from database
     const { data: user, error: userError } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, username, full_name, password_hash, role')
+      .select('id, email, username, full_name, password_hash, role, department')
       .eq('email', email)
       .single();
 
@@ -163,9 +163,10 @@ export const login = async (req, res) => {
         email: user.email, 
         username: user.username,
         role: user.role,
+        department: user.department,
       },
       process.env.JWT_ACCESS_SECRET,
-      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '60m' }
     );
 
     // Generate refresh token (long-lived: 7 days)
@@ -186,7 +187,7 @@ export const login = async (req, res) => {
     console.log('Setting cookie for user:', user.id);
     res.cookie('access_token', accessToken, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 60 * 60 * 1000, // 60 minutes
     });
 
     // Set refresh token in httpOnly cookie
@@ -226,7 +227,7 @@ export const refreshAccessToken = async (req, res) => {
     // Fetch fresh user data
     const { data: user, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, username, full_name, role')
+      .select('id, email, username, full_name, role, department')
       .eq('id', decoded.id)
       .single();
 
@@ -241,15 +242,16 @@ export const refreshAccessToken = async (req, res) => {
         email: user.email, 
         username: user.username,
         role: user.role,
+        department: user.department,
       },
       process.env.JWT_ACCESS_SECRET,
-      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '60m' }
     );
 
     // Set new access token cookie
     res.cookie('access_token', newAccessToken, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 60 * 60 * 1000, // 60 minutes
     });
 
     res.status(200).json({ message: 'Access token refreshed' });

@@ -18,6 +18,7 @@ import { getLandingPageHtml } from '../view/landingPage.js';
 import adminRoutes from './routes/admin.js';
 import teamsRoutes from './routes/teams.js';
 import groupRoutes from './routes/group.js';
+import managerRoutes from './routes/manager.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -51,6 +52,8 @@ app.use('/api/conversations', conversationsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/manager', managerRoutes);
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });

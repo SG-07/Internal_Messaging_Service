@@ -1,3 +1,6 @@
+// backend/src/controllers/manager.js
+import supabaseAdmin from '../config/supabaseClient.js';
+
 /// --- MANAGER CONTROLLER ---
 
 // ===== TEAM MANAGEMENT =====
