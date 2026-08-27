@@ -77,30 +77,23 @@ export async function managerGetDepartmentUser(userId) {
 }
 
 // ============================================================
-// MANAGER - REPORTED CONVERSATIONS
+// MANAGER - REPORT OVERSIGHT
 // ============================================================
 
-// GET /api/manager/reported-conversations
-export async function managerGetReportedConversations() {
-  const endpoint =
-    "/api/manager/reported-conversations";
+// GET /api/manager/reported-items
+export async function managerGetReportedItems() {
+  const endpoint = "/api/manager/reported-items";
 
   return request(endpoint);
 }
 
-// GET /api/manager/reported-conversations/:conversationId
-export async function managerGetReportedConversation(
-  conversationId
-) {
+// GET /api/manager/reported-items/:reportId
+export async function managerGetReportedItem(reportId) {
   const endpoint =
-    `/api/manager/reported-conversations/${conversationId}`;
+    `/api/manager/reported-items/${reportId}`;
 
   return request(endpoint);
 }
-
-// ============================================================
-// MANAGER - REPORTS
-// ============================================================
 
 // GET /api/manager/reports
 export async function managerGetReports() {
