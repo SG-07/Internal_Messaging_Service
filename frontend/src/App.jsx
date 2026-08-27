@@ -22,9 +22,7 @@ import UserDetails from "./pages/admin/UserDetails";
 
 import ChangePassword from "./pages/auth/ChangePassword";
 
-import {
-  WebSocketProvider,
-} from "./websocket/WebSocketProvider";
+import { WebSocketProvider } from "./websocket/WebSocketProvider";
 
 import PendingWorkflows from "./pages/workflows/PendingWorkflows";
 import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
@@ -32,36 +30,31 @@ import MyWorkflowRequests from "./pages/workflows/MyWorkflowRequests";
 //group general
 import CreateGroup from "./pages/groups/Group";
 import AllGroups from "./pages/groups/AllGroups";
-import GroupDetails from './pages/groups/GroupDetails';
+import GroupDetails from "./pages/groups/GroupDetails";
 
 //user group
 import MyGroups from "./pages/groups/MyGroups";
 import ChatPage from "./pages/conversation/groupChat/ChatPage";
 
+//manager
+import ManagerTeams from "./pages/manager/ManagerTeams";
+import ManagerTeamDetails from "./pages/manager/ManagerTeamDetails";
+import ManagerAddTeamMember from "./pages/manager/ManagerAddTeamMember";
+import ManagerDepartmentUsers from "./pages/manager/ManagerDepartmentUsers";
+import ManagerDepartmentUserDetails from "./pages/manager/ManagerDepartmentUserDetails";
 
 function App() {
   return (
     <WebSocketProvider>
-
       <>
         <Navbar />
 
         <Routes>
-
           {/* ==================================================
               Default
           ================================================== */}
 
-          <Route
-            path="/"
-            element={
-              <Navigate
-                to="/dashboard"
-                replace
-              />
-            }
-          />
-
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           {/* ==================================================
               Authentication
@@ -94,7 +87,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Dashboard
           ================================================== */}
@@ -108,7 +100,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Sent
           ================================================== */}
@@ -121,7 +112,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
 
           {/* ==================================================
               Workflows
@@ -145,7 +135,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Compose
           ================================================== */}
@@ -159,7 +148,6 @@ function App() {
             }
           />
 
-
           {/* ==================================================
               Conversation
           ================================================== */}
@@ -172,7 +160,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
 
           {/* ==================================================
               Groups
@@ -228,6 +215,79 @@ function App() {
             }
           />
 
+          {/* Manager Teams */}
+
+          <Route
+            path="/manager/teams"
+            element={
+              <ProtectedRoute>
+                <ManagerTeams />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/teams/:teamId"
+            element={
+              <ProtectedRoute>
+                <ManagerTeamDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/department/users"
+            element={
+              <ProtectedRoute>
+                <ManagerDepartmentUsers />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/department/users/:userId"
+            element={
+              <ProtectedRoute>
+                <ManagerDepartmentUserDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/teams/:teamId/add-member"
+            element={
+              <ProtectedRoute>
+                <ManagerAddTeamMember />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* <Route
+            path="/manager/reports"
+            element={
+              <ProtectedRoute>
+                <ManagerReports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/reported-conversations"
+            element={
+              <ProtectedRoute>
+                <ManagerReportedConversations />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/reported-conversations/:conversationId"
+            element={
+              <ProtectedRoute>
+                <ManagerReportedConversation />
+              </ProtectedRoute>
+            }
+          /> */}
 
           {/* ==================================================
               Admin Users
@@ -251,13 +311,12 @@ function App() {
             }
           />
 
-
           {/* ==================================================
-              Admin Teams
+              Teams Management
           ================================================== */}
 
           <Route
-            path="/admin/teams"
+            path="/teams"
             element={
               <ProtectedRoute>
                 <AdminTeams />
@@ -266,17 +325,15 @@ function App() {
           />
 
           <Route
-            path="/admin/teams/:teamId/edit"
+            path="/teams/:teamId/edit"
             element={
               <ProtectedRoute>
                 <TeamEdit />
               </ProtectedRoute>
             }
           />
-
         </Routes>
       </>
-
     </WebSocketProvider>
   );
 }
