@@ -47,3 +47,27 @@ export const requireManagerOrAdmin = async (req, res, next) => {
   req.userRole = profile.role; // stash for controllers that need to branch on exact role
   next();
 };
+
+/// --- MANAGER MIDDLEWARE ---
+ 
+export const requireManager = (req, res, next) => {
+  const user = req.user;
+ 
+  // Only allow managers (NOT admins, NOT users)
+  if (user.role !== 'manager') {
+    return res.status(403).json({
+      success: false,
+      message: 'Manager access required.',
+    });
+  }
+ 
+  // Manager must have a department assigned
+  if (!user.department) {
+    return res.status(400).json({
+      success: false,
+      message: 'Department not assigned to your account.',
+    });
+  }
+ 
+  next();
+};
