@@ -407,7 +407,7 @@ function App() {
           ================================================== */}
 
           <Route
-            path="/teams"
+            path="/admin/teams"
             element={
               <ProtectedRoute>
                 <AdminTeams />
@@ -416,7 +416,7 @@ function App() {
           />
 
           <Route
-            path="/teams/:teamId/edit"
+            path="/admin/teams/:teamId/edit"
             element={
               <ProtectedRoute>
                 <TeamEdit />
