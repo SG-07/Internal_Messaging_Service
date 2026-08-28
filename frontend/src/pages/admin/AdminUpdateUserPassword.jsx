@@ -2,32 +2,24 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import DashboardLayout from "../dashboard/DashboardLayout";
 
-import {
-  adminUpdateUserPassword,
-} from "../../api/admin";
+import { adminUpdateUserPassword } from "../../api/admin";
 
 function AdminUpdateUserPassword() {
   const navigate = useNavigate();
 
-  const [email, setEmail] =
-    useState("");
+  const [email, setEmail] = useState("");
 
-  const [newPassword, setNewPassword] =
-    useState("");
+  const [newPassword, setNewPassword] = useState("");
 
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
-  const [success, setSuccess] =
-    useState("");
-
+  const [success, setSuccess] = useState("");
 
   // ============================================================
   // VALIDATION
@@ -44,7 +36,6 @@ function AdminUpdateUserPassword() {
     confirmPassword.trim() &&
     passwordsMatch;
 
-
   // ============================================================
   // SUBMIT
   // ============================================================
@@ -56,25 +47,19 @@ function AdminUpdateUserPassword() {
     setSuccess("");
 
     if (!email.trim()) {
-      setError(
-        "Please enter the user's email."
-      );
+      setError("Please enter the user's email.");
 
       return;
     }
 
     if (!newPassword) {
-      setError(
-        "Please enter a new password."
-      );
+      setError("Please enter a new password.");
 
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError(
-        "Passwords do not match."
-      );
+      setError("Passwords do not match.");
 
       return;
     }
@@ -88,286 +73,208 @@ function AdminUpdateUserPassword() {
         new_password: newPassword,
       };
 
-      console.group(
-        "[AdminUpdateUserPassword] UPDATE PASSWORD"
-      );
+      console.group("[AdminUpdateUserPassword] UPDATE PASSWORD");
 
-      console.log(
-        "[AdminUpdateUserPassword] Email:",
-        payload.email
-      );
+      console.log("[AdminUpdateUserPassword] Email:", payload.email);
 
       // Never log actual passwords
-      console.log(
-        "[AdminUpdateUserPassword] Payload:",
-        {
-          email: payload.email,
-          new_password: "********",
-        }
-      );
+      console.log("[AdminUpdateUserPassword] Payload:", {
+        email: payload.email,
+        new_password: "********",
+      });
 
-      const response =
-        await adminUpdateUserPassword(
-          payload
-        );
+      const response = await adminUpdateUserPassword(payload);
 
-      console.log(
-        "[AdminUpdateUserPassword] Response:",
-        response
-      );
+      console.log("[AdminUpdateUserPassword] Response:", response);
 
       console.groupEnd();
 
-      setSuccess(
-        "User password updated successfully."
-      );
+      setSuccess("User password updated successfully.");
 
       setNewPassword("");
       setConfirmPassword("");
-
     } catch (err) {
-      console.group(
-        "[AdminUpdateUserPassword] UPDATE PASSWORD ERROR"
-      );
+      console.group("[AdminUpdateUserPassword] UPDATE PASSWORD ERROR");
 
-      console.error(
-        "[AdminUpdateUserPassword] Error:",
-        err
-      );
+      console.error("[AdminUpdateUserPassword] Error:", err);
 
-      console.error(
-        "[AdminUpdateUserPassword] Message:",
-        err?.message
-      );
+      console.error("[AdminUpdateUserPassword] Message:", err?.message);
 
       console.groupEnd();
 
-      setError(
-        err?.message ||
-        "Unable to update user password."
-      );
+      setError(err?.message || "Unable to update user password.");
     } finally {
       setLoading(false);
     }
   }
 
-
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-
-      <div className="mx-auto max-w-xl">
-
-        {/* ======================================================
+    <DashboardLayout>
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="mx-auto max-w-xl">
+          {/* ======================================================
             HEADER
         ====================================================== */}
 
-        <div className="mb-6">
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => navigate("/admin/users")}
+              className="mb-4 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              ← Back to Users
+            </button>
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/admin/users")
-            }
-            className="mb-4 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            ← Back to Users
-          </button>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Update User Password
+            </h1>
 
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Update User Password
-          </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Enter the user's email and set a new password.
+            </p>
+          </div>
 
-          <p className="mt-1 text-sm text-gray-500">
-            Enter the user's email and set a new password.
-          </p>
-
-        </div>
-
-
-        {/* ======================================================
+          {/* ======================================================
             FORM
         ====================================================== */}
 
-        <div className="rounded-xl bg-white shadow">
+          <div className="rounded-xl bg-white shadow">
+            <form onSubmit={handleSubmit} className="p-6">
+              {/* Email */}
 
-          <form
-            onSubmit={handleSubmit}
-            className="p-6"
-          >
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  User Email
+                </label>
 
-            {/* Email */}
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
 
-            <div>
+                    setError("");
+                    setSuccess("");
+                  }}
+                  placeholder="user@example.com"
+                  autoComplete="email"
+                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
 
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700"
-              >
-                User Email
-              </label>
+              {/* New Password */}
 
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(
-                    event.target.value
-                  );
+              <div className="mt-5">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  New Password
+                </label>
 
-                  setError("");
-                  setSuccess("");
-                }}
-                placeholder="user@example.com"
-                autoComplete="email"
-                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+                <input
+                  id="password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value);
 
-            </div>
+                    setError("");
+                    setSuccess("");
+                  }}
+                  placeholder="Enter new password"
+                  autoComplete="new-password"
+                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
 
+              {/* Confirm Password */}
 
-            {/* New Password */}
+              <div className="mt-5">
+                <label
+                  htmlFor="confirm-password"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Confirm New Password
+                </label>
 
-            <div className="mt-5">
+                <input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => {
+                    setConfirmPassword(event.target.value);
 
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
-              >
-                New Password
-              </label>
+                    setError("");
+                    setSuccess("");
+                  }}
+                  placeholder="Confirm new password"
+                  autoComplete="new-password"
+                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
 
-              <input
-                id="password"
-                type="password"
-                value={newPassword}
-                onChange={(event) => {
-                  setNewPassword(
-                    event.target.value
-                  );
+                {/* Password mismatch */}
 
-                  setError("");
-                  setSuccess("");
-                }}
-                placeholder="Enter new password"
-                autoComplete="new-password"
-                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-
-            </div>
-
-
-            {/* Confirm Password */}
-
-            <div className="mt-5">
-
-              <label
-                htmlFor="confirm-password"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Confirm New Password
-              </label>
-
-              <input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => {
-                  setConfirmPassword(
-                    event.target.value
-                  );
-
-                  setError("");
-                  setSuccess("");
-                }}
-                placeholder="Confirm new password"
-                autoComplete="new-password"
-                className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-
-              {/* Password mismatch */}
-
-              {confirmPassword &&
-                newPassword !== confirmPassword && (
+                {confirmPassword && newPassword !== confirmPassword && (
                   <p className="mt-2 text-sm text-red-600">
                     Passwords do not match.
                   </p>
                 )}
 
-              {/* Password match */}
+                {/* Password match */}
 
-              {confirmPassword &&
-                newPassword === confirmPassword && (
+                {confirmPassword && newPassword === confirmPassword && (
                   <p className="mt-2 text-sm text-green-600">
                     Passwords match.
                   </p>
                 )}
-
-            </div>
-
-
-            {/* Error */}
-
-            {error && (
-
-              <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-
-                {error}
-
               </div>
 
-            )}
+              {/* Error */}
 
+              {error && (
+                <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
 
-            {/* Success */}
+              {/* Success */}
 
-            {success && (
+              {success && (
+                <div className="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  {success}
+                </div>
+              )}
 
-              <div className="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              {/* Actions */}
 
-                {success}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/users")}
+                  disabled={loading}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
 
+                <button
+                  type="submit"
+                  disabled={loading || !isFormValid}
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Updating..." : "Update Password"}
+                </button>
               </div>
-
-            )}
-
-
-            {/* Actions */}
-
-            <div className="mt-6 flex justify-end gap-3">
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/admin/users")
-                }
-                disabled={loading}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={
-                  loading ||
-                  !isFormValid
-                }
-                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading
-                  ? "Updating..."
-                  : "Update Password"}
-              </button>
-
-            </div>
-
-          </form>
-
+            </form>
+          </div>
         </div>
-
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

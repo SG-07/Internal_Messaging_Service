@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-
+import DashboardLayout from "../dashboard/DashboardLayout";
 import { managerGetReports } from "../../api/manager";
 
 function ManagerReports() {
@@ -324,6 +324,7 @@ function ManagerReports() {
   // ============================================================
 
   return (
+    <DashboardLayout>
     <div className="min-h-[calc(100vh-80px)] bg-gray-100 px-6 py-8">
 
       <div className="mx-auto max-w-7xl">
@@ -763,6 +764,7 @@ function ManagerReports() {
 
       </div>
     </div>
+    </DashboardLayout>
   );
 }
 

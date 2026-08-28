@@ -4,6 +4,7 @@ import {
   useParams,
 } from "react-router";
 
+import DashboardLayout from "../dashboard/DashboardLayout";
 import {
   managerGetDepartmentUser,
 } from "../../api/manager";
@@ -103,6 +104,7 @@ function ManagerDepartmentUserDetails() {
 
 
   return (
+    <DashboardLayout>
     <div className="p-6">
 
       {/* Back */}
@@ -193,6 +195,7 @@ function ManagerDepartmentUserDetails() {
       </div>
 
     </div>
+    </DashboardLayout>
   );
 }
 

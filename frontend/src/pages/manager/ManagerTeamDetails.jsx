@@ -4,6 +4,7 @@ import {
   useParams,
 } from "react-router";
 
+import DashboardLayout from "../dashboard/DashboardLayout";
 import {
   managerGetTeam,
   managerGetTeamMembers,
@@ -157,6 +158,7 @@ function ManagerTeamDetails() {
 
 
   return (
+    <DashboardLayout>
     <div className="p-6">
 
       {/* Back */}
@@ -300,6 +302,7 @@ function ManagerTeamDetails() {
       </div>
 
     </div>
+    </DashboardLayout>
   );
 }
 

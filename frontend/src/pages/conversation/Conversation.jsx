@@ -7,6 +7,7 @@ import {
   sendMessage,
 } from "../../api/conversations";
 
+import DashboardLayout from "../dashboard/DashboardLayout";
 import { useWebSocket } from "../../websocket/WebSocketProvider";
 
 import ConversationHeader from "./ConversationHeader";
@@ -16,6 +17,7 @@ import ActionSection from "./ActionSection";
 import ApprovalSection from "./ApprovalSection";
 import FollowUpSection from "./FollowUpSection";
 import ReplyBox from "./ReplyBox";
+import Dashboard from "../dashboard/Dashboard";
 
 function Conversation() {
   const { id } = useParams();
@@ -653,6 +655,7 @@ function Conversation() {
   }
 
   return (
+    <DashboardLayout>
     <div className="min-h-screen bg-gray-100">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col bg-white shadow-sm">
         <ConversationHeader
@@ -701,6 +704,7 @@ function Conversation() {
         <ReplyBox onSendReply={handleSendReply} />
       </div>
     </div>
+    </DashboardLayout>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DashboardLayout from "../dashboard/DashboardLayout";
 import {
   useNavigate,
   useParams,
@@ -534,6 +535,7 @@ function AdminReportedItemDetails() {
   // ============================================================
 
   return (
+    <DashboardLayout>
     <div className="min-h-screen bg-gray-100 p-6">
 
       <div className="mx-auto max-w-6xl">
@@ -1081,6 +1083,7 @@ function AdminReportedItemDetails() {
       </div>
 
     </div>
+    </DashboardLayout>
   );
 }
 

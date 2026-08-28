@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-
+import DashboardLayout from "../dashboard/DashboardLayout";
 import {
   adminGetReports,
 } from "../../api/admin";
@@ -271,6 +271,7 @@ function AdminReports() {
   // ============================================================
 
   return (
+    <DashboardLayout>
     <div className="min-h-[calc(100vh-80px)] bg-gray-100 px-6 py-8">
 
       <div className="mx-auto max-w-7xl">
@@ -658,6 +659,7 @@ function AdminReports() {
       </div>
 
     </div>
+    </DashboardLayout>
   );
 }
 

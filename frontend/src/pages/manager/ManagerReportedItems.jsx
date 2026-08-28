@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-
+import DashboardLayout from "../dashboard/DashboardLayout";
 import {
   managerGetReportedItems,
 } from "../../api/manager";
@@ -323,6 +323,7 @@ function ManagerReportedItems() {
   // ============================================================
 
   return (
+    <DashboardLayout>
     <div className="min-h-screen bg-gray-100 p-6">
 
       <div className="mx-auto max-w-6xl">
@@ -569,6 +570,7 @@ function ManagerReportedItems() {
 
       </div>
     </div>
+    </DashboardLayout>
   );
 }
 

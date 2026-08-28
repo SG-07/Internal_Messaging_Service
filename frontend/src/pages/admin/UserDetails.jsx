@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-
+import DashboardLayout from '../dashboard/DashboardLayout';
 import {
   getUserProfile,
   updateUserManager,
@@ -1038,6 +1038,7 @@ function EditableField({
       </div>
 
     </div>
+    
   );
 }
 
