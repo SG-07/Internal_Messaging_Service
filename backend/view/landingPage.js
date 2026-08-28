@@ -50,7 +50,7 @@ export function getLandingPageHtml(frontendUrl) {
 <body>
   <div class="container">
     <h1>Backend is live</h1>
-    <p>Redirecting you to the app in <span id="countdown">10</span> seconds...</p>
+    <p>Redirecting you to the app in <span id="countdown">5</span> seconds...</p>
     <button onclick="redirectNow()">Go to app now</button>
   </div>
 

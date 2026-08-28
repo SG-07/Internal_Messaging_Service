@@ -1,3 +1,4 @@
+// frontend/src/pages/conversation/ApprovalSection.jsx
 import { useState } from "react";
 
 const APPROVAL_STATUSES = {

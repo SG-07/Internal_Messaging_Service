@@ -2,6 +2,41 @@
 import supabaseAdmin from '../config/supabaseClient.js';
 import { broadcastToUsers } from './wsServer.js';
 
+function buildWorkflow(conv) {
+  if (!conv.workflow_status && conv.category !== 'action_required' && conv.category !== 'approval_required') {
+    return null;
+  }
+
+  const type =
+    conv.category === 'action_required'
+      ? 'action'
+      : conv.category === 'approval_required'
+      ? 'approval'
+      : null;
+
+  if (!type) {
+    return null;
+  }
+
+  const status = conv.workflow_status || 'PENDING';
+
+  const isFinal =
+    type === 'action'
+      ? ['DONE', 'REJECTED'].includes(status)
+      : ['APPROVED', 'REJECTED'].includes(status);
+
+  return {
+    type,
+    status,
+    workflow_comment: conv.workflow_comment || null,
+    is_final: isFinal,
+    // can_respond is viewer-dependent (true only for the non-creator) and
+    // this payload is broadcast identically to every participant, so it is
+    // NOT computed here. The frontend derives it from
+    // current_user_id !== created_by instead — see Conversation.jsx.
+  };
+}
+
 export function initDbListener() {
   console.log('[DbListener] ===== FINAL VERSION LOADED =====');
   console.log('[DbListener] Initializing database change listener...');
@@ -29,6 +64,8 @@ export function initDbListener() {
             created_by,
             created_at,
             updated_at,
+            workflow_status,
+            workflow_comment,
             creator:profiles!conversations_created_by_fkey(id, username, full_name, email)
           `
           )
@@ -81,6 +118,7 @@ export function initDbListener() {
           other_user_email: otherParticipant?.profiles?.email || null,
           created_at: conversation.created_at,
           updated_at: conversation.updated_at,
+          workflow: buildWorkflow(conversation),
         };
 
         // Fetch the initial message (first message in the conversation)
@@ -157,6 +195,8 @@ export function initDbListener() {
               created_by,
               created_at,
               updated_at,
+              workflow_status,
+              workflow_comment,
               creator:profiles!conversations_created_by_fkey(id, username, full_name, email)
             )
           `
@@ -225,6 +265,7 @@ export function initDbListener() {
           other_user_email: otherParticipant?.profiles?.email || null,
           created_at: conv.created_at,
           updated_at: conv.updated_at,
+          workflow: buildWorkflow(conv),
         };
 
         // Transform message with sender info
@@ -275,6 +316,8 @@ export function initDbListener() {
               created_by,
               created_at,
               updated_at,
+              workflow_status,
+              workflow_comment,
               creator:profiles!conversations_created_by_fkey(id, username, full_name, email)
             )
           `
@@ -331,6 +374,7 @@ export function initDbListener() {
           other_user_email: otherParticipant?.profiles?.email || null,
           created_at: conv.created_at,
           updated_at: conv.updated_at,
+          workflow: buildWorkflow(conv),
         };
 
         console.log('[DbListener] Broadcasting conversation_updated to', participants.length, 'users');

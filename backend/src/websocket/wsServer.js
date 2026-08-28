@@ -1,3 +1,4 @@
+// backend/src/websocket/wsServer.js
 import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 import cookie from 'cookie';
