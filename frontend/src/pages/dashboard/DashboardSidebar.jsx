@@ -309,7 +309,7 @@ function DashboardSidebar({ onCompose }) {
               Reports
             </button>
 
-            {/* Reported Items */}
+            {/* Reported Items
 
             <button
               type="button"
@@ -317,7 +317,7 @@ function DashboardSidebar({ onCompose }) {
               className={getNavClass(isAdminReportedItems)}
             >
               Reported Items
-            </button>
+            </button> */}
           </nav>
         </div>
       )}
