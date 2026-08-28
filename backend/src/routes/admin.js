@@ -15,7 +15,12 @@ import {
   getAnyConversation,
   getTeamById,
   getUserProfile,
-  updateUserDepartment
+  updateUserDepartment,
+  adminListReportedItems,
+  adminGetReportedItem,
+  adminListReports,
+  adminReviewReport,
+  adminUpdateUserPassword
 } from '../controllers/admin.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
@@ -33,6 +38,7 @@ router.patch('/users/:userId/team-status', updateUserTeamStatus);
 router.get('/users/:userId/conversations', getUserConversations);
 router.get('/users/:userId/profile', getUserProfile);
 router.patch('/users/:userId/department', updateUserDepartment);
+router.patch('/users/password', adminUpdateUserPassword);
 
 // Team management
 router.get('/teams', listTeams);
@@ -45,5 +51,11 @@ router.get('/teams/:teamId/edit', getTeamById);
 
 // Conversation oversight
 router.get('/conversations/:conversationId', getAnyConversation);
+
+// Report oversight (global — all departments)
+router.get('/reports/items', adminListReportedItems);
+router.get('/reports/items/:reportId', adminGetReportedItem);
+router.get('/reports', adminListReports);
+router.patch('/reports/:reportId/review', adminReviewReport);
 
 export default router;

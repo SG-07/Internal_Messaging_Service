@@ -86,7 +86,7 @@ export const signup = async (req, res) => {
         role: newUser.role,
       },
       process.env.JWT_ACCESS_SECRET,
-      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+      { expiresIn: process.env.JWT_ACCESS_EXPIRY || '60m' }
     );
 
     // Generate refresh token (long-lived)
@@ -105,7 +105,7 @@ export const signup = async (req, res) => {
 
     res.cookie('access_token', accessToken, {
       ...cookieOptions,
-      maxAge: 60 * 60 * 1000, // 15 minutes
+      maxAge: 60 * 60 * 1000, // 60 minutes
     });
 
     res.cookie('refresh_token', refreshToken, {
@@ -156,7 +156,7 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate access token (short-lived: 15 minutes)
+    // Generate access token (short-lived: 60 minutes)
     const accessToken = jwt.sign(
       { 
         id: user.id, 

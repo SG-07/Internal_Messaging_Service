@@ -1,6 +1,11 @@
+// backend/src/controllers/admin.js
 import supabaseAdmin from '../config/supabaseClient.js';
+import bcrypt from 'bcrypt';
 
 const isDev = process.env.NODE_ENV === 'development';
+
+const VALID_STATUSES = ['pending', 'reviewed', 'resolved', 'dismissed'];
+const VALID_ENTITY_TYPES = ['conversation', 'group', 'team', 'message', 'user'];
 
 const PROFILE_LIST_COLUMNS = 'id, username, email, full_name, department, role, is_active';
 
@@ -867,3 +872,537 @@ export const updateUserDepartment = asyncHandler(
     });
   }
 );
+
+// ===== REPORTED ITEMS OVERSIGHT (global) =====
+ 
+export const adminListReportedItems = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { status, entity_type, department, from, to } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+ 
+  if (status && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid status filter. Must be one of: ${VALID_STATUSES.join(', ')}`,
+    });
+  }
+ 
+  if (entity_type && !VALID_ENTITY_TYPES.includes(entity_type)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid entity_type filter. Must be one of: ${VALID_ENTITY_TYPES.join(', ')}`,
+    });
+  }
+ 
+  try {
+    // Embedded-resource filters (.eq('profiles.department', ...)) in
+    // PostgREST only restrict the embedded object, not the parent row,
+    // unless the embed is an inner join. Only request !inner when a
+    // department filter is actually being applied.
+    const profilesEmbed = department
+      ? 'profiles!conversation_reports_reported_by_fkey!inner(id, username, full_name, email, department)'
+      : 'profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)';
+ 
+    let query = supabaseAdmin
+      .from('conversation_reports')
+      .select(
+        `
+        id, entity_type, entity_id, reason, status, description, created_at,
+        ${profilesEmbed}
+      `,
+        { count: 'exact' }
+      );
+ 
+    // Default to pending if no status filter given, mirroring the manager
+    // "reported items" view — pass status=all explicitly to see everything.
+    if (status) {
+      query = query.eq('status', status);
+    } else if (req.query.status !== 'all') {
+      query = query.eq('status', 'pending');
+    }
+ 
+    if (entity_type) {
+      query = query.eq('entity_type', entity_type);
+    }
+ 
+    if (department) {
+      query = query.eq('profiles.department', department);
+    }
+ 
+    if (from) {
+      query = query.gte('created_at', from);
+    }
+ 
+    if (to) {
+      query = query.lte('created_at', to);
+    }
+ 
+    const { data: reports, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+ 
+    if (error) throw error;
+ 
+    if (isDev) {
+      console.log('[adminListReportedItems] filters:', { status, entity_type, department, from, to }, 'count:', count);
+    }
+ 
+    const formatted = (reports || []).map(r => ({
+      id: r.id,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      reason: r.reason,
+      status: r.status,
+      description: r.description,
+      reported_by: r.profiles ? {
+        id: r.profiles.id,
+        username: r.profiles.username,
+        full_name: r.profiles.full_name,
+        email: r.profiles.email,
+        department: r.profiles.department,
+      } : null,
+      created_at: r.created_at,
+    }));
+ 
+    res.status(200).json({
+      success: true,
+      message: 'Reported items retrieved successfully.',
+      data: formatted,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        has_more: offset + limit < (count || 0),
+      },
+    });
+  } catch (err) {
+    console.error('[adminListReportedItems] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch reported items.',
+    });
+  }
+};
+ 
+export const adminGetReportedItem = async (req, res) => {
+  const { reportId } = req.params;
+  const isDev = process.env.NODE_ENV === 'development';
+ 
+  if (!reportId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Report ID is required.',
+    });
+  }
+ 
+  try {
+    // Get report
+    const { data: report, error: reportError } = await supabaseAdmin
+      .from('conversation_reports')
+      .select(
+        `
+        id, entity_type, entity_id, reason, status, description, created_at,
+        reviewed_by, reviewed_at, resolution_notes,
+        profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)
+      `
+      )
+      .eq('id', reportId)
+      .single();
+ 
+    if (reportError || !report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found.',
+      });
+    }
+ 
+    // Get entity details based on type
+    let entityDetails = null;
+ 
+    switch (report.entity_type) {
+      case 'conversation':
+        const { data: conv } = await supabaseAdmin
+          .from('conversations')
+          .select(
+            `
+            id, subject, conversation_type, created_at,
+            messages(id, content, created_at, sender_id, profiles:sender_id(id, username, full_name))
+          `
+          )
+          .eq('id', report.entity_id)
+          .single();
+ 
+        if (conv) {
+          entityDetails = {
+            type: 'conversation',
+            id: conv.id,
+            subject: conv.subject,
+            conversation_type: conv.conversation_type,
+            created_at: conv.created_at,
+            messages: (conv.messages || []).map(m => ({
+              id: m.id,
+              content: m.content,
+              sender: m.profiles ? {
+                id: m.profiles.id,
+                username: m.profiles.username,
+                full_name: m.profiles.full_name,
+              } : null,
+              created_at: m.created_at,
+            })),
+          };
+        }
+        break;
+ 
+      case 'group':
+        const { data: group } = await supabaseAdmin
+          .from('teams')
+          .select('id, name, department')
+          .eq('id', report.entity_id)
+          .eq('type', 'group')
+          .single();
+ 
+        if (group) {
+          entityDetails = {
+            type: 'group',
+            id: group.id,
+            name: group.name,
+            department: group.department,
+          };
+        }
+        break;
+ 
+      case 'team':
+        const { data: team } = await supabaseAdmin
+          .from('teams')
+          .select('id, name, department')
+          .eq('id', report.entity_id)
+          .eq('type', 'team')
+          .single();
+ 
+        if (team) {
+          entityDetails = {
+            type: 'team',
+            id: team.id,
+            name: team.name,
+            department: team.department,
+          };
+        }
+        break;
+ 
+      case 'message':
+        const { data: msg } = await supabaseAdmin
+          .from('messages')
+          .select('id, content, created_at, sender_id, profiles:sender_id(id, username, full_name)')
+          .eq('id', report.entity_id)
+          .single();
+ 
+        if (msg) {
+          entityDetails = {
+            type: 'message',
+            id: msg.id,
+            content: msg.content,
+            sender: msg.profiles ? {
+              id: msg.profiles.id,
+              username: msg.profiles.username,
+              full_name: msg.profiles.full_name,
+            } : null,
+            created_at: msg.created_at,
+          };
+        }
+        break;
+ 
+      case 'user':
+        const { data: user } = await supabaseAdmin
+          .from('profiles')
+          .select('id, username, full_name, email, department')
+          .eq('id', report.entity_id)
+          .single();
+ 
+        if (user) {
+          entityDetails = {
+            type: 'user',
+            id: user.id,
+            username: user.username,
+            full_name: user.full_name,
+            email: user.email,
+            department: user.department,
+          };
+        }
+        break;
+    }
+ 
+    if (isDev) {
+      console.log('[adminGetReportedItem] report_id:', reportId);
+    }
+ 
+    res.status(200).json({
+      success: true,
+      message: 'Report retrieved successfully.',
+      data: {
+        report: {
+          id: report.id,
+          reason: report.reason,
+          status: report.status,
+          description: report.description,
+          reported_by: {
+            id: report.profiles.id,
+            username: report.profiles.username,
+            full_name: report.profiles.full_name,
+          },
+          reported_at: report.created_at,
+          reviewed_by: report.reviewed_by,
+          reviewed_at: report.reviewed_at,
+          resolution_notes: report.resolution_notes,
+        },
+        entity: entityDetails,
+      },
+    });
+  } catch (err) {
+    console.error('[adminGetReportedItem] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch report details.',
+    });
+  }
+};
+ 
+// ===== FULL REPORTS AUDIT (global, all statuses) =====
+ 
+export const adminListReports = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const { status, entity_type, department, from, to } = req.query;
+  const isDev = process.env.NODE_ENV === 'development';
+ 
+  if (status && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid status filter. Must be one of: ${VALID_STATUSES.join(', ')}`,
+    });
+  }
+ 
+  if (entity_type && !VALID_ENTITY_TYPES.includes(entity_type)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid entity_type filter. Must be one of: ${VALID_ENTITY_TYPES.join(', ')}`,
+    });
+  }
+ 
+  try {
+    const profilesEmbed = department
+      ? 'profiles!conversation_reports_reported_by_fkey!inner(id, username, full_name, email, department)'
+      : 'profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)';
+ 
+    let query = supabaseAdmin
+      .from('conversation_reports')
+      .select(
+        `
+        id, entity_type, entity_id, reason, status, created_at, reviewed_at, reviewed_by,
+        ${profilesEmbed}
+      `,
+        { count: 'exact' }
+      );
+ 
+    if (status) query = query.eq('status', status);
+    if (entity_type) query = query.eq('entity_type', entity_type);
+    if (department) query = query.eq('profiles.department', department);
+    if (from) query = query.gte('created_at', from);
+    if (to) query = query.lte('created_at', to);
+ 
+    const { data: reports, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+ 
+    if (error) throw error;
+ 
+    if (isDev) {
+      console.log('[adminListReports] filters:', { status, entity_type, department, from, to }, 'count:', count);
+    }
+ 
+    const formatted = (reports || []).map(r => ({
+      id: r.id,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      reason: r.reason,
+      status: r.status,
+      reported_by: r.profiles ? {
+        id: r.profiles.id,
+        username: r.profiles.username,
+        full_name: r.profiles.full_name,
+        department: r.profiles.department,
+      } : null,
+      created_at: r.created_at,
+      reviewed_at: r.reviewed_at,
+      reviewed_by: r.reviewed_by,
+    }));
+ 
+    res.status(200).json({
+      success: true,
+      message: 'Reports retrieved successfully.',
+      data: formatted,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        has_more: offset + limit < (count || 0),
+      },
+    });
+  } catch (err) {
+    console.error('[adminListReports] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to fetch reports.',
+    });
+  }
+};
+ 
+export const adminReviewReport = async (req, res) => {
+  const { reportId } = req.params;
+  const { status, resolution_notes } = req.body;
+  const admin_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+ 
+  if (!reportId || !status) {
+    return res.status(400).json({
+      success: false,
+      message: 'Report ID and status are required.',
+    });
+  }
+ 
+  if (!VALID_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
+    });
+  }
+ 
+  try {
+    // Get report
+    const { data: report, error: reportError } = await supabaseAdmin
+      .from('conversation_reports')
+      .select('id, status')
+      .eq('id', reportId)
+      .single();
+ 
+    if (reportError || !report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found.',
+      });
+    }
+ 
+    // Update report
+    const { error: updateError } = await supabaseAdmin
+      .from('conversation_reports')
+      .update({
+        status: status,
+        reviewed_by: admin_id,
+        reviewed_at: new Date().toISOString(),
+        resolution_notes: resolution_notes || null,
+      })
+      .eq('id', reportId);
+ 
+    if (updateError) throw updateError;
+ 
+    if (isDev) {
+      console.log('[adminReviewReport] report_id:', reportId, 'status:', status, 'admin_id:', admin_id);
+    }
+ 
+    res.status(200).json({
+      success: true,
+      message: `Report marked as ${status}.`,
+      data: {
+        report_id: reportId,
+        status: status,
+        reviewed_by: admin_id,
+        reviewed_at: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error('[adminReviewReport] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to review report.',
+    });
+  }
+};
+ 
+// ===== USER PASSWORD MANAGEMENT =====
+const MIN_PASSWORD_LENGTH = 8;
+const BCRYPT_SALT_ROUNDS = 10;
+ 
+export const adminUpdateUserPassword = async (req, res) => {
+  const { email, new_password } = req.body;
+  const admin_id = req.user.id;
+  const isDev = process.env.NODE_ENV === 'development';
+ 
+  if (!email || !new_password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email and new password are required.',
+    });
+  }
+ 
+  if (typeof new_password !== 'string' || new_password.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({
+      success: false,
+      message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    });
+  }
+ 
+  try {
+    // Look up the target user by email
+    const { data: targetUser, error: lookupError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username, full_name, email')
+      .eq('email', email)
+      .single();
+ 
+    if (lookupError || !targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with that email.',
+      });
+    }
+ 
+    // This app stores its own bcrypt hash on profiles.password_hash rather
+    // than using Supabase Auth's user store, so the password is updated
+    // directly on the row — no old password, no Supabase Auth admin call.
+    const password_hash = await bcrypt.hash(new_password, BCRYPT_SALT_ROUNDS);
+ 
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        password_hash,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', targetUser.id);
+ 
+    if (updateError) throw updateError;
+ 
+    // Never log the password itself — only who did what to whom, and when.
+    console.log('[adminUpdateUserPassword] admin_id:', admin_id, 'target_user_id:', targetUser.id, 'target_email:', email, 'at:', new Date().toISOString());
+ 
+    if (isDev) {
+      console.log('[adminUpdateUserPassword] password reset completed for:', targetUser.username || targetUser.email);
+    }
+ 
+    res.status(200).json({
+      success: true,
+      message: `Password updated successfully for ${targetUser.full_name || targetUser.username || email}.`,
+      data: {
+        user_id: targetUser.id,
+        email: targetUser.email,
+      },
+    });
+  } catch (err) {
+    console.error('[adminUpdateUserPassword] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to update password.',
+    });
+  }
+};

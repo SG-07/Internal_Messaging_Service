@@ -820,3 +820,248 @@ export async function removeTeamMember(
     throw error;
   }
 }
+
+// ============================================================
+// ADMIN - REPORT OVERSIGHT
+// ============================================================
+
+
+// GET /api/admin/reports/items
+//
+// Returns reported items available for admin review.
+export async function adminGetReportedItems() {
+  const endpoint =
+    "/api/admin/reports/items";
+
+  debugLog(
+    "ADMIN REPORTED ITEMS → Request",
+    {
+      endpoint,
+      method: "GET",
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint);
+
+    debugLog(
+      "ADMIN REPORTED ITEMS ← Response",
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      "ADMIN REPORTED ITEMS ← Error Response",
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
+// GET /api/admin/reports/items/:reportId
+//
+// Returns:
+// {
+//   report: {...},
+//   entity: {
+//     ...,
+//     messages: [...]
+//   }
+// }
+export async function adminGetReportedItem(
+  reportId
+) {
+  const endpoint =
+    `/api/admin/reports/items/${reportId}`;
+
+  debugLog(
+    "ADMIN REPORTED ITEM → Request",
+    {
+      endpoint,
+      method: "GET",
+      reportId,
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint);
+
+    debugLog(
+      "ADMIN REPORTED ITEM ← Response",
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      "ADMIN REPORTED ITEM ← Error Response",
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
+// GET /api/admin/reports
+//
+// Returns all reports globally.
+export async function adminGetReports() {
+  const endpoint =
+    "/api/admin/reports";
+
+  debugLog(
+    "ADMIN REPORTS → Request",
+    {
+      endpoint,
+      method: "GET",
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint);
+
+    debugLog(
+      "ADMIN REPORTS ← Response",
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      "ADMIN REPORTS ← Error Response",
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}
+
+
+// PATCH /api/admin/reports/:reportId/review
+//
+// Expected body:
+// {
+//   status: "reviewed",
+//   resolution_notes: "..."
+//
+// }
+export async function adminReviewReport(
+  reportId,
+  payload
+) {
+  const endpoint =
+    `/api/admin/reports/${reportId}/review`;
+
+  debugLog(
+    "ADMIN REVIEW REPORT → Request",
+    {
+      endpoint,
+      method: "PATCH",
+      reportId,
+      payload,
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+
+    debugLog(
+      "ADMIN REVIEW REPORT ← Response",
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      "ADMIN REVIEW REPORT ← Error Response",
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}
+
+// ============================================================
+// ADMIN - USER PASSWORD
+// ============================================================
+export async function adminUpdateUserPassword(
+  payload
+) {
+  const endpoint =
+    "/api/admin/users/password";
+
+  debugLog(
+    "ADMIN UPDATE USER PASSWORD → Request",
+    {
+      endpoint,
+      method: "PATCH",
+      payload: {
+        email: payload.email,
+        new_password: "********",
+      },
+    }
+  );
+
+  try {
+    const response =
+      await request(endpoint, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+
+    debugLog(
+      "ADMIN UPDATE USER PASSWORD ← Response",
+      {
+        endpoint,
+        response,
+      }
+    );
+
+    return response;
+  } catch (error) {
+    debugLog(
+      "ADMIN UPDATE USER PASSWORD ← Error Response",
+      {
+        endpoint,
+        error: error.message,
+      }
+    );
+
+    throw error;
+  }
+}

@@ -545,24 +545,33 @@ export const managerGetDepartmentUser = async (req, res) => {
   }
 };
 
-// ===== REPORTED ITEMS OVERSIGHT (global — not department-scoped) =====
+// ===== REPORTED ITEMS OVERSIGHT (scoped to manager's department) =====
 
 export const managerListReportedItems = async (req, res) => {
+  const manager_dept = req.user.department;
   const page = parseInt(req.query.page) || 1;
   const limit = 20;
   const offset = (page - 1) * limit;
   const isDev = process.env.NODE_ENV === 'development';
 
   try {
+    if (!manager_dept) {
+      return res.status(400).json({
+        success: false,
+        message: 'Department not assigned to your account.',
+      });
+    }
+
     const { data: reports, error, count } = await supabaseAdmin
       .from('conversation_reports')
       .select(
         `
         id, entity_type, entity_id, reason, status, description, created_at,
-        profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)
+        profiles!conversation_reports_reported_by_fkey!inner(id, username, full_name, email, department)
       `,
         { count: 'exact' }
       )
+      .eq('profiles.department', manager_dept)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -570,7 +579,7 @@ export const managerListReportedItems = async (req, res) => {
     if (error) throw error;
 
     if (isDev) {
-      console.log('[managerListReportedItems] count:', count);
+      console.log('[managerListReportedItems] dept:', manager_dept, 'count:', count);
     }
 
     const formatted = (reports || []).map(r => ({
@@ -612,6 +621,7 @@ export const managerListReportedItems = async (req, res) => {
 
 export const managerGetReportedItem = async (req, res) => {
   const { reportId } = req.params;
+  const manager_dept = req.user.department;
   const isDev = process.env.NODE_ENV === 'development';
 
   if (!reportId) {
@@ -638,6 +648,14 @@ export const managerGetReportedItem = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Report not found.',
+      });
+    }
+
+    // Verify reporter is in manager's department
+    if (report.profiles.department !== manager_dept) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only view reports from your department.',
       });
     }
 
@@ -789,28 +807,37 @@ export const managerGetReportedItem = async (req, res) => {
 };
 
 export const managerListReports = async (req, res) => {
+  const manager_dept = req.user.department;
   const page = parseInt(req.query.page) || 1;
   const limit = 20;
   const offset = (page - 1) * limit;
   const isDev = process.env.NODE_ENV === 'development';
 
   try {
+    if (!manager_dept) {
+      return res.status(400).json({
+        success: false,
+        message: 'Department not assigned to your account.',
+      });
+    }
+
     const { data: reports, error, count } = await supabaseAdmin
       .from('conversation_reports')
       .select(
         `
         id, entity_type, entity_id, reason, status, created_at, reviewed_at,
-        profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)
+        profiles!conversation_reports_reported_by_fkey!inner(id, username, full_name, email, department)
       `,
         { count: 'exact' }
       )
+      .eq('profiles.department', manager_dept)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
     if (isDev) {
-      console.log('[managerListReports] count:', count);
+      console.log('[managerListReports] dept:', manager_dept, 'count:', count);
     }
 
     const formatted = (reports || []).map(r => ({
@@ -852,6 +879,7 @@ export const managerReviewReport = async (req, res) => {
   const { reportId } = req.params;
   const { status, resolution_notes } = req.body;
   const manager_id = req.user.id;
+  const manager_dept = req.user.department;
   const isDev = process.env.NODE_ENV === 'development';
 
   if (!reportId || !status) {
@@ -873,7 +901,7 @@ export const managerReviewReport = async (req, res) => {
     // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
-      .select('id, status')
+      .select('id, status, profiles!conversation_reports_reported_by_fkey(department)')
       .eq('id', reportId)
       .single();
 
@@ -881,6 +909,14 @@ export const managerReviewReport = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Report not found.',
+      });
+    }
+
+    // Verify reporter is in manager's department
+    if (report.profiles.department !== manager_dept) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only review reports from your department.',
       });
     }
 

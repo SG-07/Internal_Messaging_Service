@@ -16,77 +16,67 @@ function DashboardSidebar({ onCompose }) {
   // MAIN NAVIGATION
   // ============================================================
 
-  const isInbox =
-    location.pathname === "/dashboard";
+  const isInbox = location.pathname === "/dashboard";
 
-  const isSent =
-    location.pathname === "/dashboard/sent";
-
+  const isSent = location.pathname === "/dashboard/sent";
 
   // ============================================================
   // WORKFLOWS
   // ============================================================
 
   const isPendingWorkflows =
-    location.pathname ===
-    "/dashboard/workflows/pending";
+    location.pathname === "/dashboard/workflows/pending";
 
   const isMyWorkflowRequests =
-    location.pathname ===
-    "/dashboard/workflows/mine";
-
+    location.pathname === "/dashboard/workflows/mine";
 
   // ============================================================
   // GROUPS
   // ============================================================
 
-  const isCreateGroup =
-    location.pathname === "/groups/create";
+  const isCreateGroup = location.pathname === "/groups/create";
 
-  const isGroups =
-    location.pathname === "/groups";
+  const isGroups = location.pathname === "/groups";
 
-  const isMyGroups =
-    location.pathname === "/my-groups";
-
+  const isMyGroups = location.pathname === "/my-groups";
 
   // ============================================================
   // REPORTS
   // ============================================================
 
-  const isMyReports =
-    location.pathname === "/reports/my-reports";
-
+  const isMyReports = location.pathname === "/reports/my-reports";
 
   // ============================================================
   // MANAGER
   // ============================================================
 
-  const isManagerTeams =
-    location.pathname === "/manager/teams";
+  const isManagerTeams = location.pathname === "/manager/teams";
 
-  const isDepartmentUsers =
-    location.pathname ===
-    "/manager/department/users";
+  const isDepartmentUsers = location.pathname === "/manager/department/users";
 
-  const isManagerReports =
-    location.pathname === "/manager/reports";
+  const isManagerReports = location.pathname === "/manager/reports";
 
-  const isReportedItems =
-    location.pathname ===
-    "/manager/reported-items";
-
+  const isManagerReportedItems =
+    location.pathname === "/manager/reported-items";
 
   // ============================================================
   // ADMIN
   // ============================================================
 
-  const isAdminUsers =
-    location.pathname === "/admin/users";
+  const isAdminUsers = location.pathname === "/admin/users";
+  const isAdminUpdatePassword = location.pathname === "/admin/users/password";
 
-  const isAdminTeams =
-    location.pathname === "/admin/teams";
+  // NOTE:
+  // App.jsx currently uses /teams for Admin Teams.
+  const isAdminTeams = location.pathname === "/teams";
 
+  const isAdminReports = location.pathname === "/admin/reports";
+
+  const isAdminReportedItems = location.pathname === "/admin/reported-items";
+
+  // ============================================================
+  // NAVIGATION CLASS
+  // ============================================================
 
   function getNavClass(active) {
     return `w-full rounded-lg px-4 py-3 text-left text-sm transition ${
@@ -96,10 +86,8 @@ function DashboardSidebar({ onCompose }) {
     }`;
   }
 
-
   return (
     <aside className="flex min-h-[calc(100vh-130px)] w-56 shrink-0 flex-col rounded-xl bg-white p-4 shadow">
-
       {/* ======================================================
           COMPOSE
       ====================================================== */}
@@ -112,13 +100,11 @@ function DashboardSidebar({ onCompose }) {
         + Compose
       </button>
 
-
       {/* ======================================================
           MAIN NAVIGATION
       ====================================================== */}
 
       <nav className="space-y-1">
-
         <button
           type="button"
           onClick={() => navigate("/dashboard")}
@@ -129,143 +115,96 @@ function DashboardSidebar({ onCompose }) {
 
         <button
           type="button"
-          onClick={() =>
-            navigate("/dashboard/sent")
-          }
+          onClick={() => navigate("/dashboard/sent")}
           className={getNavClass(isSent)}
         >
           Sent
         </button>
-
       </nav>
-
 
       {/* ======================================================
           WORKFLOWS
       ====================================================== */}
 
       <div className="mt-8">
-
         <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
           Workflows
         </p>
 
         <nav className="space-y-1">
-
           <button
             type="button"
-            onClick={() =>
-              navigate(
-                "/dashboard/workflows/pending"
-              )
-            }
-            className={getNavClass(
-              isPendingWorkflows
-            )}
+            onClick={() => navigate("/dashboard/workflows/pending")}
+            className={getNavClass(isPendingWorkflows)}
           >
             Pending Workflows
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              navigate(
-                "/dashboard/workflows/mine"
-              )
-            }
-            className={getNavClass(
-              isMyWorkflowRequests
-            )}
+            onClick={() => navigate("/dashboard/workflows/mine")}
+            className={getNavClass(isMyWorkflowRequests)}
           >
             My Workflow Requests
           </button>
-
         </nav>
-
       </div>
-
 
       {/* ======================================================
           GROUPS
       ====================================================== */}
 
       <div className="mt-8">
-
         <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
           Groups
         </p>
 
         <nav className="space-y-1">
-
           <button
             type="button"
-            onClick={() =>
-              navigate("/groups/create")
-            }
-            className={getNavClass(
-              isCreateGroup
-            )}
+            onClick={() => navigate("/groups/create")}
+            className={getNavClass(isCreateGroup)}
           >
             + Create Group
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              navigate("/groups")
-            }
-            className={getNavClass(
-              isGroups
-            )}
+            onClick={() => navigate("/groups")}
+            className={getNavClass(isGroups)}
           >
             All Groups
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              navigate("/my-groups")
-            }
-            className={getNavClass(
-              isMyGroups
-            )}
+            onClick={() => navigate("/my-groups")}
+            className={getNavClass(isMyGroups)}
           >
             My Groups
           </button>
-
         </nav>
-
       </div>
-
 
       {/* ======================================================
           REPORTS
       ====================================================== */}
 
       <div className="mt-8">
-
         <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
           Reports
         </p>
 
         <nav className="space-y-1">
-
           <button
             type="button"
-            onClick={() =>
-              navigate("/reports/my-reports")
-            }
-            className={getNavClass(
-              isMyReports
-            )}
+            onClick={() => navigate("/reports/my-reports")}
+            className={getNavClass(isMyReports)}
           >
             My Reports
           </button>
-
         </nav>
-
       </div>
-
 
       {/* ======================================================
           MANAGER NAVIGATION
@@ -273,81 +212,53 @@ function DashboardSidebar({ onCompose }) {
 
       {isManager && (
         <div className="mt-8">
-
           <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
             Manager
           </p>
 
           <nav className="space-y-1">
-
             {/* My Teams */}
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/manager/teams")
-              }
-              className={getNavClass(
-                isManagerTeams
-              )}
+              onClick={() => navigate("/manager/teams")}
+              className={getNavClass(isManagerTeams)}
             >
               My Teams
             </button>
-
 
             {/* Department Users */}
 
             <button
               type="button"
-              onClick={() =>
-                navigate(
-                  "/manager/department/users"
-                )
-              }
-              className={getNavClass(
-                isDepartmentUsers
-              )}
+              onClick={() => navigate("/manager/department/users")}
+              className={getNavClass(isDepartmentUsers)}
             >
               Department Users
             </button>
 
-
-            {/* All Reports */}
+            {/* Reports */}
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/manager/reports")
-              }
-              className={getNavClass(
-                isManagerReports
-              )}
+              onClick={() => navigate("/manager/reports")}
+              className={getNavClass(isManagerReports)}
             >
               Reports
             </button>
-
 
             {/* Reported Items */}
 
             <button
               type="button"
-              onClick={() =>
-                navigate(
-                  "/manager/reported-items"
-                )
-              }
-              className={getNavClass(
-                isReportedItems
-              )}
+              onClick={() => navigate("/manager/reported-items")}
+              className={getNavClass(isManagerReportedItems)}
             >
               Reported Items
             </button>
-
           </nav>
-
         </div>
       )}
-
 
       {/* ======================================================
           ADMIN NAVIGATION
@@ -355,47 +266,61 @@ function DashboardSidebar({ onCompose }) {
 
       {isAdmin && (
         <div className="mt-8">
-
           <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
             Administration
           </p>
 
           <nav className="space-y-1">
-
             {/* Users */}
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/admin/users")
-              }
-              className={getNavClass(
-                isAdminUsers
-              )}
+              onClick={() => navigate("/admin/users")}
+              className={getNavClass(isAdminUsers)}
             >
               Users
             </button>
 
+            <button
+              type="button"
+              onClick={() => navigate("/admin/users/password")}
+              className={getNavClass(isAdminUpdatePassword)}
+            >
+              Update User Password
+            </button>
 
             {/* Teams */}
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/admin/teams")
-              }
-              className={getNavClass(
-                isAdminTeams
-              )}
+              onClick={() => navigate("/teams")}
+              className={getNavClass(isAdminTeams)}
             >
               Teams
             </button>
 
-          </nav>
+            {/* Reports */}
 
+            <button
+              type="button"
+              onClick={() => navigate("/admin/reports")}
+              className={getNavClass(isAdminReports)}
+            >
+              Reports
+            </button>
+
+            {/* Reported Items */}
+
+            <button
+              type="button"
+              onClick={() => navigate("/admin/reported-items")}
+              className={getNavClass(isAdminReportedItems)}
+            >
+              Reported Items
+            </button>
+          </nav>
         </div>
       )}
-
     </aside>
   );
 }

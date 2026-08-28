@@ -60,7 +60,11 @@ import ManagerDepartmentUserDetails from "./pages/manager/ManagerDepartmentUserD
 import ManagerReports from "./pages/manager/ManagerReports";
 import ManagerReportedItems from "./pages/manager/ManagerReportedItems";
 import ManagerReportedItemDetails from "./pages/manager/ManagerReportedItemDetails";
-// import ManagerReportedItemDetails from "./pages/manager/ManagerReportedItemDetails";
+
+// Admin Reporting Pages
+import AdminReports from "./pages/admin/AdminReports";
+import AdminReportedItemDetails from "./pages/admin/AdminReportedItemDetails";
+import AdminUpdateUserPassword from "./pages/admin/AdminUpdateUserPassword";
 
 function App() {
   return (
@@ -342,25 +346,6 @@ function App() {
             }
           />
 
-          {/*
-          ----------------------------------------------------
-          Manager Report Details
-
-          Backend endpoint:
-          GET /api/manager/reported-items/:reportId
-
-          UI page will be created later.
-
-          <Route
-            path="/manager/reported-items/:reportId"
-            element={
-              <ProtectedRoute>
-                <ManagerReportedItemDetails />
-              </ProtectedRoute>
-            }
-          />
-          */}
-
           {/* ==================================================
               ADMIN USERS
           ================================================== */}
@@ -374,11 +359,45 @@ function App() {
             }
           />
 
+
+          <Route
+            path="/admin/users/password"
+            element={
+              <ProtectedRoute>
+                <AdminUpdateUserPassword />
+              </ProtectedRoute>
+            }
+          />
+
+          
           <Route
             path="/admin/users/:userId"
             element={
               <ProtectedRoute>
                 <UserDetails />
+              </ProtectedRoute>
+            }
+          />
+
+
+          {/* ==================================================
+               ADMIN REPORTING
+           ================================================== */}
+
+          <Route
+            path="/admin/reports"
+            element={
+              <ProtectedRoute>
+                <AdminReports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/reports/:reportId"
+            element={
+              <ProtectedRoute>
+                <AdminReportedItemDetails />
               </ProtectedRoute>
             }
           />
