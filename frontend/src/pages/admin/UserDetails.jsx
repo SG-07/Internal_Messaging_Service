@@ -11,7 +11,6 @@ import {
   updateUserTeamStatus,
 } from '../../api/admin';
 
-import DashboardLayout from '../dashboard/DashboardLayout';
 
 const DEPARTMENTS = [
   'HR',
