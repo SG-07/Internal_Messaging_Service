@@ -37,6 +37,59 @@ function buildWorkflow(conv) {
   };
 }
 
+/**
+ * Fetches every participant in a conversation (with profile info) in one
+ * query, then shapes the result differently depending on conversation
+ * type:
+ *   - 'direct': the old other_user_name/other_user_email fields, for the
+ *     1:1 "who am I talking to" UI.
+ *   - 'group' / 'team': a full participants array, since there's no single
+ *     "other" person.
+ *
+ * Replaces the old pattern of `.neq('user_id', created_by).single()` to
+ * find "the other participant" — that call throws whenever a conversation
+ * has more than 2 participants, which silently broke every broadcast for
+ * group/team conversations (the handler errored and returned before
+ * reaching broadcastToUsers).
+ */
+async function getParticipantInfo(conversationId, conversationType, createdBy) {
+  const { data: participantRows, error: participantsError } = await supabaseAdmin
+    .from('conversation_participants')
+    .select('user_id, profiles(id, username, full_name, email)')
+    .eq('conversation_id', conversationId);
+
+  if (participantsError) {
+    return { error: participantsError };
+  }
+
+  const participantUserIds = (participantRows || []).map((p) => p.user_id);
+
+  if (conversationType === 'direct') {
+    const other = (participantRows || []).find((p) => p.user_id !== createdBy);
+
+    return {
+      error: null,
+      participantUserIds,
+      otherUserName: other?.profiles?.full_name || other?.profiles?.username || null,
+      otherUserEmail: other?.profiles?.email || null,
+      participants: null,
+    };
+  }
+
+  return {
+    error: null,
+    participantUserIds,
+    otherUserName: null,
+    otherUserEmail: null,
+    participants: (participantRows || []).map((p) => ({
+      id: p.profiles?.id || p.user_id,
+      username: p.profiles?.username || null,
+      full_name: p.profiles?.full_name || null,
+      email: p.profiles?.email || null,
+    })),
+  };
+}
+
 export function initDbListener() {
   console.log('[DbListener] ===== FINAL VERSION LOADED =====');
   console.log('[DbListener] Initializing database change listener...');
@@ -77,27 +130,10 @@ export function initDbListener() {
           return;
         }
 
-        // Get all participants for broadcasting
-        const { data: participants, error: participantsError } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conversation_id);
+        const participantInfo = await getParticipantInfo(conversation_id, conversation.conversation_type, created_by);
 
-        if (participantsError) {
-          console.error('[DbListener] Error fetching participants:', participantsError.message);
-          return;
-        }
-
-        // Find the OTHER participant (not the creator)
-        const { data: otherParticipant, error: otherError } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('profiles(id, username, full_name, email)')
-          .eq('conversation_id', conversation_id)
-          .neq('user_id', created_by)
-          .single();
-
-        if (otherError) {
-          console.error('[DbListener] Error fetching other participant:', otherError.message);
+        if (participantInfo.error) {
+          console.error('[DbListener] Error fetching participants:', participantInfo.error.message);
           return;
         }
 
@@ -111,11 +147,9 @@ export function initDbListener() {
           created_by_name: conversation.creator?.full_name || conversation.creator?.username || null,
           created_by_email: conversation.creator?.email || null,
           is_sender: false, // Will be computed by frontend based on their user ID
-          other_user_name:
-            otherParticipant?.profiles?.full_name ||
-            otherParticipant?.profiles?.username ||
-            null,
-          other_user_email: otherParticipant?.profiles?.email || null,
+          other_user_name: participantInfo.otherUserName,
+          other_user_email: participantInfo.otherUserEmail,
+          participants: participantInfo.participants, // populated for group/team, null for direct
           created_at: conversation.created_at,
           updated_at: conversation.updated_at,
           workflow: buildWorkflow(conversation),
@@ -132,9 +166,6 @@ export function initDbListener() {
             sender_id,
             created_at,
             updated_at,
-            is_read,
-            read_at,
-            is_edited,
             profiles:sender_id(id, username, full_name, email)
           `
           )
@@ -157,13 +188,10 @@ export function initDbListener() {
           sender_email: message.profiles?.email || null,
           created_at: message.created_at,
           updated_at: message.updated_at,
-          is_read: message.is_read || false,
-          read_at: message.read_at || null,
-          is_edited: message.is_edited || false,
         };
 
-        console.log('[DbListener] Broadcasting new_conversation to', participants.length, 'users');
-        broadcastToUsers(participants?.map((p) => p.user_id) || [], {
+        console.log('[DbListener] Broadcasting new_conversation to', participantInfo.participantUserIds.length, 'users');
+        broadcastToUsers(participantInfo.participantUserIds, {
           type: 'new_conversation',
           conversationId: conversation_id,
           conversation: transformedConversation,
@@ -212,16 +240,10 @@ export function initDbListener() {
         const conversationLink = conversationLinks[0];
         const conv = conversationLink.conversations;
 
-        // Find the OTHER participant (not the creator)
-        const { data: otherParticipant, error: otherError } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('profiles(id, username, full_name, email)')
-          .eq('conversation_id', conversation_id)
-          .neq('user_id', conv.created_by)
-          .single();
+        const participantInfo = await getParticipantInfo(conversation_id, conv.conversation_type, conv.created_by);
 
-        if (otherError) {
-          console.error('[DbListener] Error fetching other participant:', otherError.message);
+        if (participantInfo.error) {
+          console.error('[DbListener] Error fetching participants:', participantInfo.error.message);
           return;
         }
 
@@ -237,17 +259,6 @@ export function initDbListener() {
           return;
         }
 
-        // Get all participants for broadcasting
-        const { data: participants, error: participantsError } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conversation_id);
-
-        if (participantsError) {
-          console.error('[DbListener] Error fetching participants:', participantsError.message);
-          return;
-        }
-
         // Transform conversation using EXACT SAME logic as getConversations()
         const transformedConversation = {
           id: conv.id,
@@ -258,11 +269,9 @@ export function initDbListener() {
           created_by_name: conv.creator?.full_name || conv.creator?.username || null,
           created_by_email: conv.creator?.email || null,
           is_sender: false, // Will be computed by frontend based on their user ID
-          other_user_name:
-            otherParticipant?.profiles?.full_name ||
-            otherParticipant?.profiles?.username ||
-            null,
-          other_user_email: otherParticipant?.profiles?.email || null,
+          other_user_name: participantInfo.otherUserName,
+          other_user_email: participantInfo.otherUserEmail,
+          participants: participantInfo.participants, // populated for group/team, null for direct
           created_at: conv.created_at,
           updated_at: conv.updated_at,
           workflow: buildWorkflow(conv),
@@ -278,13 +287,10 @@ export function initDbListener() {
           sender_email: senderProfile?.email || null,
           created_at: payload.new.created_at,
           updated_at: payload.new.updated_at,
-          is_read: payload.new.is_read || false,
-          read_at: payload.new.read_at || null,
-          is_edited: payload.new.is_edited || false,
         };
 
-        console.log('[DbListener] Broadcasting new_message to', participants.length, 'users');
-        broadcastToUsers(participants?.map((p) => p.user_id) || [], {
+        console.log('[DbListener] Broadcasting new_message to', participantInfo.participantUserIds.length, 'users');
+        broadcastToUsers(participantInfo.participantUserIds, {
           type: 'new_message',
           conversationId: conversation_id,
           conversation: transformedConversation,
@@ -333,27 +339,10 @@ export function initDbListener() {
         const conversationLink = conversationLinks[0];
         const conv = conversationLink.conversations;
 
-        // Find the OTHER participant (not the creator)
-        const { data: otherParticipant, error: otherError } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('profiles(id, username, full_name, email)')
-          .eq('conversation_id', id)
-          .neq('user_id', conv.created_by)
-          .single();
+        const participantInfo = await getParticipantInfo(id, conv.conversation_type, conv.created_by);
 
-        if (otherError) {
-          console.error('[DbListener] Error fetching other participant:', otherError.message);
-          return;
-        }
-
-        // Get all participants for broadcasting
-        const { data: participants, error: participantsError } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', id);
-
-        if (participantsError) {
-          console.error('[DbListener] Error fetching participants:', participantsError.message);
+        if (participantInfo.error) {
+          console.error('[DbListener] Error fetching participants:', participantInfo.error.message);
           return;
         }
 
@@ -367,18 +356,16 @@ export function initDbListener() {
           created_by_name: conv.creator?.full_name || conv.creator?.username || null,
           created_by_email: conv.creator?.email || null,
           is_sender: false, // Will be computed by frontend based on their user ID
-          other_user_name:
-            otherParticipant?.profiles?.full_name ||
-            otherParticipant?.profiles?.username ||
-            null,
-          other_user_email: otherParticipant?.profiles?.email || null,
+          other_user_name: participantInfo.otherUserName,
+          other_user_email: participantInfo.otherUserEmail,
+          participants: participantInfo.participants, // populated for group/team, null for direct
           created_at: conv.created_at,
           updated_at: conv.updated_at,
           workflow: buildWorkflow(conv),
         };
 
-        console.log('[DbListener] Broadcasting conversation_updated to', participants.length, 'users');
-        broadcastToUsers(participants?.map((p) => p.user_id) || [], {
+        console.log('[DbListener] Broadcasting conversation_updated to', participantInfo.participantUserIds.length, 'users');
+        broadcastToUsers(participantInfo.participantUserIds, {
           type: 'conversation_updated',
           conversationId: id,
           conversation: transformedConversation,

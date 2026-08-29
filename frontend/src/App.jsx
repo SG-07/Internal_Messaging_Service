@@ -66,6 +66,9 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminReportedItemDetails from "./pages/admin/AdminReportedItemDetails";
 import AdminUpdateUserPassword from "./pages/admin/AdminUpdateUserPassword";
 
+// Team Management Pages
+import MyTeams from "./pages/teams/MyTeams";
+
 function App() {
   return (
     <WebSocketProvider>
@@ -359,7 +362,6 @@ function App() {
             }
           />
 
-
           <Route
             path="/admin/users/password"
             element={
@@ -369,7 +371,6 @@ function App() {
             }
           />
 
-          
           <Route
             path="/admin/users/:userId"
             element={
@@ -378,7 +379,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
 
           {/* ==================================================
                ADMIN REPORTING
@@ -420,6 +420,19 @@ function App() {
             element={
               <ProtectedRoute>
                 <TeamEdit />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ==================================================
+              TEAM MANAGEMENT
+          ================================================== */}
+
+          <Route
+            path="/my-teams"
+            element={
+              <ProtectedRoute>
+                <MyTeams />
               </ProtectedRoute>
             }
           />

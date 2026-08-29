@@ -19,7 +19,14 @@ import { requireAuth, requireManagerOrAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
-// ===== TEAM MANAGEMENT (NEW - Steps 2-5) =====
+// ===== MANAGER OVERSIGHT (OLD - Existing) =====
+router.post('/request', requireAuth, requireManagerOrAdmin, requestTeam);
+router.get('/my-requests', requireAuth, requireManagerOrAdmin, getMyTeamRequests);
+router.get('/my-team', requireAuth, requireManagerOrAdmin, getMyTeamMembers);
+router.get('/my-team/members/:userId/conversations', requireAuth, requireManagerOrAdmin, getTeamMemberConversations);
+router.get('/conversations/:conversationId', requireAuth, requireManagerOrAdmin, getTeamMemberConversation);
+
+// ===== Admin TEAM MANAGEMENT (NEW - Steps 2-5) =====
 router.post('/create', requireAuth, requireManagerOrAdmin, createTeam);
 router.get('/me/teams', requireAuth, listUserTeams);
 router.get('/:teamId', requireAuth, getTeam);
@@ -31,11 +38,6 @@ router.get('/:teamId/members', requireAuth, listTeamMembers);
 router.delete('/:teamId/members/:userId', requireAuth, requireManagerOrAdmin, removeTeamMember);
 router.post('/:teamId/leave', requireAuth, leaveTeam);
 
-// ===== MANAGER OVERSIGHT (OLD - Existing) =====
-router.post('/request', requireAuth, requireManagerOrAdmin, requestTeam);
-router.get('/my-requests', requireAuth, requireManagerOrAdmin, getMyTeamRequests);
-router.get('/my-team', requireAuth, requireManagerOrAdmin, getMyTeamMembers);
-router.get('/my-team/members/:userId/conversations', requireAuth, requireManagerOrAdmin, getTeamMemberConversations);
-router.get('/conversations/:conversationId', requireAuth, requireManagerOrAdmin, getTeamMemberConversation);
+
 
 export default router;

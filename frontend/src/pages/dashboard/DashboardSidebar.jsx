@@ -41,6 +41,12 @@ function DashboardSidebar({ onCompose }) {
   const isMyGroups = location.pathname === "/my-groups";
 
   // ============================================================
+  // TEAMS
+  // ============================================================
+
+  const isMyTeams = location.pathname === "/my-teams";
+
+  // ============================================================
   // REPORTS
   // ============================================================
 
@@ -50,29 +56,27 @@ function DashboardSidebar({ onCompose }) {
   // MANAGER
   // ============================================================
 
-  const isManagerTeams = location.pathname === "/manager/teams";
+  const isDepartmentUsers =
+    location.pathname === "/manager/department/users";
 
-  const isDepartmentUsers = location.pathname === "/manager/department/users";
-
-  const isManagerReports = location.pathname === "/manager/reports";
-
-  const isManagerReportedItems =
-    location.pathname === "/manager/reported-items";
+  const isManagerReports =
+    location.pathname === "/manager/reports";
 
   // ============================================================
   // ADMIN
   // ============================================================
 
-  const isAdminUsers = location.pathname === "/admin/users";
-  const isAdminUpdatePassword = location.pathname === "/admin/users/password";
+  const isAdminUsers =
+    location.pathname === "/admin/users";
 
-  // NOTE:
-  // App.jsx currently uses /teams for Admin Teams.
-  const isAdminTeams = location.pathname === "/admin/teams";
+  const isAdminUpdatePassword =
+    location.pathname === "/admin/users/password";
 
-  const isAdminReports = location.pathname === "/admin/reports";
+  const isAdminTeams =
+    location.pathname === "/admin/teams";
 
-  const isAdminReportedItems = location.pathname === "/admin/reported-items";
+  const isAdminReports =
+    location.pathname === "/admin/reports";
 
   // ============================================================
   // NAVIGATION CLASS
@@ -187,6 +191,26 @@ function DashboardSidebar({ onCompose }) {
       </div>
 
       {/* ======================================================
+          TEAMS
+      ====================================================== */}
+
+      <div className="mt-8">
+        <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          Teams
+        </p>
+
+        <nav className="space-y-1">
+          <button
+            type="button"
+            onClick={() => navigate("/my-teams")}
+            className={getNavClass(isMyTeams)}
+          >
+            My Teams
+          </button>
+        </nav>
+      </div>
+
+      {/* ======================================================
           REPORTS
       ====================================================== */}
 
@@ -217,15 +241,17 @@ function DashboardSidebar({ onCompose }) {
           </p>
 
           <nav className="space-y-1">
-            {/* My Teams */}
+            {/* Create Team */}
 
-            <button
+            {/* <button
               type="button"
-              onClick={() => navigate("/manager/teams")}
-              className={getNavClass(isManagerTeams)}
+              onClick={() => navigate("/manager/teams/create")}
+              className={getNavClass(
+                location.pathname === "/manager/teams/create",
+              )}
             >
-              My Teams
-            </button>
+              + Create Team
+            </button> */}
 
             {/* Department Users */}
 
@@ -245,16 +271,6 @@ function DashboardSidebar({ onCompose }) {
               className={getNavClass(isManagerReports)}
             >
               Reports
-            </button>
-
-            {/* Reported Items */}
-
-            <button
-              type="button"
-              onClick={() => navigate("/manager/reported-items")}
-              className={getNavClass(isManagerReportedItems)}
-            >
-              Reported Items
             </button>
           </nav>
         </div>
@@ -310,16 +326,6 @@ function DashboardSidebar({ onCompose }) {
             >
               Reports
             </button>
-
-            {/* Reported Items
-
-            <button
-              type="button"
-              onClick={() => navigate("/admin/reported-items")}
-              className={getNavClass(isAdminReportedItems)}
-            >
-              Reported Items
-            </button> */}
           </nav>
         </div>
       )}

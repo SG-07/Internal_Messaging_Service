@@ -13,6 +13,7 @@ function ConversationListItem({
     is_sender,
     other_user_name,
     messages,
+    type,
   } = conversation;
 
   function formatCategory(value) {
@@ -85,6 +86,14 @@ function ConversationListItem({
 
             <span className="shrink-0 text-sm font-medium text-gray-700">
               {senderName}
+            </span>
+
+            <span className="text-gray-300">
+              •
+            </span>
+
+            <span className="text-xs text-blue-500">
+              {formatCategory(type)}
             </span>
 
             <span className="text-gray-300">

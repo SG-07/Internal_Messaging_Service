@@ -17,14 +17,41 @@ export const requestTeam = async (req, res) => {
   }
 
   try {
+    // department/manager_id are never taken from the request body — same
+    // rule as admin/manager team creation elsewhere. The requesting
+    // manager becomes the team's manager once approved, in their own
+    // department (fetched from their profile, not the payload).
+    const { data: requester, error: requesterError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, department')
+      .eq('id', requester_id)
+      .single();
+
+    if (requesterError || !requester) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (!requester.department) {
+      return res.status(400).json({
+        success: false,
+        message: 'Your profile does not have a department assigned. Ask an admin to set your department before requesting a team.',
+      });
+    }
+
     const { data: newTeam, error } = await supabaseAdmin
       .from('teams')
       .insert({
         name,
         requested_by: requester_id,
+        manager_id: requester_id,
+        department: requester.department,
+        type: 'team', // Without this it silently defaults to 'group' — same gap fixed in admin.js's createTeam
         status: 'pending',
       })
-      .select('id, name, status, requested_by, created_at')
+      .select('id, name, status, requested_by, manager_id, department, type, created_at')
       .single();
 
     if (isDev) {
@@ -344,7 +371,7 @@ export const getTeamMemberConversation = async (req, res) => {
 
 /// --- CREATE TEAM (Admin/Manager only) ---
 export const createTeam = async (req, res) => {
-  const { name, is_open, department, managerId } = req.body;
+  const { name, managerId } = req.body;
   const creator_id = req.user.id;
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -353,13 +380,6 @@ export const createTeam = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: 'Team name is required.',
-    });
-  }
-
-  if (!department || typeof department !== 'string' || department.trim() === '') {
-    return res.status(400).json({
-      success: false,
-      message: 'Department is required for teams.',
     });
   }
 
@@ -389,11 +409,16 @@ export const createTeam = async (req, res) => {
       });
     }
 
-    // Manager can only create teams in their own department
-    if (isManager && creator.department !== department) {
-      return res.status(403).json({
+    // Department is never taken from the request body — it always comes
+    // from the creator's own profile (role/department/id all live in the
+    // JWT-backed session, not the payload), so a team can never be
+    // created in a department the requester doesn't belong to.
+    const department = creator.department;
+
+    if (!department) {
+      return res.status(400).json({
         success: false,
-        message: 'Managers can only create teams in their own department.',
+        message: 'Your profile does not have a department assigned. Ask an admin to set your department before creating a team.',
       });
     }
 
@@ -437,9 +462,9 @@ export const createTeam = async (req, res) => {
       .from('teams')
       .insert({
         name: name.trim(),
-        is_open: is_open !== false,
+        is_open: false, // Teams are never open to self-join — open/joinable is what groups are for
         status: status,
-        department: department.trim(),  // MANDATORY for teams
+        department: department,
         manager_id: resolvedManagerId,
         requested_by: creator_id,
         approved_by: approvedBy,
@@ -622,6 +647,7 @@ export const listUserTeams = async (req, res) => {
         type,
         created_at,
         updated_at,
+        conversation_id,
         profiles!teams_manager_id_fkey(id, username, full_name, email)
       `,
         { count: 'exact' }
@@ -670,6 +696,7 @@ export const listUserTeams = async (req, res) => {
           total_members: memberCount || 0,
           created_at: team.created_at,
           updated_at: team.updated_at,
+          conversation_id: team.conversation_id,
         };
       })
     );
