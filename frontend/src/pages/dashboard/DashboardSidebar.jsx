@@ -68,7 +68,7 @@ function DashboardSidebar({ onCompose }) {
 
   // NOTE:
   // App.jsx currently uses /teams for Admin Teams.
-  const isAdminTeams = location.pathname === "/teams";
+  const isAdminTeams = location.pathname === "/admin/teams";
 
   const isAdminReports = location.pathname === "/admin/reports";
 
@@ -281,6 +281,8 @@ function DashboardSidebar({ onCompose }) {
               Users
             </button>
 
+            {/* Update User Password */}
+
             <button
               type="button"
               onClick={() => navigate("/admin/users/password")}
@@ -293,7 +295,7 @@ function DashboardSidebar({ onCompose }) {
 
             <button
               type="button"
-              onClick={() => navigate("/teams")}
+              onClick={() => navigate("/admin/teams")}
               className={getNavClass(isAdminTeams)}
             >
               Teams

@@ -1,5 +1,6 @@
 // backend/src/controllers/teams.js
 import supabaseAdmin from '../config/supabaseClient.js';
+import { ensureTeamConversation, attachUserToTeam } from '../utils/teamMembership.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -343,7 +344,7 @@ export const getTeamMemberConversation = async (req, res) => {
 
 /// --- CREATE TEAM (Admin/Manager only) ---
 export const createTeam = async (req, res) => {
-  const { name, is_open, department } = req.body;
+  const { name, is_open, department, managerId } = req.body;
   const creator_id = req.user.id;
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -400,6 +401,32 @@ export const createTeam = async (req, res) => {
       console.log('[createTeam] Creator:', creator_id, 'role:', creator.role, 'dept:', department);
     }
 
+    // Resolve who the team's manager should be.
+    // - A manager creating a team always self-assigns (manager_id =
+    //   creator_id) — the managerId field is ignored in that case.
+    // - An admin creating a team can pass managerId (despite the name,
+    //   this is an email — same convention as admin.js's createTeam) to
+    //   assign someone else. If omitted, the team is created with no
+    //   manager (manager_id: null), same as before.
+    let resolvedManagerId = isManager ? creator_id : null;
+
+    if (isAdmin && managerId) {
+      const { data: managerProfile, error: managerLookupError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email')
+        .eq('email', managerId)
+        .single();
+
+      if (managerLookupError || !managerProfile) {
+        return res.status(404).json({
+          success: false,
+          message: 'No user found with that email to assign as manager.',
+        });
+      }
+
+      resolvedManagerId = managerProfile.id;
+    }
+
     // Determine team status
     // Admin/Manager creation: auto-approve (status: approved, approved_by: creator_id)
     const status = 'approved';
@@ -413,7 +440,7 @@ export const createTeam = async (req, res) => {
         is_open: is_open !== false,
         status: status,
         department: department.trim(),  // MANDATORY for teams
-        manager_id: isAdmin ? null : creator_id,  // Manager as manager_id if not admin
+        manager_id: resolvedManagerId,
         requested_by: creator_id,
         approved_by: approvedBy,
         type: 'team',  // Specify this is a team, not a group
@@ -429,75 +456,59 @@ export const createTeam = async (req, res) => {
     const team_id = newTeam.id;
 
     if (isDev) {
-      console.log('[createTeam] Team created:', team_id, 'by:', creator_id, 'status:', status);
+      console.log('[createTeam] Team created:', team_id, 'by:', creator_id, 'status:', status, 'manager_id:', resolvedManagerId);
     }
 
-    // ===== CREATE TEAM CONVERSATION =====
-    const { data: conversation, error: convError } = await supabaseAdmin
-      .from('conversations')
-      .insert({
-        subject: null,
-        conversation_type: 'team',
-        category: 'discussion',
-        created_by: creator_id,
-        is_group: false,  // Teams use is_group: false
-        group_id: team_id,  // Store team_id in group_id column (reusing for both)
-      })
-      .select('id')
-      .single();
+    // ===== ATTACH CREATOR: team_members row, team conversation (with the
+    // "Team Created" first message), and conversation_participants — all
+    // handled by the shared helper so this stays consistent with every
+    // other "add user to team" path in the codebase (admin.js, manager.js,
+    // and this file's own addTeamMember). =====
+    const { error: attachError } = await attachUserToTeam(team_id, creator_id, creator_id);
 
-    if (convError) {
-      console.error('[createTeam] Error creating conversation:', convError);
-      // Delete team if conversation creation fails
+    // A failure to create the conversation itself is treated the same way
+    // this endpoint always has: roll back the team rather than leave a
+    // team with no conversation behind.
+    if (attachError?.conversation) {
+      console.error('[createTeam] Error setting up team conversation:', attachError.conversation);
       await supabaseAdmin.from('teams').delete().eq('id', team_id);
       throw new Error('Failed to create team conversation');
     }
 
-    const conversation_id = conversation.id;
-
-    // ===== ADD INITIAL MESSAGE "Team created" =====
-    const { error: messageError } = await supabaseAdmin
-      .from('messages')
-      .insert({
-        conversation_id: conversation_id,
-        sender_id: creator_id,
-        content: `Team created by ${creator.full_name || creator.username}`,
-      });
-
-    if (messageError) {
-      console.error('[createTeam] Error creating initial message:', messageError);
-      // Continue anyway - team is created, just no initial message
+    // team_members / conversation_participants failures are non-fatal —
+    // the team and its conversation still exist, so continue anyway (same
+    // tolerance this endpoint always had for those two steps).
+    if (attachError?.member && isDev) {
+      console.log('[createTeam] Error adding creator as team member:', attachError.member);
     }
 
-    // ===== ADD CREATOR AS TEAM MEMBER =====
-    const { error: memberError } = await supabaseAdmin
-      .from('team_members')
-      .insert({
-        team_id: team_id,
-        user_id: creator_id,
-        added_by: creator_id,
-      });
-
-    if (memberError) {
-      console.error('[createTeam] Error adding creator as member:', memberError);
-      // Continue anyway
+    if (attachError?.participant && isDev) {
+      console.log('[createTeam] Error adding creator to conversation:', attachError.participant);
     }
 
-    // ===== ADD CREATOR AS CONVERSATION PARTICIPANT =====
-    const { error: participantError } = await supabaseAdmin
-      .from('conversation_participants')
-      .insert({
-        conversation_id: conversation_id,
-        user_id: creator_id,
-      });
+    // If a separate manager was assigned (admin-created team with
+    // managerId), attach them too — same team_members/conversation
+    // treatment as the creator, just non-fatal on any failure since the
+    // team and its conversation already exist at this point regardless.
+    if (resolvedManagerId && resolvedManagerId !== creator_id) {
+      const { error: managerAttachError } = await attachUserToTeam(team_id, resolvedManagerId, creator_id);
 
-    if (participantError) {
-      console.error('[createTeam] Error adding creator to conversation:', participantError);
-      // Continue anyway
+      if (managerAttachError && isDev) {
+        console.log('[createTeam] Failed to fully attach assigned manager to team:', managerAttachError);
+      }
     }
+
+    // Look up the conversation id to include in the response, same as before.
+    const { data: teamWithConversation } = await supabaseAdmin
+      .from('teams')
+      .select('conversation_id')
+      .eq('id', team_id)
+      .single();
+
+    const conversation_id = teamWithConversation?.conversation_id || null;
 
     if (isDev) {
-      console.log('[createTeam] Conversation created:', conversation_id, 'with initial message and creator as participant');
+      console.log('[createTeam] Conversation set up:', conversation_id, 'with initial message and creator as participant');
     }
 
     res.status(201).json({
@@ -784,7 +795,8 @@ export const addTeamMember = async (req, res) => {
       console.log('[addTeamMember] Adding member:', member_user_id, 'dept:', member.department, 'team_dept:', team.department);
     }
 
-    // Check if user is already a member
+    // Check if user is already a member (preserves the existing
+    // "already a member" 400 response exactly as before).
     const { data: existingMember, error: existingError } = await supabaseAdmin
       .from('team_members')
       .select('id, left_at')
@@ -806,76 +818,14 @@ export const addTeamMember = async (req, res) => {
       });
     }
 
-    // If user previously left, reactivate membership
-    if (existingMember && existingMember.left_at) {
-      const { error: updateError } = await supabaseAdmin
-        .from('team_members')
-        .update({ left_at: null })
-        .eq('id', existingMember.id);
+    // Fully attaches the member: team_members row (insert, or reactivate
+    // if they'd left before), the team's conversation (creating it if
+    // needed), and conversation_participants — shared with admin.js and
+    // manager.js so every "add to team" path stays consistent.
+    const { error: attachError } = await attachUserToTeam(teamId, member_user_id, admin_id);
 
-      if (updateError) {
-        console.error('[addTeamMember] Error reactivating membership:', updateError);
-        throw new Error('Failed to reactivate team membership');
-      }
-
-      if (isDev) {
-        console.log('[addTeamMember] Member reactivated:', member_user_id);
-      }
-    } else {
-      // New membership - insert into team_members
-      const { error: insertError } = await supabaseAdmin
-        .from('team_members')
-        .insert({
-          team_id: teamId,
-          user_id: member_user_id,
-          added_by: admin_id,  // Track who added them
-        });
-
-      if (insertError) {
-        console.error('[addTeamMember] Error adding member:', insertError);
-        throw new Error('Failed to add team member');
-      }
-
-      if (isDev) {
-        console.log('[addTeamMember] Member added:', member_user_id);
-      }
-    }
-
-    // ===== ADD USER TO TEAM CONVERSATION =====
-    const { data: conversation, error: convError } = await supabaseAdmin
-      .from('conversations')
-      .select('id')
-      .eq('group_id', teamId)  // group_id stores team_id
-      .eq('conversation_type', 'team')
-      .single();
-
-    if (!convError && conversation) {
-      // Check if already a participant
-      const { data: existingParticipant } = await supabaseAdmin
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', conversation.id)
-        .eq('user_id', member_user_id)
-        .single();
-
-      // Only add if not already a participant
-      if (!existingParticipant) {
-        const { error: participantError } = await supabaseAdmin
-          .from('conversation_participants')
-          .insert({
-            conversation_id: conversation.id,
-            user_id: member_user_id,
-          });
-
-        if (participantError) {
-          console.error('[addTeamMember] Error adding conversation participant:', participantError);
-          // Continue anyway - member is added to team
-        }
-
-        if (isDev) {
-          console.log('[addTeamMember] User added to team conversation');
-        }
-      }
+    if (attachError && isDev) {
+      console.log('[addTeamMember] Failed to fully attach member to team:', attachError);
     }
 
     res.status(201).json({

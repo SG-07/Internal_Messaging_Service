@@ -1,5 +1,6 @@
 // backend/src/controllers/manager.js
 import supabaseAdmin from '../config/supabaseClient.js';
+import { attachUserToTeam } from '../utils/teamMembership.js';
 
 /// --- MANAGER CONTROLLER ---
 
@@ -97,7 +98,6 @@ export const managerGetTeam = async (req, res) => {
       });
     }
 
-    // Verify manager can only access their own department
     if (team.manager_id !== manager_id || team.department !== manager_dept) {
       return res.status(403).json({
         success: false,
@@ -137,7 +137,6 @@ export const managerListTeamMembers = async (req, res) => {
   }
 
   try {
-    // Verify team belongs to manager
     const { data: team, error: teamError } = await supabaseAdmin
       .from('teams')
       .select('id, manager_id, department')
@@ -211,7 +210,6 @@ export const managerAddTeamMember = async (req, res) => {
   }
 
   try {
-    // Verify team belongs to manager
     const { data: team, error: teamError } = await supabaseAdmin
       .from('teams')
       .select('id, name, manager_id, department')
@@ -233,7 +231,6 @@ export const managerAddTeamMember = async (req, res) => {
       });
     }
 
-    // Verify user exists and is in same department
     const { data: member, error: memberError } = await supabaseAdmin
       .from('profiles')
       .select('id, username, full_name, email, department')
@@ -254,7 +251,6 @@ export const managerAddTeamMember = async (req, res) => {
       });
     }
 
-    // Check if already member
     const { data: existingMember, error: existingError } = await supabaseAdmin
       .from('team_members')
       .select('id, left_at')
@@ -273,49 +269,15 @@ export const managerAddTeamMember = async (req, res) => {
       });
     }
 
-    // Reactivate if previously left
-    if (existingMember && existingMember.left_at) {
-      await supabaseAdmin
-        .from('team_members')
-        .update({ left_at: null })
-        .eq('id', existingMember.id);
-    } else {
-      // Add new member
-      const { error: insertError } = await supabaseAdmin
-        .from('team_members')
-        .insert({
-          team_id: teamId,
-          user_id: member_user_id,
-          added_by: manager_id,
-        });
+    // Fully attaches the member: team_members row (insert, or reactivate
+    // if they'd left before), the team's conversation (creating it if
+    // needed), and conversation_participants — shared with admin's
+    // addUserToTeam, team creation, and teams.js's addTeamMember, so every
+    // "add to team" path stays consistent.
+    const { error: attachError } = await attachUserToTeam(teamId, member_user_id, manager_id);
 
-      if (insertError) throw insertError;
-    }
-
-    // Add to conversation if exists
-    const { data: conversation } = await supabaseAdmin
-      .from('conversations')
-      .select('id')
-      .eq('group_id', teamId)
-      .eq('conversation_type', 'team')
-      .single();
-
-    if (conversation) {
-      const { data: existingParticipant } = await supabaseAdmin
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', conversation.id)
-        .eq('user_id', member_user_id)
-        .single();
-
-      if (!existingParticipant) {
-        await supabaseAdmin
-          .from('conversation_participants')
-          .insert({
-            conversation_id: conversation.id,
-            user_id: member_user_id,
-          });
-      }
+    if (attachError && isDev) {
+      console.log('[managerAddTeamMember] Failed to fully attach member to team:', attachError);
     }
 
     if (isDev) {
@@ -355,7 +317,6 @@ export const managerRemoveTeamMember = async (req, res) => {
   }
 
   try {
-    // Verify team belongs to manager
     const { data: team, error: teamError } = await supabaseAdmin
       .from('teams')
       .select('id, name, manager_id, department')
@@ -377,7 +338,6 @@ export const managerRemoveTeamMember = async (req, res) => {
       });
     }
 
-    // Verify user exists
     const { data: member, error: memberError } = await supabaseAdmin
       .from('profiles')
       .select('id, username, full_name, email')
@@ -391,7 +351,6 @@ export const managerRemoveTeamMember = async (req, res) => {
       });
     }
 
-    // Check if member exists
     const { data: teamMember, error: memberCheckError } = await supabaseAdmin
       .from('team_members')
       .select('id, left_at')
@@ -410,7 +369,6 @@ export const managerRemoveTeamMember = async (req, res) => {
       });
     }
 
-    // Cannot remove self
     if (manager_id === userId) {
       return res.status(400).json({
         success: false,
@@ -418,7 +376,6 @@ export const managerRemoveTeamMember = async (req, res) => {
       });
     }
 
-    // Soft delete
     const { error: updateError } = await supabaseAdmin
       .from('team_members')
       .update({ left_at: new Date().toISOString() })
@@ -519,7 +476,6 @@ export const managerGetDepartmentUser = async (req, res) => {
       });
     }
 
-    // Verify user is in manager's department
     if (user.department !== manager_dept) {
       return res.status(403).json({
         success: false,
@@ -632,7 +588,6 @@ export const managerGetReportedItem = async (req, res) => {
   }
 
   try {
-    // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
       .select(
@@ -651,7 +606,6 @@ export const managerGetReportedItem = async (req, res) => {
       });
     }
 
-    // Verify reporter is in manager's department
     if (report.profiles.department !== manager_dept) {
       return res.status(403).json({
         success: false,
@@ -659,7 +613,6 @@ export const managerGetReportedItem = async (req, res) => {
       });
     }
 
-    // Get entity details based on type
     let entityDetails = null;
 
     switch (report.entity_type) {
@@ -898,7 +851,6 @@ export const managerReviewReport = async (req, res) => {
   }
 
   try {
-    // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
       .select('id, status, profiles!conversation_reports_reported_by_fkey(department)')
@@ -912,7 +864,6 @@ export const managerReviewReport = async (req, res) => {
       });
     }
 
-    // Verify reporter is in manager's department
     if (report.profiles.department !== manager_dept) {
       return res.status(403).json({
         success: false,
@@ -920,7 +871,6 @@ export const managerReviewReport = async (req, res) => {
       });
     }
 
-    // Update report
     const { error: updateError } = await supabaseAdmin
       .from('conversation_reports')
       .update({

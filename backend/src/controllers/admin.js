@@ -1,6 +1,7 @@
 // backend/src/controllers/admin.js
 import supabaseAdmin from '../config/supabaseClient.js';
 import bcrypt from 'bcrypt';
+import { ensureTeamConversation, attachUserToTeam } from '../utils/teamMembership.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -29,7 +30,6 @@ const PROFILE_FULL_COLUMNS = `
 
 // --- HELPERS ---
 
-// Wraps a handler in try/catch, logs with the given tag, and sends a uniform 500 on error.
 const asyncHandler = (tag, message, fn) => async (req, res) => {
   try {
     await fn(req, res);
@@ -42,7 +42,6 @@ const asyncHandler = (tag, message, fn) => async (req, res) => {
   }
 };
 
-// Parses page/limit/offset from the request query the same way every list endpoint did.
 const getPagination = (req) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 20;
@@ -65,11 +64,9 @@ const sendPaginated = (res, data, pagination, total) => {
   });
 };
 
-// Shared "fetch one profile by id" used by every endpoint that looks up a user.
 const getProfileById = (id, columns = 'id') =>
   supabaseAdmin.from('profiles').select(columns).eq('id', id).single();
 
-// Shared "update one profile by id" used by every endpoint that mutates a user.
 const updateProfileById = (id, updates, columns) =>
   supabaseAdmin.from('profiles').update(updates).eq('id', id).select(columns).single();
 
@@ -79,7 +76,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
   const { page, limit, offset } = pagination;
   const { department } = req.query;
 
-  // Normalize department to array
   let departments = [];
   if (department) {
     departments = Array.isArray(department)
@@ -98,7 +94,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-  // If no department filter, fetch all users
   if (departments.length === 0) {
     const { data: users, error, count } = await baseQuery();
 
@@ -110,7 +105,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
     return sendPaginated(res, users, pagination, count);
   }
 
-  // Split departments into two groups: real departments and null filter
   const realDepartments = departments.filter((d) => d !== '__NO_DEPARTMENT__');
   const includeNoDepartment = departments.includes('__NO_DEPARTMENT__');
 
@@ -118,7 +112,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
     console.log('[listUsers] realDepartments:', realDepartments, 'includeNoDepartment:', includeNoDepartment);
   }
 
-  // Case 1: Only "__NO_DEPARTMENT__" selected
   if (realDepartments.length === 0 && includeNoDepartment) {
     const { data: users, error, count } = await baseQuery().is('department', null);
 
@@ -130,7 +123,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
     return sendPaginated(res, users, pagination, count);
   }
 
-  // Case 2: Only real departments selected (no "__NO_DEPARTMENT__")
   if (realDepartments.length > 0 && !includeNoDepartment) {
     const query =
       realDepartments.length === 1
@@ -147,8 +139,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
     return sendPaginated(res, users, pagination, count);
   }
 
-  // Case 3: Mix of real departments + "__NO_DEPARTMENT__"
-  // We need to fetch both groups and combine them (Supabase doesn't support OR with null easily)
   const { data: usersWithDept, error: error1 } = await supabaseAdmin
     .from('profiles')
     .select(PROFILE_LIST_COLUMNS)
@@ -166,7 +156,6 @@ export const listUsers = asyncHandler('listUsers', 'Unable to fetch users.', asy
     throw new Error('Failed to fetch users');
   }
 
-  // Combine and remove duplicates
   const allUsers = [...(usersWithDept || []), ...(usersNoDept || [])];
   const uniqueUsers = Array.from(new Map(allUsers.map((u) => [u.id, u])).values()).sort(
     (a, b) => new Date(b.created_at) - new Date(a.created_at)
@@ -340,25 +329,59 @@ export const createTeam = asyncHandler('createTeam', 'Unable to create team.', a
     });
   }
 
+  let resolvedManagerId = null;
+
+  if (managerId) {
+    const { data: managerProfile, error: managerLookupError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email')
+      .eq('email', managerId)
+      .single();
+
+    if (managerLookupError || !managerProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with that email to assign as manager.',
+      });
+    }
+
+    resolvedManagerId = managerProfile.id;
+  }
+
   const { data: newTeam, error } = await supabaseAdmin
     .from('teams')
     .insert({
       name,
-      manager_id: managerId || null,
+      manager_id: resolvedManagerId,
       status: 'approved',
       requested_by: admin_id,
       approved_by: admin_id,
+      type: 'team',
     })
-    .select('id, name, status, manager_id')
+    .select('id, name, status, manager_id, type')
     .single();
 
-  if (isDev) {
-    console.log('[createTeam] name:', name, 'managerId:', managerId);
-  }
-
-  if (error) {
+  if (error || !newTeam) {
     console.error('[createTeam] Supabase error:', error);
     throw new Error('Failed to create team');
+  }
+
+  if (resolvedManagerId) {
+    const { error: attachError } = await attachUserToTeam(newTeam.id, resolvedManagerId, admin_id);
+
+    if (attachError && isDev) {
+      console.log('[createTeam] Failed to fully attach manager to team:', attachError);
+    }
+  } else {
+    const { error: conversationError } = await ensureTeamConversation(newTeam.id, admin_id);
+
+    if (conversationError && isDev) {
+      console.log('[createTeam] Failed to create team conversation:', conversationError.message);
+    }
+  }
+
+  if (isDev) {
+    console.log('[createTeam] name:', name, 'managerId:', resolvedManagerId);
   }
 
   res.status(201).json({
@@ -374,7 +397,7 @@ export const reviewTeamRequest = asyncHandler(
   'Unable to review team request.',
   async (req, res) => {
     const { teamId } = req.params;
-    const { decision } = req.body; // 'approved' or 'rejected'
+    const { decision } = req.body;
     const admin_id = req.user.id;
 
     if (!['approved', 'rejected'].includes(decision)) {
@@ -392,19 +415,35 @@ export const reviewTeamRequest = asyncHandler(
         updated_at: new Date().toISOString(),
       })
       .eq('id', teamId)
-      .eq('status', 'pending') // only allow reviewing pending requests
-      .select('id, name, status')
+      .eq('status', 'pending')
+      .select('id, name, status, manager_id')
       .single();
-
-    if (isDev) {
-      console.log('[reviewTeamRequest] teamId:', teamId, 'decision:', decision);
-    }
 
     if (error || !updatedTeam) {
       return res.status(404).json({
         success: false,
         message: 'Pending team request not found.',
       });
+    }
+
+    if (decision === 'approved') {
+      if (updatedTeam.manager_id) {
+        const { error: attachError } = await attachUserToTeam(updatedTeam.id, updatedTeam.manager_id, admin_id);
+
+        if (attachError && isDev) {
+          console.log('[reviewTeamRequest] Failed to fully attach manager to team:', attachError);
+        }
+      } else {
+        const { error: conversationError } = await ensureTeamConversation(updatedTeam.id, admin_id);
+
+        if (conversationError && isDev) {
+          console.log('[reviewTeamRequest] Failed to create team conversation:', conversationError.message);
+        }
+      }
+    }
+
+    if (isDev) {
+      console.log('[reviewTeamRequest] teamId:', teamId, 'decision:', decision);
     }
 
     res.status(200).json({
@@ -486,10 +525,9 @@ export const addUserToTeam = asyncHandler('addUserToTeam', 'Unable to add user t
   const { userId } = req.body;
   const admin_id = req.user.id;
 
-  // Verify team exists and is approved
   const { data: team, error: teamError } = await supabaseAdmin
     .from('teams')
-    .select('id, status')
+    .select('id, name, status')
     .eq('id', teamId)
     .single();
 
@@ -507,7 +545,6 @@ export const addUserToTeam = asyncHandler('addUserToTeam', 'Unable to add user t
     });
   }
 
-  // Get user's current team to move it to previous_team_id
   const { data: userProfile, error: userError } = await getProfileById(userId, 'current_team_id');
 
   if (userError || !userProfile) {
@@ -530,12 +567,18 @@ export const addUserToTeam = asyncHandler('addUserToTeam', 'Unable to add user t
     'id, current_team_id, previous_team_id, team_status'
   );
 
-  if (isDev) {
-    console.log('[addUserToTeam] teamId:', teamId, 'userId:', userId);
-  }
-
   if (updateError || !updatedUser) {
     throw new Error('Failed to add user to team');
+  }
+
+  const { error: attachError } = await attachUserToTeam(teamId, userId, admin_id);
+
+  if (attachError && isDev) {
+    console.log('[addUserToTeam] Failed to fully attach user to team:', attachError);
+  }
+
+  if (isDev) {
+    console.log('[addUserToTeam] teamId:', teamId, 'userId:', userId);
   }
 
   res.status(200).json({
@@ -551,7 +594,7 @@ export const updateUserTeamStatus = asyncHandler(
   'Unable to update user team status.',
   async (req, res) => {
     const { userId } = req.params;
-    const { teamStatus } = req.body; // 'on_hold' or 'removed'
+    const { teamStatus } = req.body;
     const admin_id = req.user.id;
 
     if (!['on_hold', 'removed'].includes(teamStatus)) {
@@ -577,7 +620,6 @@ export const updateUserTeamStatus = asyncHandler(
       updated_at: new Date().toISOString(),
     };
 
-    // Full removal clears current_team_id and moves it to previous_team_id
     if (teamStatus === 'removed') {
       updateData.previous_team_id = userProfile.current_team_id;
       updateData.current_team_id = null;
@@ -790,7 +832,6 @@ export const updateUserDepartment = asyncHandler(
       });
     }
 
-    // Department can be a string or null (to unassign)
     if (department === undefined) {
       return res.status(400).json({
         success: false,
@@ -798,7 +839,6 @@ export const updateUserDepartment = asyncHandler(
       });
     }
 
-    // Validate department is a string or null
     if (department !== null && typeof department !== 'string') {
       return res.status(400).json({
         success: false,
@@ -806,7 +846,6 @@ export const updateUserDepartment = asyncHandler(
       });
     }
 
-    // Validate department is not empty string
     if (typeof department === 'string' && department.trim() === '') {
       return res.status(400).json({
         success: false,
@@ -814,7 +853,6 @@ export const updateUserDepartment = asyncHandler(
       });
     }
 
-    // Check if user exists
     const { data: user, error: userError } = await getProfileById(userId, 'id, department, updated_at');
 
     if (userError || !user) {
@@ -839,7 +877,6 @@ export const updateUserDepartment = asyncHandler(
       );
     }
 
-    // Update department
     const { data: updatedUser, error: updateError } = await updateProfileById(
       userId,
       {
@@ -897,10 +934,6 @@ export const adminListReportedItems = async (req, res) => {
   }
  
   try {
-    // Embedded-resource filters (.eq('profiles.department', ...)) in
-    // PostgREST only restrict the embedded object, not the parent row,
-    // unless the embed is an inner join. Only request !inner when a
-    // department filter is actually being applied.
     const profilesEmbed = department
       ? 'profiles!conversation_reports_reported_by_fkey!inner(id, username, full_name, email, department)'
       : 'profiles!conversation_reports_reported_by_fkey(id, username, full_name, email, department)';
@@ -915,8 +948,6 @@ export const adminListReportedItems = async (req, res) => {
         { count: 'exact' }
       );
  
-    // Default to pending if no status filter given, mirroring the manager
-    // "reported items" view — pass status=all explicitly to see everything.
     if (status) {
       query = query.eq('status', status);
     } else if (req.query.status !== 'all') {
@@ -998,7 +1029,6 @@ export const adminGetReportedItem = async (req, res) => {
   }
  
   try {
-    // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
       .select(
@@ -1018,7 +1048,6 @@ export const adminGetReportedItem = async (req, res) => {
       });
     }
  
-    // Get entity details based on type
     let entityDetails = null;
  
     switch (report.entity_type) {
@@ -1280,7 +1309,6 @@ export const adminReviewReport = async (req, res) => {
   }
  
   try {
-    // Get report
     const { data: report, error: reportError } = await supabaseAdmin
       .from('conversation_reports')
       .select('id, status')
@@ -1294,7 +1322,6 @@ export const adminReviewReport = async (req, res) => {
       });
     }
  
-    // Update report
     const { error: updateError } = await supabaseAdmin
       .from('conversation_reports')
       .update({
@@ -1354,7 +1381,6 @@ export const adminUpdateUserPassword = async (req, res) => {
   }
  
   try {
-    // Look up the target user by email
     const { data: targetUser, error: lookupError } = await supabaseAdmin
       .from('profiles')
       .select('id, username, full_name, email')
@@ -1368,9 +1394,6 @@ export const adminUpdateUserPassword = async (req, res) => {
       });
     }
  
-    // This app stores its own bcrypt hash on profiles.password_hash rather
-    // than using Supabase Auth's user store, so the password is updated
-    // directly on the row — no old password, no Supabase Auth admin call.
     const password_hash = await bcrypt.hash(new_password, BCRYPT_SALT_ROUNDS);
  
     const { error: updateError } = await supabaseAdmin
@@ -1383,7 +1406,6 @@ export const adminUpdateUserPassword = async (req, res) => {
  
     if (updateError) throw updateError;
  
-    // Never log the password itself — only who did what to whom, and when.
     console.log('[adminUpdateUserPassword] admin_id:', admin_id, 'target_user_id:', targetUser.id, 'target_email:', email, 'at:', new Date().toISOString());
  
     if (isDev) {
