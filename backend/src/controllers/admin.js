@@ -1,4 +1,4 @@
-// backend/src/controllers/admin.js
+ // backend/src/controllers/admin.js
 import supabaseAdmin from '../config/supabaseClient.js';
 import bcrypt from 'bcrypt';
 import { ensureTeamConversation, attachUserToTeam } from '../utils/teamMembership.js';
@@ -832,7 +832,15 @@ export const getTeamById = asyncHandler('getTeamById', 'Unable to fetch team inf
 
   const { data: team, error } = await supabaseAdmin
     .from('teams')
-    .select('*')
+    .select(
+      `
+      id, name, is_open, status, department, type, manager_id, requested_by, approved_by,
+      conversation_id, created_at, updated_at,
+      manager:profiles!teams_manager_id_fkey(id, username, full_name, email, department),
+      requester:profiles!teams_requested_by_fkey(id, username, full_name, email),
+      approver:profiles!teams_approved_by_fkey(id, username, full_name, email)
+    `
+    )
     .eq('id', teamId)
     .single();
 
@@ -843,9 +851,41 @@ export const getTeamById = asyncHandler('getTeamById', 'Unable to fetch team inf
     });
   }
 
+  // Membership lives in team_members for type 'team', group_members for
+  // type 'group' — same dispatch used in listTeams/teamMembership.js.
+  const membershipTable = team.type === 'group' ? 'group_members' : 'team_members';
+  const fkColumn = team.type === 'group' ? 'group_id' : 'team_id';
+
+  const { data: memberRows, error: membersError } = await supabaseAdmin
+    .from(membershipTable)
+    .select(
+      `user_id, joined_at, profiles:user_id(id, username, full_name, email, department, role)`
+    )
+    .eq(fkColumn, teamId)
+    .is('left_at', null)
+    .order('joined_at', { ascending: true });
+
+  if (membersError && isDev) {
+    console.error('[getTeamById] Failed to fetch members:', membersError.message);
+  }
+
+  const members = (memberRows || []).map((m) => ({
+    id: m.profiles.id,
+    username: m.profiles.username,
+    full_name: m.profiles.full_name,
+    email: m.profiles.email,
+    department: m.profiles.department,
+    role: m.profiles.role,
+    joined_at: m.joined_at,
+  }));
+
   res.status(200).json({
     success: true,
-    data: team,
+    data: {
+      ...team,
+      members,
+      total_members: members.length,
+    },
   });
 });
 

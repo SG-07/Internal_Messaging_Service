@@ -6,6 +6,8 @@ import { useNavigate, useParams } from "react-router";
 import {
   getAdminTeam,
   updateAdminTeam,
+  removeTeamMember,
+  // toggleAdminTeam,
 } from "../../../api/admin";
 
 import DashboardLayout from "../../dashboard/DashboardLayout";
@@ -16,15 +18,21 @@ function TeamEdit() {
   const navigate = useNavigate();
 
   const [team, setTeam] = useState(null);
+
   const [addMemberOpen, setAddMemberOpen] =
     useState(false);
 
-  const [name, setName] = useState("");
-  const [description, setDescription] =
-    useState("");
+  const [managerId, setManagerId] = useState("");
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingManager, setSavingManager] =
+    useState(false);
+
+  const [memberActionLoading, setMemberActionLoading] =
+    useState(false);
+
+  const [pauseLoading, setPauseLoading] =
+    useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -67,9 +75,6 @@ function TeamEdit() {
           console.groupEnd();
         }
 
-        /*
-         * Support common API response structures.
-         */
         const responseTeam =
           response?.data?.data ||
           response?.data?.team ||
@@ -85,16 +90,12 @@ function TeamEdit() {
 
         setTeam(responseTeam);
 
-        setName(
-          responseTeam.name ||
-            responseTeam.team_name ||
+        setManagerId(
+          responseTeam.manager_id ||
+            responseTeam.manager?.id ||
             ""
         );
 
-        setDescription(
-          responseTeam.description ||
-            ""
-        );
       } catch (err) {
         if (import.meta.env.DEV) {
           console.group(
@@ -127,59 +128,54 @@ function TeamEdit() {
   }, [teamId]);
 
   // ============================================================
-  // UPDATE TEAM
+  // UPDATE MANAGER
   // ============================================================
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  async function handleManagerChange(event) {
+    const newManagerId =
+      event.target.value;
 
-    const trimmedName =
-      name.trim();
+    setManagerId(newManagerId);
 
-    const trimmedDescription =
-      description.trim();
-
-    if (!trimmedName) {
-      setError(
-        "Team name is required."
-      );
-
-      setSuccess("");
-
+    if (!teamId || savingManager) {
       return;
     }
 
-    if (!teamId || saving) {
+    const previousManagerId =
+      team?.manager_id ||
+      team?.manager?.id ||
+      "";
+
+    if (newManagerId === previousManagerId) {
       return;
-    }
-
-    const payload = {
-      name: trimmedName,
-      description: trimmedDescription,
-    };
-
-    if (import.meta.env.DEV) {
-      console.group(
-        "[TeamEdit] Update Team"
-      );
-
-      console.log(
-        "Team ID:",
-        teamId
-      );
-
-      console.log(
-        "Request payload:",
-        payload
-      );
-
-      console.groupEnd();
     }
 
     try {
-      setSaving(true);
+      setSavingManager(true);
       setError("");
       setSuccess("");
+
+      const payload = {
+        manager_id: newManagerId || null,
+      };
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Update Manager"
+        );
+
+        console.log(
+          "Team ID:",
+          teamId
+        );
+
+        console.log(
+          "Request payload:",
+          payload
+        );
+
+        console.groupEnd();
+      }
 
       const response =
         await updateAdminTeam(
@@ -189,12 +185,7 @@ function TeamEdit() {
 
       if (import.meta.env.DEV) {
         console.group(
-          "[TeamEdit] Update Team Response"
-        );
-
-        console.log(
-          "Team ID:",
-          teamId
+          "[TeamEdit] Update Manager Response"
         );
 
         console.log(
@@ -211,22 +202,49 @@ function TeamEdit() {
       }
 
       /*
-       * Update local team state.
+       * Prefer the updated team returned by the API.
        */
-      setTeam(
-        (currentTeam) => ({
-          ...(currentTeam || {}),
-          ...payload,
-        })
-      );
+      const updatedTeam =
+        response?.data?.data ||
+        response?.data?.team ||
+        response?.team ||
+        response?.data ||
+        null;
+
+      if (
+        updatedTeam &&
+        typeof updatedTeam === "object"
+      ) {
+        setTeam(updatedTeam);
+
+        setManagerId(
+          updatedTeam.manager_id ||
+            updatedTeam.manager?.id ||
+            ""
+        );
+      } else {
+        setTeam(
+          (currentTeam) => ({
+            ...(currentTeam || {}),
+            manager_id:
+              newManagerId || null,
+          })
+        );
+      }
 
       setSuccess(
-        "Team details updated successfully."
+        "Team manager updated successfully."
       );
+
     } catch (err) {
+      /*
+       * Restore previous manager if API fails.
+       */
+      setManagerId(previousManagerId);
+
       if (import.meta.env.DEV) {
         console.group(
-          "[TeamEdit] Update Team Error"
+          "[TeamEdit] Update Manager Error"
         );
 
         console.error(
@@ -244,10 +262,10 @@ function TeamEdit() {
 
       setError(
         err.message ||
-          "Unable to update team. Please try again."
+          "Unable to update team manager. Please try again."
       );
     } finally {
-      setSaving(false);
+      setSavingManager(false);
     }
   }
 
@@ -255,7 +273,7 @@ function TeamEdit() {
   // MEMBER ADDED
   // ============================================================
 
-  async function handleMemberAdded(
+  function handleMemberAdded(
     response,
     user
   ) {
@@ -299,32 +317,348 @@ function TeamEdit() {
           return currentTeam;
         }
 
+        const updatedMembers = [
+          ...currentMembers,
+          newMember,
+        ];
+
         return {
           ...currentTeam,
-
-          members: [
-            ...currentMembers,
-            newMember,
-          ],
-
-          member_count:
-            currentMembers.length + 1,
+          members: updatedMembers,
+          total_members:
+            updatedMembers.length,
         };
       }
     );
 
     setSuccess(
       `${
-        user?.name ||
+        user?.full_name ||
+        user?.username ||
         user?.email ||
         "User"
       } was added to the team.`
     );
 
-    /*
-     * Close the modal after successful addition.
-     */
     setAddMemberOpen(false);
+  }
+
+  // ============================================================
+  // REMOVE MEMBER
+  // ============================================================
+
+  async function handleRemoveMember(member) {
+    const memberId =
+      member?.id ||
+      member?.user_id;
+
+    if (
+      !teamId ||
+      !memberId ||
+      memberActionLoading
+    ) {
+      return;
+    }
+
+    /*
+     * Prevent removing the current manager through
+     * the normal member removal action.
+     */
+    const currentManagerId =
+      team?.manager_id ||
+      team?.manager?.id;
+
+    if (
+      currentManagerId &&
+      String(currentManagerId) ===
+        String(memberId)
+    ) {
+      setError(
+        "The team manager cannot be removed. Change the manager first."
+      );
+
+      setSuccess("");
+
+      return;
+    }
+
+    const memberName =
+      member?.full_name ||
+      member?.username ||
+      member?.email ||
+      "this member";
+
+    const confirmed =
+      window.confirm(
+        `Are you sure you want to remove ${memberName} from this team?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setMemberActionLoading(true);
+      setError("");
+      setSuccess("");
+
+      const payload = {
+        teamId,
+        userId: memberId,
+      };
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Remove Team Member"
+        );
+
+        console.log(
+          "Request payload:",
+          payload
+        );
+
+        console.groupEnd();
+      }
+
+      const response =
+        await removeTeamMember(
+          teamId,
+          memberId
+        );
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Remove Team Member Response"
+        );
+
+        console.log(
+          "Request payload:",
+          payload
+        );
+
+        console.log(
+          "Received response:",
+          response
+        );
+
+        console.groupEnd();
+      }
+
+      setTeam(
+        (currentTeam) => {
+          if (!currentTeam) {
+            return currentTeam;
+          }
+
+          const currentMembers =
+            Array.isArray(
+              currentTeam.members
+            )
+              ? currentTeam.members
+              : [];
+
+          const updatedMembers =
+            currentMembers.filter(
+              (currentMember) =>
+                String(
+                  currentMember?.id ||
+                    currentMember?.user_id
+                ) !==
+                String(memberId)
+            );
+
+          return {
+            ...currentTeam,
+            members: updatedMembers,
+            total_members:
+              updatedMembers.length,
+          };
+        }
+      );
+
+      setSuccess(
+        `${memberName} was removed from the team.`
+      );
+
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Remove Team Member Error"
+        );
+
+        console.error(
+          "Error:",
+          err
+        );
+
+        console.log(
+          "Error message:",
+          err.message
+        );
+
+        console.groupEnd();
+      }
+
+      setError(
+        err.message ||
+          "Unable to remove team member. Please try again."
+      );
+    } finally {
+      setMemberActionLoading(false);
+    }
+  }
+
+  // ============================================================
+  // PAUSE / RESUME TEAM
+  // ============================================================
+
+  async function handleToggleTeam() {
+    if (
+      !teamId ||
+      !team ||
+      pauseLoading
+    ) {
+      return;
+    }
+
+    const currentlyOpen =
+      Boolean(team.is_open);
+
+    const action =
+      currentlyOpen
+        ? "pause"
+        : "resume";
+
+    const confirmationMessage =
+      currentlyOpen
+        ? "Are you sure you want to pause this team? Team members will no longer be able to use the team while it is paused."
+        : "Are you sure you want to resume this team?";
+
+    const confirmed =
+      window.confirm(
+        confirmationMessage
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setPauseLoading(true);
+      setError("");
+      setSuccess("");
+
+      const payload = {
+        is_open: !currentlyOpen,
+      };
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Toggle Team"
+        );
+
+        console.log(
+          "Team ID:",
+          teamId
+        );
+
+        console.log(
+          "Action:",
+          action
+        );
+
+        console.log(
+          "Request payload:",
+          payload
+        );
+
+        console.groupEnd();
+      }
+
+      // const response =
+      //   await toggleAdminTeam(
+      //     teamId,
+      //     payload
+      //   );
+
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Toggle Team Response"
+        );
+
+        console.log(
+          "Request payload:",
+          payload
+        );
+
+        console.log(
+          "Received response:",
+          response
+        );
+
+        console.groupEnd();
+      }
+
+      const updatedTeam =
+        response?.data?.data ||
+        response?.data?.team ||
+        response?.team ||
+        response?.data ||
+        null;
+
+      if (
+        updatedTeam &&
+        typeof updatedTeam === "object"
+      ) {
+        setTeam(updatedTeam);
+
+        setManagerId(
+          updatedTeam.manager_id ||
+            updatedTeam.manager?.id ||
+            ""
+        );
+      } else {
+        setTeam(
+          (currentTeam) => ({
+            ...(currentTeam || {}),
+            is_open:
+              !currentlyOpen,
+          })
+        );
+      }
+
+      setSuccess(
+        currentlyOpen
+          ? "Team paused successfully."
+          : "Team resumed successfully."
+      );
+
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.group(
+          "[TeamEdit] Toggle Team Error"
+        );
+
+        console.error(
+          "Error:",
+          err
+        );
+
+        console.log(
+          "Error message:",
+          err.message
+        );
+
+        console.groupEnd();
+      }
+
+      setError(
+        err.message ||
+          `Unable to ${action} the team. Please try again.`
+      );
+    } finally {
+      setPauseLoading(false);
+    }
   }
 
   // ============================================================
@@ -343,19 +677,13 @@ function TeamEdit() {
     return (
       <DashboardLayout>
         <div className="min-h-screen bg-gray-100">
-
           <main className="mx-auto max-w-7xl px-6 py-6">
-
             <div className="rounded-xl bg-white px-6 py-16 text-center shadow">
-
               <p className="text-sm text-gray-500">
                 Loading team...
               </p>
-
             </div>
-
           </main>
-
         </div>
       </DashboardLayout>
     );
@@ -368,9 +696,7 @@ function TeamEdit() {
   if (error && !team) {
     return (
       <DashboardLayout>
-
         <div className="min-h-screen bg-gray-100">
-
           <main className="mx-auto max-w-7xl px-6 py-6">
 
             <button
@@ -384,19 +710,15 @@ function TeamEdit() {
             <section className="rounded-xl bg-white p-6 shadow">
 
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-
                 <p className="text-sm text-red-700">
                   {error}
                 </p>
-
               </div>
 
             </section>
 
           </main>
-
         </div>
-
       </DashboardLayout>
     );
   }
@@ -410,17 +732,26 @@ function TeamEdit() {
     team?.team_name ||
     "Team";
 
+  const department =
+    team?.department ||
+    "—";
+
   const status =
     team?.status ||
     team?.team_status ||
     "—";
 
+  const isOpen =
+    Boolean(team?.is_open);
+
   const manager =
-    team?.manager ||
-    team?.manager_name ||
-    team?.manager_username ||
-    team?.manager_email ||
-    "—";
+    team?.manager || null;
+
+  const managerName =
+    manager?.full_name ||
+    manager?.username ||
+    manager?.email ||
+    "No manager assigned";
 
   const members =
     Array.isArray(team?.members)
@@ -428,16 +759,13 @@ function TeamEdit() {
       : [];
 
   const memberCount =
-    members.length ||
-    team?.member_count ||
-    0;
+    team?.total_members ??
+    members.length;
 
   const managerInitial =
-    manager !== "—"
-      ? String(manager)
-          .charAt(0)
-          .toUpperCase()
-      : "—";
+    String(managerName)
+      .charAt(0)
+      .toUpperCase();
 
   // ============================================================
   // RENDER
@@ -466,27 +794,57 @@ function TeamEdit() {
           {/* PAGE HEADER */}
           {/* ================================================== */}
 
-          <div className="mb-6">
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div>
 
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Manage Team
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
 
-              <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold capitalize text-green-700">
-                {status}
-              </span>
+                <h1 className="text-2xl font-semibold text-gray-900">
+                  Manage Team
+                </h1>
+
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                    isOpen
+                      ? "bg-green-50 text-green-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {isOpen
+                    ? "Active"
+                    : "Paused"}
+                </span>
+
+              </div>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Manage the manager and members of{" "}
+                <span className="font-medium text-gray-700">
+                  {teamName}
+                </span>
+                .
+              </p>
 
             </div>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Manage the details and members of{" "}
-              <span className="font-medium text-gray-700">
-                {teamName}
-              </span>
-              .
-            </p>
+            {/* Pause / Resume */}
+            {/* <button
+              type="button"
+              onClick={handleToggleTeam}
+              disabled={pauseLoading}
+              className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                isOpen
+                  ? "border border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
+                  : "bg-green-600 text-white hover:bg-green-700"
+              }`}
+            >
+              {pauseLoading
+                ? "Updating..."
+                : isOpen
+                  ? "Pause Team"
+                  : "Resume Team"}
+            </button> */}
 
           </div>
 
@@ -496,11 +854,9 @@ function TeamEdit() {
 
           {error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-
               <p className="text-sm text-red-700">
                 {error}
               </p>
-
             </div>
           )}
 
@@ -510,185 +866,186 @@ function TeamEdit() {
 
           {success && (
             <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-
               <p className="text-sm text-green-700">
                 {success}
               </p>
-
             </div>
           )}
 
           <div className="space-y-6">
 
             {/* ================================================== */}
-            {/* TEAM DETAILS */}
+            {/* TEAM INFORMATION */}
             {/* ================================================== */}
 
             <section className="overflow-hidden rounded-xl bg-white shadow">
 
-              {/* Header */}
               <div className="border-b px-6 py-5">
 
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Team Details
+                  Team Information
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  View and update the team's basic information.
+                  Basic team information.
                 </p>
 
               </div>
 
-              {/* ================================================== */}
-              {/* MANAGER / MEMBERS */}
-              {/* ================================================== */}
+              <div className="grid grid-cols-1 sm:grid-cols-3">
 
-              <div className="grid grid-cols-1 border-b sm:grid-cols-2">
-
-                {/* Manager */}
+                {/* Team */}
                 <div className="border-b px-6 py-5 sm:border-b-0 sm:border-r">
 
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Manager
+                    Team
                   </p>
 
-                  <div className="mt-3 flex items-center gap-3">
-
-                    {/* Manager Avatar */}
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold text-blue-700">
-                      {managerInitial}
-                    </div>
-
-                    {/* Manager Details */}
-                    <div className="min-w-0">
-
-                      <p className="truncate text-sm font-semibold text-gray-900">
-                        {manager}
-                      </p>
-
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        Team manager
-                      </p>
-
-                    </div>
-
-                  </div>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {teamName}
+                  </p>
 
                 </div>
 
-                {/* Members */}
+                {/* Department */}
+                <div className="border-b px-6 py-5 sm:border-b-0 sm:border-r">
+
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Department
+                  </p>
+
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {department}
+                  </p>
+
+                </div>
+
+                {/* Status */}
                 <div className="px-6 py-5">
 
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Members
+                    Status
                   </p>
 
-                  <div className="mt-3 flex items-center gap-3">
-
-                    {/* Member Count */}
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
-                      {memberCount}
-                    </div>
-
-                    {/* Member Details */}
-                    <div>
-
-                      <p className="text-sm font-semibold text-gray-900">
-                        {memberCount === 1
-                          ? "1 member"
-                          : `${memberCount} members`}
-                      </p>
-
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        Users assigned to this team
-                      </p>
-
-                    </div>
-
-                  </div>
+                  <p className="mt-2 text-sm font-semibold capitalize text-gray-900">
+                    {status}
+                  </p>
 
                 </div>
 
               </div>
 
-              {/* ================================================== */}
-              {/* EDITABLE DETAILS */}
-              {/* ================================================== */}
+            </section>
 
-              <form onSubmit={handleSubmit}>
+            {/* ================================================== */}
+            {/* MANAGER */}
+            {/* ================================================== */}
 
-                <div className="space-y-5 px-6 py-6">
+            <section className="overflow-hidden rounded-xl bg-white shadow">
 
-                  {/* Team Name */}
-                  <div>
+              <div className="border-b px-6 py-5">
 
-                    <label
-                      htmlFor="team-name"
-                      className="mb-2 block text-sm font-medium text-gray-700"
-                    >
-                      Team name
-                    </label>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Team Manager
+                </h2>
 
-                    <input
-                      id="team-name"
-                      type="text"
-                      value={name}
-                      onChange={(event) =>
-                        setName(
-                          event.target.value
-                        )
-                      }
-                      disabled={saving}
-                      placeholder="Enter team name"
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100"
-                    />
+                <p className="mt-1 text-sm text-gray-500">
+                  Change the manager assigned to this team.
+                </p>
 
-                  </div>
+              </div>
 
-                  {/* Description */}
-                  <div>
+              <div className="px-6 py-6">
 
-                    <label
-                      htmlFor="team-description"
-                      className="mb-2 block text-sm font-medium text-gray-700"
-                    >
-                      Description
-                    </label>
+                <label
+                  htmlFor="team-manager"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Manager
+                </label>
 
-                    <textarea
-                      id="team-description"
-                      value={description}
-                      onChange={(event) =>
-                        setDescription(
-                          event.target.value
-                        )
-                      }
-                      disabled={saving}
-                      rows={4}
-                      placeholder="Describe the purpose of this team"
-                      className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100"
-                    />
+                {manager ? (
+                  <div className="mb-4 flex items-center gap-3">
+
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold text-blue-700">
+                      {managerInitial}
+                    </div>
+
+                    <div className="min-w-0">
+
+                      <p className="truncate text-sm font-semibold text-gray-900">
+                        {managerName}
+                      </p>
+
+                      {manager.email && (
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {manager.email}
+                        </p>
+                      )}
+
+                    </div>
 
                   </div>
+                ) : (
+                  <p className="mb-4 text-sm text-gray-500">
+                    No manager is currently assigned.
+                  </p>
+                )}
 
-                </div>
+                {/*
+                 * IMPORTANT:
+                 * This requires the backend to provide a list of
+                 * eligible managers. If your current API does not
+                 * return manager options, replace this select with
+                 * your existing manager-selection component/modal.
+                 */}
 
-                {/* Form Footer */}
-                <div className="flex justify-end border-t bg-gray-50 px-6 py-4">
+                <input
+                  id="team-manager"
+                  type="text"
+                  value={managerId}
+                  onChange={(event) =>
+                    setManagerId(
+                      event.target.value
+                    )
+                  }
+                  disabled={savingManager}
+                  placeholder="Enter manager user ID"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100"
+                />
+
+                <p className="mt-2 text-xs text-gray-500">
+                  Enter the ID of the new manager and use Save Manager.
+                </p>
+
+                <div className="mt-4 flex justify-end">
 
                   <button
-                    type="submit"
-                    disabled={saving}
-                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    type="button"
+                    onClick={() =>
+                      handleManagerChange({
+                        target: {
+                          value: managerId,
+                        },
+                      })
+                    }
+                    disabled={
+                      savingManager ||
+                      managerId ===
+                        (team?.manager_id ||
+                          team?.manager?.id ||
+                          "")
+                    }
+                    className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {saving
+                    {savingManager
                       ? "Saving..."
-                      : "Save Changes"}
+                      : "Save Manager"}
                   </button>
 
                 </div>
 
-              </form>
+              </div>
 
             </section>
 
@@ -721,7 +1078,6 @@ function TeamEdit() {
 
                 </div>
 
-                {/* Add Member */}
                 <button
                   type="button"
                   onClick={() => {
@@ -729,7 +1085,8 @@ function TeamEdit() {
                     setSuccess("");
                     setAddMemberOpen(true);
                   }}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  disabled={!isOpen}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="text-base leading-none">
                     +
@@ -740,14 +1097,10 @@ function TeamEdit() {
 
               </div>
 
-              {/* ================================================== */}
-              {/* MEMBERS LIST */}
-              {/* ================================================== */}
-
+              {/* Members List */}
               <div>
 
-                {Array.isArray(members) &&
-                members.length > 0 ? (
+                {members.length > 0 ? (
 
                   <div className="divide-y">
 
@@ -759,6 +1112,7 @@ function TeamEdit() {
                           member.user_id;
 
                         const memberName =
+                          member.full_name ||
                           member.name ||
                           member.username ||
                           "Unknown User";
@@ -774,26 +1128,42 @@ function TeamEdit() {
                             .charAt(0)
                             .toUpperCase();
 
+                        const isManagerMember =
+                          String(
+                            memberId
+                          ) ===
+                          String(
+                            team?.manager_id ||
+                              team?.manager?.id
+                          );
+
                         return (
                           <div
                             key={memberId}
                             className="flex items-center justify-between px-6 py-4 transition hover:bg-gray-50"
                           >
 
-                            {/* User */}
                             <div className="flex min-w-0 items-center gap-3">
 
-                              {/* Avatar */}
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600">
                                 {memberInitial}
                               </div>
 
-                              {/* User Information */}
                               <div className="min-w-0">
 
-                                <p className="truncate text-sm font-medium text-gray-900">
-                                  {memberName}
-                                </p>
+                                <div className="flex items-center gap-2">
+
+                                  <p className="truncate text-sm font-medium text-gray-900">
+                                    {memberName}
+                                  </p>
+
+                                  {isManagerMember && (
+                                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                      Manager
+                                    </span>
+                                  )}
+
+                                </div>
 
                                 <p className="mt-0.5 truncate text-sm text-gray-500">
                                   {memberEmail}
@@ -803,10 +1173,24 @@ function TeamEdit() {
 
                             </div>
 
-                            {/* Remove */}
                             <button
                               type="button"
-                              className="ml-4 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                              onClick={() =>
+                                handleRemoveMember(
+                                  member
+                                )
+                              }
+                              disabled={
+                                !isOpen ||
+                                memberActionLoading ||
+                                isManagerMember
+                              }
+                              title={
+                                isManagerMember
+                                  ? "Change the manager before removing this member."
+                                  : "Remove member"
+                              }
+                              className="ml-4 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               Remove
                             </button>
@@ -819,10 +1203,6 @@ function TeamEdit() {
                   </div>
 
                 ) : (
-
-                  /* ================================================== */
-                  /* EMPTY STATE */
-                  /* ================================================== */
 
                   <div className="px-6 py-12 text-center">
 
@@ -847,7 +1227,8 @@ function TeamEdit() {
                         setSuccess("");
                         setAddMemberOpen(true);
                       }}
-                      className="mt-4 text-sm font-semibold text-blue-600 transition hover:text-blue-700 hover:underline"
+                      disabled={!isOpen}
+                      className="mt-4 text-sm font-semibold text-blue-600 transition hover:text-blue-700 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Add the first member
                     </button>
@@ -871,11 +1252,7 @@ function TeamEdit() {
         <AddTeamMemberModal
           open={addMemberOpen}
           teamId={teamId}
-          existingMembers={
-            Array.isArray(members)
-              ? members
-              : []
-          }
+          existingMembers={members}
           onClose={() =>
             setAddMemberOpen(false)
           }
