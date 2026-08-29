@@ -1,4 +1,6 @@
-import { useState } from "react";
+// src/component/navbar/UserMenu.jsx
+
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { logout } from "../../api/auth";
@@ -10,6 +12,64 @@ function UserMenu({ user }) {
 
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Reference to the complete user-menu container.
+  const menuRef = useRef(null);
+
+  // ============================================================
+  // CLOSE MENU WHEN CLICKING OUTSIDE
+  // ============================================================
+
+  useEffect(() => {
+    function handleOutsideClick(event) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
+    };
+  }, []);
+
+  // ============================================================
+  // CLOSE MENU WITH ESCAPE
+  // ============================================================
+
+  useEffect(() => {
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "keydown",
+      handleEscape
+    );
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, []);
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
 
   async function handleLogout() {
     if (loggingOut) {
@@ -34,12 +94,19 @@ function UserMenu({ user }) {
       });
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error("[UserMenu] Logout failed:", error);
+        console.error(
+          "[UserMenu] Logout failed:",
+          error
+        );
       }
     } finally {
       setLoggingOut(false);
     }
   }
+
+  // ============================================================
+  // NOT LOGGED IN
+  // ============================================================
 
   if (!user) {
     return (
@@ -63,14 +130,23 @@ function UserMenu({ user }) {
     );
   }
 
-  const username = user.username || user.full_name || user.email || "User";
+  const username =
+    user.username ||
+    user.full_name ||
+    user.email ||
+    "User";
 
   return (
-    <div className="relative">
+    <div
+      ref={menuRef}
+      className="relative"
+    >
       {/* User button */}
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() =>
+          setOpen((value) => !value)
+        }
         disabled={loggingOut}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -79,7 +155,9 @@ function UserMenu({ user }) {
         <span>{username}</span>
 
         <span
-          className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}
+          className={`text-xs transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
         >
           ▾
         </span>
@@ -122,7 +200,9 @@ function UserMenu({ user }) {
             role="menuitem"
             className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loggingOut ? "Logging out..." : "Logout"}
+            {loggingOut
+              ? "Logging out..."
+              : "Logout"}
           </button>
         </div>
       )}

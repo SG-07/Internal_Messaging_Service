@@ -20,9 +20,9 @@ function TeamsTable({
               Team
             </th>
 
-            {/* <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Description
-            </th> */}
+            <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Dpartment
+            </th>
 
             <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
               Manager
@@ -74,7 +74,7 @@ function TeamsTable({
 
               const teamName = team.name || team.team_name || "—";
 
-              const description = team.description || "—";
+              const department = team.department || team.dept || "—";
 
               const manager =
                 team.manager?.full_name ||
@@ -83,7 +83,7 @@ function TeamsTable({
                 team.manager_username ||
                 "—";
 
-              const members = team.members || team.member_count || 0;
+              const members = team.total_members || team.member_count || 0;
 
               const status = team.status || team.team_status || "—";
 
@@ -97,10 +97,8 @@ function TeamsTable({
                     <p className="font-medium text-gray-900">{teamName}</p>
                   </td>
 
-                  {/* Description */}
-                  {/* <td className="max-w-sm px-6 py-4 text-sm text-gray-700">
-                    <p className="truncate">{description}</p>
-                  </td> */}
+                  {/* Department */}
+                  <td className="px-6 py-4 text-sm text-gray-700">{department}</td>
 
                   {/* Manager */}
                   <td className="px-6 py-4 text-sm text-gray-700">{manager}</td>

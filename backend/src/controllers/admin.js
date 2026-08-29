@@ -296,7 +296,7 @@ export const listTeams = asyncHandler('listTeams', 'Unable to fetch teams.', asy
     .from('teams')
     .select(
       `
-      id, name, status, manager_id, requested_by, approved_by, created_at, updated_at,
+      id, name, status, department, type, manager_id, requested_by, approved_by, created_at, updated_at,
       manager:profiles!teams_manager_id_fkey(id, username, full_name),
       requester:profiles!teams_requested_by_fkey(id, username, full_name)
     `,
@@ -314,18 +314,50 @@ export const listTeams = asyncHandler('listTeams', 'Unable to fetch teams.', asy
     throw new Error('Failed to fetch teams');
   }
 
-  sendPaginated(res, teams, pagination, count);
+  // Member count lives in team_members for type 'team', group_members for
+  // type 'group' — same table split teamMembership.js already dispatches
+  // on. Computed per row since listTeams returns both types mixed.
+  const teamsWithMemberCounts = await Promise.all(
+    (teams || []).map(async (team) => {
+      const membershipTable = team.type === 'group' ? 'group_members' : 'team_members';
+      const fkColumn = team.type === 'group' ? 'group_id' : 'team_id';
+
+      const { count: memberCount, error: memberCountError } = await supabaseAdmin
+        .from(membershipTable)
+        .select('id', { count: 'exact', head: true })
+        .eq(fkColumn, team.id)
+        .is('left_at', null);
+
+      if (memberCountError && isDev) {
+        console.log('[listTeams] Failed to count members for team:', team.id, memberCountError.message);
+      }
+
+      return {
+        ...team,
+        total_members: memberCount || 0,
+      };
+    })
+  );
+
+  sendPaginated(res, teamsWithMemberCounts, pagination, count);
 });
 
 // --- CREATE TEAM DIRECTLY (admin only, auto-approved) ---
 export const createTeam = asyncHandler('createTeam', 'Unable to create team.', async (req, res) => {
-  const { name, managerId } = req.body;
+  const { name, managerId, department } = req.body;
   const admin_id = req.user.id;
 
   if (!name) {
     return res.status(400).json({
       success: false,
       message: 'Team name is required.',
+    });
+  }
+
+  if (!department || typeof department !== 'string' || department.trim() === '') {
+    return res.status(400).json({
+      success: false,
+      message: 'Department is required for teams.',
     });
   }
 
@@ -357,8 +389,9 @@ export const createTeam = asyncHandler('createTeam', 'Unable to create team.', a
       requested_by: admin_id,
       approved_by: admin_id,
       type: 'team',
+      department: department.trim(),
     })
-    .select('id, name, status, manager_id, type')
+    .select('id, name, status, manager_id, type, department')
     .single();
 
   if (error || !newTeam) {
@@ -369,8 +402,8 @@ export const createTeam = asyncHandler('createTeam', 'Unable to create team.', a
   if (resolvedManagerId) {
     const { error: attachError } = await attachUserToTeam(newTeam.id, resolvedManagerId, admin_id);
 
-    if (attachError && isDev) {
-      console.log('[createTeam] Failed to fully attach manager to team:', attachError);
+    if (attachError) {
+      console.error('[createTeam] Failed to fully attach manager to team:', JSON.stringify(attachError));
     }
   } else {
     const { error: conversationError } = await ensureTeamConversation(newTeam.id, admin_id);
