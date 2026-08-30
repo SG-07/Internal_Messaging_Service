@@ -84,6 +84,7 @@ export const signup = async (req, res) => {
         email: newUser.email,
         username: newUser.username,
         role: newUser.role,
+        department: null,
       },
       process.env.JWT_ACCESS_SECRET,
       { expiresIn: process.env.JWT_ACCESS_EXPIRY || '60m' }
@@ -121,6 +122,7 @@ export const signup = async (req, res) => {
         username: newUser.username,
         full_name: newUser.full_name,
         role: newUser.role,
+        department: null,
       },
     });
   } catch (err) {
@@ -204,6 +206,7 @@ export const login = async (req, res) => {
         username: user.username,
         full_name: user.full_name,
         role: user.role,
+        department: user.department,
       },
     });
   } catch (err) {
@@ -276,7 +279,7 @@ export const getCurrentUser = async (req, res) => {
   try {
     const { data: user, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, username, full_name, role')
+      .select('id, email, username, full_name, role, department')
       .eq('id', req.user.id)
       .single();
 

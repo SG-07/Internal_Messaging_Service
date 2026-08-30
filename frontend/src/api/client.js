@@ -3,13 +3,25 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export async function request(path, options = {}) {
+  // Body may already be a JSON string (some callers, e.g. auth.js, do
+  // this themselves) or a plain object (groups.js's convention, which
+  // assumes this function stringifies it). Handle both without
+  // double-stringifying an already-stringified body.
+  const { body, ...restOptions } = options;
+
+  const serializedBody =
+    body === undefined || body === null || typeof body === 'string'
+      ? body
+      : JSON.stringify(body);
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
     credentials: 'include',
-    ...options,
+    ...restOptions,
+    ...(serializedBody !== undefined && { body: serializedBody }),
   });
 
   const data = await response.json().catch(() => null);
@@ -51,6 +63,7 @@ export async function request(path, options = {}) {
     );
 
     error.status = response.status;
+    error.data = data;
 
     throw error;
   }

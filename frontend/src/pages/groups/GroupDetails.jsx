@@ -19,6 +19,9 @@ function GroupDetails() {
 
     isAdmin,
     isCreator,
+    isMember,
+    isManager,
+    canEdit,
     canDelete,
     canManage,
 
@@ -195,9 +198,7 @@ function GroupDetails() {
    *
    * group.pending_join_requests
    */
-  const pendingRequests = Array.isArray(joinRequests)
-    ? joinRequests
-    : [];
+  const pendingRequests = Array.isArray(joinRequests) ? joinRequests : [];
 
   /*
    * ----------------------------------------
@@ -244,8 +245,7 @@ function GroupDetails() {
               <StatusBadge status={group.status} />
 
               {/* Join Group */}
-
-              {group.can_join === true && (
+              {!isMember && !group.user_pending_request && (
                 <button
                   type="button"
                   onClick={handleJoin}
@@ -257,7 +257,6 @@ function GroupDetails() {
               )}
 
               {/* Leave Group */}
-
               {group.can_leave === true && (
                 <button
                   type="button"
@@ -270,8 +269,7 @@ function GroupDetails() {
               )}
 
               {/* Edit Group */}
-
-              {canManage && !isEditing && (
+              {canEdit && !isEditing && (
                 <button
                   type="button"
                   onClick={handleStartEdit}
@@ -307,9 +305,7 @@ function GroupDetails() {
 
           {joinError && (
             <div className="border-b border-red-200 bg-red-50 px-6 py-4">
-              <p className="text-sm font-medium text-red-700">
-                {joinError}
-              </p>
+              <p className="text-sm font-medium text-red-700">{joinError}</p>
             </div>
           )}
 
@@ -366,7 +362,7 @@ function GroupDetails() {
               value={
                 canManage
                   ? requestsTotal
-                  : group.pending_join_requests?.length ?? 0
+                  : (group.pending_join_requests?.length ?? 0)
               }
             />
 
@@ -384,9 +380,7 @@ function GroupDetails() {
             {isEditing && (
               <section className="rounded-xl border border-blue-200 bg-blue-50 lg:col-span-3">
                 <div className="border-b border-blue-200 px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">
-                    Edit Group
-                  </h2>
+                  <h2 className="font-semibold text-gray-900">Edit Group</h2>
 
                   <p className="mt-1 text-sm text-gray-600">
                     Update the group information.
@@ -396,9 +390,7 @@ function GroupDetails() {
                 <div className="space-y-5 p-5">
                   {saveError && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                      <p className="text-sm text-red-700">
-                        {saveError}
-                      </p>
+                      <p className="text-sm text-red-700">{saveError}</p>
                     </div>
                   )}
 
@@ -416,9 +408,7 @@ function GroupDetails() {
                       id="group-name"
                       type="text"
                       value={name}
-                      onChange={(event) =>
-                        setName(event.target.value)
-                      }
+                      onChange={(event) => setName(event.target.value)}
                       disabled={saving}
                       maxLength={255}
                       className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
@@ -438,9 +428,7 @@ function GroupDetails() {
                     <textarea
                       id="group-description"
                       value={description}
-                      onChange={(event) =>
-                        setDescription(event.target.value)
-                      }
+                      onChange={(event) => setDescription(event.target.value)}
                       disabled={saving}
                       rows={4}
                       className="mt-2 w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
@@ -463,9 +451,7 @@ function GroupDetails() {
                         id="group-manager-id"
                         type="text"
                         value={managerId}
-                        onChange={(event) =>
-                          setManagerId(event.target.value)
-                        }
+                        onChange={(event) => setManagerId(event.target.value)}
                         disabled={saving}
                         className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
                         placeholder="Leave empty to remove manager"
@@ -511,40 +497,26 @@ function GroupDetails() {
                 </div>
 
                 <div className="divide-y">
-                  <DetailRow
-                    label="Group Name"
-                    value={group.name}
-                  />
+                  <DetailRow label="Group Name" value={group.name} />
 
                   <DetailRow
                     label="Department"
-                    value={
-                      group.department || "Cross-department"
-                    }
+                    value={group.department || "Cross-department"}
                   />
 
                   <DetailRow
                     label="Description"
-                    value={
-                      group.description ||
-                      "No description provided."
-                    }
+                    value={group.description || "No description provided."}
                   />
 
                   <DetailRow
                     label="Access Type"
-                    value={
-                      group.is_open
-                        ? "Open Group"
-                        : "Restricted Group"
-                    }
+                    value={group.is_open ? "Open Group" : "Restricted Group"}
                   />
 
                   <DetailRow
                     label="Status"
-                    value={
-                      <StatusBadge status={group.status} />
-                    }
+                    value={<StatusBadge status={group.status} />}
                   />
 
                   <DetailRow
@@ -559,9 +531,7 @@ function GroupDetails() {
               <section className="overflow-hidden rounded-xl border border-gray-200">
                 <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
-                    <h2 className="font-semibold text-gray-900">
-                      Members
-                    </h2>
+                    <h2 className="font-semibold text-gray-900">Members</h2>
 
                     <p className="mt-1 text-sm text-gray-500">
                       {group.total_members ?? members.length}{" "}
@@ -574,9 +544,7 @@ function GroupDetails() {
                   {canManage && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowAddMemberModal(true)
-                      }
+                      onClick={() => setShowAddMemberModal(true)}
                       className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                       + Add Member
@@ -586,9 +554,7 @@ function GroupDetails() {
 
                 {members.length === 0 ? (
                   <div className="px-5 py-10 text-center">
-                    <p className="text-sm text-gray-500">
-                      No members found.
-                    </p>
+                    <p className="text-sm text-gray-500">No members found.</p>
                   </div>
                 ) : (
                   <div className="divide-y">
@@ -617,9 +583,7 @@ function GroupDetails() {
 
                       <p className="mt-1 text-sm text-gray-500">
                         {requestsTotal} pending{" "}
-                        {requestsTotal === 1
-                          ? "request"
-                          : "requests"}
+                        {requestsTotal === 1 ? "request" : "requests"}
                       </p>
                     </div>
                   </div>
@@ -640,15 +604,11 @@ function GroupDetails() {
 
                   {requestsError && (
                     <div className="border-b border-red-200 bg-red-50 px-5 py-4">
-                      <p className="text-sm text-red-700">
-                        {requestsError}
-                      </p>
+                      <p className="text-sm text-red-700">{requestsError}</p>
 
                       <button
                         type="button"
-                        onClick={() =>
-                          handleLoadMoreRequests()
-                        }
+                        onClick={() => handleLoadMoreRequests()}
                         className="mt-2 text-sm font-medium text-red-700 underline"
                       >
                         Try again
@@ -684,12 +644,8 @@ function GroupDetails() {
                         <JoinRequestRow
                           key={request.id}
                           request={request}
-                          processing={
-                            processingRequestId === request.id
-                          }
-                          anyProcessing={
-                            processingRequestId !== null
-                          }
+                          processing={processingRequestId === request.id}
+                          anyProcessing={processingRequestId !== null}
                           onApprove={handleApproveRequest}
                           onReject={handleRejectRequest}
                         />
@@ -707,9 +663,7 @@ function GroupDetails() {
                         disabled={requestsLoading}
                         className="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {requestsLoading
-                          ? "Loading..."
-                          : "Load More Requests"}
+                        {requestsLoading ? "Loading..." : "Load More Requests"}
                       </button>
                     </div>
                   )}
@@ -724,9 +678,7 @@ function GroupDetails() {
 
               <section className="rounded-xl border border-gray-200">
                 <div className="border-b px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">
-                    Created By
-                  </h2>
+                  <h2 className="font-semibold text-gray-900">Created By</h2>
                 </div>
 
                 <div className="p-5">
@@ -744,9 +696,7 @@ function GroupDetails() {
 
               <section className="rounded-xl border border-gray-200">
                 <div className="border-b px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">
-                    Group Manager
-                  </h2>
+                  <h2 className="font-semibold text-gray-900">Group Manager</h2>
                 </div>
 
                 <div className="p-5">
@@ -760,45 +710,6 @@ function GroupDetails() {
                 </div>
               </section>
 
-              {/* Your Membership */}
-
-              <section className="rounded-xl border border-gray-200">
-                <div className="border-b px-5 py-4">
-                  <h2 className="font-semibold text-gray-900">
-                    Your Membership
-                  </h2>
-                </div>
-
-                <div className="divide-y">
-                  <DetailRow
-                    label="Membership Status"
-                    value={formatMembershipStatus(
-                      group.user_membership_status,
-                    )}
-                  />
-
-                  <DetailRow
-                    label="Can Join"
-                    value={
-                      <BooleanBadge value={group.can_join} />
-                    }
-                  />
-
-                  <DetailRow
-                    label="Can Leave"
-                    value={
-                      <BooleanBadge value={group.can_leave} />
-                    }
-                  />
-
-                  <DetailRow
-                    label="Can Manage"
-                    value={
-                      <BooleanBadge value={group.can_manage} />
-                    }
-                  />
-                </div>
-              </section>
 
               {/* Pending Request */}
 
@@ -810,8 +721,7 @@ function GroupDetails() {
                     </h2>
 
                     <p className="mt-2 text-sm text-yellow-800">
-                      You already have a pending request to join
-                      this group.
+                      You already have a pending request to join this group.
                     </p>
                   </div>
                 </section>
@@ -822,13 +732,10 @@ function GroupDetails() {
               {canDelete && (
                 <section className="overflow-hidden rounded-xl border border-red-200 bg-white">
                   <div className="border-b border-red-200 bg-red-50 px-5 py-4">
-                    <h2 className="font-semibold text-red-800">
-                      Danger Zone
-                    </h2>
+                    <h2 className="font-semibold text-red-800">Danger Zone</h2>
 
                     <p className="mt-1 text-sm text-red-700">
-                      Permanently delete this group and its
-                      associated data.
+                      Permanently delete this group and its associated data.
                     </p>
                   </div>
 
@@ -903,15 +810,13 @@ function GroupDetails() {
                 </p>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  This action cannot be undone. All associated group
-                  data will be permanently deleted.
+                  This action cannot be undone. All associated group data will
+                  be permanently deleted.
                 </p>
 
                 {deleteError && (
                   <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                    <p className="text-sm text-red-700">
-                      {deleteError}
-                    </p>
+                    <p className="text-sm text-red-700">{deleteError}</p>
                   </div>
                 )}
               </div>
@@ -932,9 +837,7 @@ function GroupDetails() {
                   disabled={deleting}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {deleting
-                    ? "Deleting..."
-                    : "Delete Permanently"}
+                  {deleting ? "Deleting..." : "Delete Permanently"}
                 </button>
               </div>
             </div>
@@ -961,13 +864,9 @@ function JoinRequestRow({
   const requestUser = request?.user || {};
 
   const displayName =
-    requestUser.full_name ||
-    requestUser.username ||
-    "Unknown User";
+    requestUser.full_name || requestUser.username || "Unknown User";
 
-  const initials = getInitials(
-    requestUser.full_name || requestUser.username,
-  );
+  const initials = getInitials(requestUser.full_name || requestUser.username);
 
   return (
     <div className="px-5 py-5">
@@ -981,9 +880,7 @@ function JoinRequestRow({
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-gray-900">
-                {displayName}
-              </p>
+              <p className="font-semibold text-gray-900">{displayName}</p>
 
               <span className="rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-medium capitalize text-yellow-700">
                 {request.status || "pending"}
@@ -1053,9 +950,7 @@ function StatItem({ label, value }) {
     <div className="px-6 py-5">
       <p className="text-sm text-gray-500">{label}</p>
 
-      <p className="mt-1 text-xl font-semibold text-gray-900">
-        {value ?? "—"}
-      </p>
+      <p className="mt-1 text-xl font-semibold text-gray-900">{value ?? "—"}</p>
     </div>
   );
 }
@@ -1099,15 +994,11 @@ function UserInfo({ user }) {
         </p>
 
         {user.username && (
-          <p className="mt-1 text-sm text-gray-500">
-            @{user.username}
-          </p>
+          <p className="mt-1 text-sm text-gray-500">@{user.username}</p>
         )}
 
         {user.email && (
-          <p className="mt-1 break-all text-sm text-gray-500">
-            {user.email}
-          </p>
+          <p className="mt-1 break-all text-sm text-gray-500">{user.email}</p>
         )}
       </div>
     </div>
@@ -1120,15 +1011,8 @@ function UserInfo({ user }) {
  * --------------------------------------------------
  */
 
-function MemberRow({
-  member,
-  canManage,
-  onRemove,
-  removingMemberId,
-}) {
-  const initials = getInitials(
-    member.full_name || member.username,
-  );
+function MemberRow({ member, canManage, onRemove, removingMemberId }) {
+  const initials = getInitials(member.full_name || member.username);
 
   return (
     <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1139,19 +1023,13 @@ function MemberRow({
 
         <div className="min-w-0">
           <p className="truncate font-medium text-gray-900">
-            {member.full_name ||
-              member.username ||
-              "Unknown User"}
+            {member.full_name || member.username || "Unknown User"}
           </p>
 
           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-sm text-gray-500">
-            {member.username && (
-              <span>@{member.username}</span>
-            )}
+            {member.username && <span>@{member.username}</span>}
 
-            {member.department && (
-              <span>{member.department}</span>
-            )}
+            {member.department && <span>{member.department}</span>}
           </div>
 
           {member.email && (
@@ -1180,9 +1058,7 @@ function MemberRow({
             disabled={removingMemberId !== null}
             className="mt-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {removingMemberId === member.id
-              ? "Removing..."
-              : "Remove"}
+            {removingMemberId === member.id ? "Removing..." : "Remove"}
           </button>
         )}
       </div>
@@ -1290,15 +1166,6 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
-function formatMembershipStatus(status) {
-  if (!status) {
-    return "Unknown";
-  }
-
-  return status
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
 
 function getInitials(value) {
   if (!value) {

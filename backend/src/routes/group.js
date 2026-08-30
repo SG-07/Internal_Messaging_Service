@@ -16,7 +16,7 @@ import {
   rejectJoinRequest,
   listPotentialMembers,
   listUserGroups,
-  getGroupConversation  // Changed from getOrCreateGroupConversation
+  getGroupConversation  
 } from '../controllers/group.js';
 import { requireAuth } from '../middleware/auth.js';
 

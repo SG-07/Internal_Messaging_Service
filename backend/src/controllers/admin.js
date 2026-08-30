@@ -1501,3 +1501,104 @@ export const adminUpdateUserPassword = async (req, res) => {
     });
   }
 };
+
+// --- APPROVE / REJECT PENDING GROUP REQUEST (Admin only) ---
+export const reviewGroupRequest = async (req, res) => {
+  const { groupId } = req.params;
+  const { decision } = req.body;
+  const admin_id = req.user.id;
+
+  if (!['approved', 'rejected'].includes(decision)) {
+    return res.status(400).json({
+      success: false,
+      message: "Decision must be 'approved' or 'rejected'.",
+    });
+  }
+
+  try {
+    // Reject: delete the group outright. Unlike teams (whose conversation
+    // and membership are only set up AFTER approval, in
+    // reviewTeamRequest), createGroup already creates the conversation,
+    // initial message, and the creator's group_members /
+    // conversation_participants rows immediately, even while pending. So
+    // rejection needs a real teardown rather than a status flip —
+    // deleting the row cascades to its conversation (via group_id), which
+    // cascades further to messages and conversation_participants, plus
+    // the group_members row directly.
+    if (decision === 'rejected') {
+      const { data: rejectedGroup, error: fetchError } = await supabaseAdmin
+        .from('teams')
+        .select('id, name')
+        .eq('id', groupId)
+        .eq('type', 'group')
+        .eq('status', 'pending')
+        .single();
+
+      if (fetchError || !rejectedGroup) {
+        return res.status(404).json({
+          success: false,
+          message: 'Pending group request not found.',
+        });
+      }
+
+      const { error: deleteError } = await supabaseAdmin
+        .from('teams')
+        .delete()
+        .eq('id', groupId);
+
+      if (deleteError) {
+        console.error('[reviewGroupRequest] Error deleting rejected group:', deleteError);
+        throw new Error('Failed to reject group request');
+      }
+
+      if (isDev) {
+        console.log('[reviewGroupRequest] groupId:', groupId, 'decision: rejected (deleted)');
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Group request rejected.',
+        data: { id: rejectedGroup.id, name: rejectedGroup.name, status: 'rejected' },
+      });
+    }
+
+    // Approve: the group, its conversation, and the creator's membership
+    // already exist (createGroup set them up immediately on request) —
+    // approval is just a status flip.
+    const { data: updatedGroup, error } = await supabaseAdmin
+      .from('teams')
+      .update({
+        status: 'approved',
+        approved_by: admin_id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', groupId)
+      .eq('type', 'group')
+      .eq('status', 'pending')
+      .select('id, name, status, department, manager_id, conversation_id')
+      .single();
+
+    if (error || !updatedGroup) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending group request not found.',
+      });
+    }
+
+    if (isDev) {
+      console.log('[reviewGroupRequest] groupId:', groupId, 'decision: approved');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Group approved successfully.',
+      data: updatedGroup,
+    });
+  } catch (err) {
+    console.error('[reviewGroupRequest] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to review group request.',
+    });
+  }
+};

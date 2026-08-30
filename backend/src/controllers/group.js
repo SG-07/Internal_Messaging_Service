@@ -1,14 +1,14 @@
 // backend/src/controllers/group.js
 import supabaseAdmin from '../config/supabaseClient.js';
+import { attachUserToTeam } from '../utils/teamMembership.js';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-/// --- CREATE GROUP (Updated - Auto-approve for admins) ---
+// --- CREATE GROUP (Updated - Auto-approve for admins) ---
 export const createGroup = async (req, res) => {
-  const { name, is_open, department } = req.body;
+  const { name, is_open, department, managerId } = req.body;
   const creator_id = req.user.id;
-  const isDev = process.env.NODE_ENV === 'development';
-
+ 
   // Validation
   if (!name || typeof name !== 'string' || name.trim() === '') {
     return res.status(400).json({
@@ -16,7 +16,16 @@ export const createGroup = async (req, res) => {
       message: 'Group name is required.',
     });
   }
-
+ 
+  if (typeof is_open !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      message: 'is_open must be true or false.',
+    });
+  }
+ 
+  const isClosed = is_open === false;
+ 
   try {
     // Fetch creator profile
     const { data: creator, error: creatorError } = await supabaseAdmin
@@ -24,150 +33,157 @@ export const createGroup = async (req, res) => {
       .select('id, username, full_name, email, role, department')
       .eq('id', creator_id)
       .single();
-
+ 
     if (creatorError || !creator) {
       return res.status(404).json({
         success: false,
         message: 'User not found.',
       });
     }
-
-    // Validate department rules
-    const userDept = creator.department;
+ 
     const isAdmin = creator.role === 'admin';
-
-    if (department && !isAdmin) {
-      // Non-admins can only create groups in their own department
-      if (department !== userDept) {
-        return res.status(403).json({
+ 
+    // Department:
+    // - Non-admins: never taken from the body — always their own profile
+    //   department. If their profile has none set, they can't create a
+    //   group at all (matches the requestTeam/createTeam rule).
+    // - Admins: keep their existing flexibility — an explicit department
+    //   from the body, or none at all (department-less group).
+    let resolvedDepartment;
+ 
+    if (isAdmin) {
+      resolvedDepartment = department || null;
+    } else {
+      if (!creator.department) {
+        return res.status(400).json({
           success: false,
-          message: 'You can only create groups in your own department.',
+          message: 'Your profile does not have a department assigned. Ask an admin to set your department before creating a group.',
         });
       }
+ 
+      resolvedDepartment = creator.department;
     }
-
-    if (!department && !isAdmin) {
-      // Non-admins cannot create cross-department groups
-      return res.status(403).json({
-        success: false,
-        message: 'Only admins can create department-less groups.',
-      });
+ 
+    // Manager assignment (admin-created groups only):
+    // - Closed group (is_open: false): a manager/user MUST be assigned —
+    //   someone has to be able to manage join requests for a group that
+    //   isn't freely joinable.
+    // - Open group: managerId is optional, defaults to null.
+    // - Non-admins: unaffected — they're always their own group's
+    //   manager_id, same as before; managerId in the body is ignored for
+    //   them.
+    let resolvedManagerId = isAdmin ? null : creator_id;
+ 
+    if (isAdmin) {
+      if (isClosed && !managerId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Closed groups require a manager or user to be assigned.',
+        });
+      }
+ 
+      if (managerId) {
+        const { data: assigneeProfile, error: assigneeLookupError } = await supabaseAdmin
+          .from('profiles')
+          .select('id, email')
+          .eq('email', managerId)
+          .single();
+ 
+        if (assigneeLookupError || !assigneeProfile) {
+          return res.status(404).json({
+            success: false,
+            message: 'No user found with that email to assign to the group.',
+          });
+        }
+ 
+        resolvedManagerId = assigneeProfile.id;
+      }
     }
-
+ 
     // Determine group status
     // Admins: auto-approve (status: approved, approved_by: creator_id)
     // Non-admins: pending approval (status: pending, approved_by: null)
     const status = isAdmin ? 'approved' : 'pending';
     const approvedBy = isAdmin ? creator_id : null;
-
+ 
     // Create the group
     const { data: newGroup, error: groupError } = await supabaseAdmin
       .from('teams')
       .insert({
         name: name.trim(),
-        is_open: is_open !== false,
+        is_open: is_open,
         status: status,
-        department: department || null,
-        manager_id: isAdmin ? null : creator_id,
+        department: resolvedDepartment,
+        manager_id: resolvedManagerId,
         requested_by: creator_id,  // Always set to creator
         approved_by: approvedBy,   // Set to creator if admin, null if non-admin
         type: 'group',             // Specify this is a group
       })
       .select('id, name, is_open, status, department, manager_id, requested_by, approved_by, created_at, updated_at, type')
       .single();
-
+ 
     if (groupError) {
       console.error('[createGroup] Error creating group:', groupError);
       throw new Error('Failed to create group');
     }
-
+ 
     const group_id = newGroup.id;
-
+ 
     if (isDev) {
-      console.log('[createGroup] Group created:', group_id, 'by:', creator_id, 'status:', status, 'isAdmin:', isAdmin);
+      console.log('[createGroup] Group created:', group_id, 'by:', creator_id, 'status:', status, 'isAdmin:', isAdmin, 'department:', resolvedDepartment, 'manager_id:', resolvedManagerId);
     }
-
-    // ===== CREATE GROUP CONVERSATION =====
-    const { data: conversation, error: convError } = await supabaseAdmin
-      .from('conversations')
-      .insert({
-        subject: null,
-        conversation_type: 'group',
-        category: 'discussion',
-        created_by: creator_id,
-        is_group: true,
-        group_id: group_id,
-      })
-      .select('id')
-      .single();
-
-    if (convError) {
-      console.error('[createGroup] Error creating conversation:', convError);
-      // Delete group if conversation creation fails
+ 
+    // ===== ATTACH CREATOR: group_members row, the group's conversation
+    // (created via teams.conversation_id — the same direct-reference
+    // pattern every other entity type uses now — with the "Team Created"
+    // first message), and conversation_participants. attachUserToTeam
+    // dispatches to group_members automatically since this row's
+    // type is 'group'. =====
+    const { error: attachError } = await attachUserToTeam(group_id, creator_id, creator_id);
+ 
+    // A failure to create the conversation itself is fatal — roll back
+    // the group rather than leave one with no conversation behind (same
+    // strictness this endpoint always had for that specific step).
+    if (attachError?.conversation) {
+      console.error('[createGroup] Error setting up group conversation:', attachError.conversation);
       await supabaseAdmin.from('teams').delete().eq('id', group_id);
       throw new Error('Failed to create group conversation');
     }
-
-    const conversation_id = conversation.id;
-
-    // ===== ADD INITIAL MESSAGE "Group created" =====
-    const { error: messageError } = await supabaseAdmin
-      .from('messages')
-      .insert({
-        conversation_id: conversation_id,
-        sender_id: creator_id,
-        content: `Group created by ${creator.full_name || creator.username}`,
-      });
-
-    if (messageError) {
-      console.error('[createGroup] Error creating initial message:', messageError);
-      // Continue anyway - group is created, just no initial message
+ 
+    // group_members / conversation_participants failures are non-fatal —
+    // the group and its conversation still exist either way (same
+    // tolerance this endpoint always had for those two steps).
+    if (attachError?.member && isDev) {
+      console.log('[createGroup] Error adding creator as group member:', attachError.member);
     }
-
-    // ===== ADD CREATOR AS GROUP MEMBER =====
-    const { error: memberError } = await supabaseAdmin
-      .from('group_members')
-      .insert({
-        group_id: group_id,
-        user_id: creator_id,
-        added_by: creator_id,
-      });
-
-    if (memberError) {
-      console.error('[createGroup] Error adding creator as member:', memberError);
-      // Continue anyway
+ 
+    if (attachError?.participant && isDev) {
+      console.log('[createGroup] Error adding creator to conversation:', attachError.participant);
     }
-
-    // ===== ADD ALL GROUP MEMBERS AS CONVERSATION PARTICIPANTS =====
-    const { data: members, error: membersError } = await supabaseAdmin
-      .from('group_members')
-      .select('user_id')
-      .eq('group_id', group_id)
-      .is('left_at', null);
-
-    if (!membersError && members && members.length > 0) {
-      const participants = members.map(m => ({
-        conversation_id: conversation_id,
-        user_id: m.user_id,
-      }));
-
-      const { error: participantError } = await supabaseAdmin
-        .from('conversation_participants')
-        .insert(participants);
-
-      if (participantError) {
-        console.error('[createGroup] Error adding participants:', participantError);
-      }
-
-      if (isDev) {
-        console.log('[createGroup] Added', participants.length, 'participants to conversation');
+ 
+    // If an admin assigned a separate manager/user, attach them too —
+    // both the admin and the assignee end up as members/participants.
+    if (isAdmin && resolvedManagerId && resolvedManagerId !== creator_id) {
+      const { error: assigneeAttachError } = await attachUserToTeam(group_id, resolvedManagerId, creator_id);
+ 
+      if (assigneeAttachError && isDev) {
+        console.log('[createGroup] Failed to fully attach assigned manager to group:', assigneeAttachError);
       }
     }
-
+ 
+    // Look up the conversation id to include in the response.
+    const { data: groupWithConversation } = await supabaseAdmin
+      .from('teams')
+      .select('conversation_id')
+      .eq('id', group_id)
+      .single();
+ 
+    const conversation_id = groupWithConversation?.conversation_id || null;
+ 
     if (isDev) {
-      console.log('[createGroup] Conversation created:', conversation_id, 'with initial message');
+      console.log('[createGroup] Conversation set up:', conversation_id, 'with initial message and creator as participant');
     }
-
+ 
     res.status(201).json({
       success: true,
       message: 'Group created successfully.',
@@ -196,6 +212,7 @@ export const createGroup = async (req, res) => {
     });
   }
 };
+ 
 
 
 /// --- LIST ALL GROUPS (Updated - filter by type) ---

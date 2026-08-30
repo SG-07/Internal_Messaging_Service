@@ -20,7 +20,8 @@ import {
   adminGetReportedItem,
   adminListReports,
   adminReviewReport,
-  adminUpdateUserPassword
+  adminUpdateUserPassword,
+  reviewGroupRequest
 } from '../controllers/admin.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
@@ -28,6 +29,9 @@ const router = Router();
 
 // All routes here require both valid auth AND admin role
 router.use(requireAuth, requireAdmin);
+
+// group management
+router.patch('/:groupId/review', requireAuth, requireAdmin, reviewGroupRequest)
 
 // User management
 router.get('/users', listUsers);
@@ -57,5 +61,7 @@ router.get('/reports/items', adminListReportedItems);
 router.get('/reports/items/:reportId', adminGetReportedItem);
 router.get('/reports', adminListReports);
 router.patch('/reports/:reportId/review', adminReviewReport);
+
+
 
 export default router;

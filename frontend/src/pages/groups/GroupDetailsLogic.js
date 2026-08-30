@@ -1,3 +1,5 @@
+// src/pages/groups/GroupDetailsLogic.js
+
 import { useCallback, useEffect, useState } from "react";
 
 import { useNavigate, useParams } from "react-router";
@@ -47,7 +49,28 @@ export function useGroupDetailsLogic() {
 
   const canDelete = isAdmin || isCreator;
 
-  const canManage = group?.can_manage === true;
+  /*
+   * ----------------------------------------
+   * Membership / Manager permissions
+   * ----------------------------------------
+   */
+
+  const isMember =
+    Array.isArray(group?.members) &&
+    group.members.some((member) => member?.id === user?.id);
+
+  const isManager = group?.manager?.id === user?.id;
+
+  /*
+   * Backend can_manage may be true for the creator,
+   * even when the creator is not currently a member.
+   *
+   * For the UI, management requires membership.
+   */
+
+  const canManage = isMember && (isManager || isAdmin);
+
+  const canEdit = isMember && isManager;
 
   /*
    * ----------------------------------------
@@ -101,6 +124,21 @@ export function useGroupDetailsLogic() {
    * ----------------------------------------
    * Edit state
    * ----------------------------------------
+   *
+   * managerEmail contains the manager's email.
+   *
+   * For admin update payload:
+   *
+   * {
+   *   name,
+   *   is_open,
+   *   department,
+   *   managerId
+   * }
+   *
+   * managerId is the manager email according
+   * to the backend contract.
+   * ----------------------------------------
    */
 
   const [isEditing, setIsEditing] = useState(false);
@@ -109,7 +147,7 @@ export function useGroupDetailsLogic() {
 
   const [description, setDescription] = useState("");
 
-  const [managerId, setManagerId] = useState("");
+  const [managerEmail, setManagerEmail] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -190,7 +228,10 @@ export function useGroupDetailsLogic() {
 
       setDescription(responseGroup.description || "");
 
-      setManagerId(responseGroup.manager?.id || "");
+      /*
+       * The edit form uses manager email.
+       */
+      setManagerEmail(responseGroup.manager?.email || "");
     } catch (err) {
       if (import.meta.env.DEV) {
         console.group("[Group Details] Fetch Group Error");
@@ -294,6 +335,7 @@ export function useGroupDetailsLogic() {
            * Prevent duplicate requests when
            * loading another page.
            */
+
           const existingIds = new Set(
             previousRequests.map((request) => request.id),
           );
@@ -330,8 +372,7 @@ export function useGroupDetailsLogic() {
         }
 
         setRequestsError(
-          err?.message ||
-            "Unable to load join requests. Please try again.",
+          err?.message || "Unable to load join requests. Please try again.",
         );
       } finally {
         setRequestsLoading(false);
@@ -379,12 +420,7 @@ export function useGroupDetailsLogic() {
    */
 
   async function handleLoadMoreRequests() {
-    if (
-      requestsLoading ||
-      !requestsHasMore ||
-      !canManage ||
-      !groupId
-    ) {
+    if (requestsLoading || !requestsHasMore || !canManage || !groupId) {
       return;
     }
 
@@ -405,8 +441,8 @@ export function useGroupDetailsLogic() {
       return;
     }
 
-    if (group?.can_join !== true) {
-      setJoinError("You cannot join this group.");
+    if (isMember) {
+      setJoinError("You are already a member of this group.");
 
       return;
     }
@@ -571,11 +607,7 @@ export function useGroupDetailsLogic() {
    */
 
   async function handleApproveRequest(request) {
-    if (
-      !groupId ||
-      !request?.id ||
-      processingRequestId !== null
-    ) {
+    if (!groupId || !request?.id || processingRequestId !== null) {
       return;
     }
 
@@ -588,26 +620,13 @@ export function useGroupDetailsLogic() {
     }
 
     const userName =
-      request?.user?.full_name ||
-      request?.user?.username ||
-      "This user";
+      request?.user?.full_name || request?.user?.username || "This user";
 
-    /*
-     * Optional review notes.
-     *
-     * We use a browser prompt for now so the
-     * backend contract is supported without
-     * introducing another modal component.
-     */
     const reviewNotes = window.prompt(
       `Review notes for approving ${userName}'s request (optional):`,
       "",
     );
 
-    /*
-     * null means the user cancelled the prompt.
-     * Empty string means no notes.
-     */
     if (reviewNotes === null) {
       return;
     }
@@ -658,18 +677,8 @@ export function useGroupDetailsLogic() {
         console.groupEnd();
       }
 
-      /*
-       * Refresh group because approving a request
-       * can increase member count and change
-       * the members list.
-       */
       await loadGroup();
 
-      /*
-       * Refresh requests from page 1 so that
-       * the approved request disappears from
-       * the pending list.
-       */
       await loadJoinRequests({
         page: 1,
         append: false,
@@ -712,11 +721,7 @@ export function useGroupDetailsLogic() {
    */
 
   async function handleRejectRequest(request) {
-    if (
-      !groupId ||
-      !request?.id ||
-      processingRequestId !== null
-    ) {
+    if (!groupId || !request?.id || processingRequestId !== null) {
       return;
     }
 
@@ -729,9 +734,7 @@ export function useGroupDetailsLogic() {
     }
 
     const userName =
-      request?.user?.full_name ||
-      request?.user?.username ||
-      "This user";
+      request?.user?.full_name || request?.user?.username || "This user";
 
     const reviewNotes = window.prompt(
       `Review notes for rejecting ${userName}'s request (optional):`,
@@ -837,7 +840,9 @@ export function useGroupDetailsLogic() {
     }
 
     if (group?.can_manage !== true) {
-      setRemoveMemberError("You do not have permission to remove members.");
+      setRemoveMemberError(
+        "You do not have permission to remove members.",
+      );
 
       return;
     }
@@ -952,7 +957,10 @@ export function useGroupDetailsLogic() {
 
     setDescription(group.description || "");
 
-    setManagerId(group.manager?.id || "");
+    /*
+     * Store manager email in the edit state.
+     */
+    setManagerEmail(group.manager?.email || "");
 
     setIsEditing(true);
   }
@@ -975,7 +983,10 @@ export function useGroupDetailsLogic() {
 
     setDescription(group?.description || "");
 
-    setManagerId(group?.manager?.id || "");
+    /*
+     * Restore manager email.
+     */
+    setManagerEmail(group?.manager?.email || "");
 
     setIsEditing(false);
   }
@@ -983,6 +994,31 @@ export function useGroupDetailsLogic() {
   /*
    * ----------------------------------------
    * Save group
+   * ----------------------------------------
+   *
+   * Backend contract:
+   *
+   * ADMIN:
+   * {
+   *   name: "Rocket",
+   *   is_open: false,
+   *   department: "IT",
+   *   managerId: "manager_it2@company.com"
+   * }
+   *
+   * ADMIN WITHOUT MANAGER:
+   * {
+   *   name: "Rocket",
+   *   is_open: true,
+   *   department: "IT",
+   *   managerId: null
+   * }
+   *
+   * NON-ADMIN:
+   * {
+   *   name: "Rocket",
+   *   is_open: true
+   * }
    * ----------------------------------------
    */
 
@@ -994,8 +1030,6 @@ export function useGroupDetailsLogic() {
     }
 
     const trimmedName = name.trim();
-
-    const trimmedDescription = description.trim();
 
     if (!trimmedName) {
       setSaveError("Please enter a group name.");
@@ -1009,13 +1043,32 @@ export function useGroupDetailsLogic() {
       return;
     }
 
+    /*
+     * Base payload for every user.
+     *
+     * Non-admin:
+     * {
+     *   name,
+     *   is_open
+     * }
+     */
+
     const payload = {
       name: trimmedName,
-      description: trimmedDescription || null,
+      is_open: group.is_open,
     };
 
+    /*
+     * Admin-only fields.
+     *
+     * managerId is the manager EMAIL according
+     * to the backend contract.
+     */
+
     if (isAdmin) {
-      payload.manager_id = managerId.trim() || null;
+      payload.department = group.department || null;
+
+      payload.managerId = managerEmail.trim() || null;
     }
 
     if (import.meta.env.DEV) {
@@ -1065,7 +1118,7 @@ export function useGroupDetailsLogic() {
 
         setDescription(updatedGroup.description || "");
 
-        setManagerId(updatedGroup.manager?.id || "");
+        setManagerEmail(updatedGroup.manager?.email || "");
       } else {
         await loadGroup();
       }
@@ -1223,17 +1276,16 @@ export function useGroupDetailsLogic() {
 
   return {
     group,
-
     groupId,
 
     user,
 
     isAdmin,
-
     isCreator,
-
+    isMember,
+    isManager,
+    canEdit,
     canDelete,
-
     canManage,
 
     loading,
@@ -1308,8 +1360,8 @@ export function useGroupDetailsLogic() {
     description,
     setDescription,
 
-    managerId,
-    setManagerId,
+    managerEmail,
+    setManagerEmail,
 
     saving,
 
