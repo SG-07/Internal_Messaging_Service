@@ -2618,7 +2618,7 @@ export const getGroupConversation = async (req, res) => {
     // Fetch group details
     const { data: group, error: groupError } = await supabaseAdmin
       .from('teams')
-      .select('id, name, status')
+      .select('id, name, status, manager_id')
       .eq('id', groupId)
       .single();
 
@@ -2743,6 +2743,7 @@ export const getGroupConversation = async (req, res) => {
         participants: formattedParticipants,
         total_messages: formattedMessages.length,
         total_participants: formattedParticipants.length,
+        manager_id: group.manager_id,
       },
     });
   } catch (err) {
