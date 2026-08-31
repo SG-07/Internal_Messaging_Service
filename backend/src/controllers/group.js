@@ -353,20 +353,19 @@ export const listGroups = async (req, res) => {
   }
 };
 
-
-/// --- JOIN GROUP (Fixed - proper error handling) ---
+// --- JOIN GROUP (Fixed - proper error handling) ---
 export const joinGroup = async (req, res) => {
   const { groupId } = req.params;
   const user_id = req.user.id;
   const isDev = process.env.NODE_ENV === 'development';
-
+ 
   if (!groupId) {
     return res.status(400).json({
       success: false,
       message: 'Group ID is required.',
     });
   }
-
+ 
   try {
     // Fetch group details
     const { data: group, error: groupError } = await supabaseAdmin
@@ -375,14 +374,14 @@ export const joinGroup = async (req, res) => {
       .eq('id', groupId)
       .eq('type', 'group')  // Only join groups, not teams
       .single();
-
+ 
     if (groupError || !group) {
       return res.status(404).json({
         success: false,
         message: 'Group not found.',
       });
     }
-
+ 
     // Validate group is approved
     if (group.status !== 'approved') {
       return res.status(400).json({
@@ -390,21 +389,21 @@ export const joinGroup = async (req, res) => {
         message: 'Cannot join unapproved groups.',
       });
     }
-
+ 
     // Fetch user details
     const { data: user, error: userError } = await supabaseAdmin
       .from('profiles')
       .select('id, department')
       .eq('id', user_id)
       .single();
-
+ 
     if (userError || !user) {
       return res.status(404).json({
         success: false,
         message: 'User not found.',
       });
     }
-
+ 
     // Validate department rules
     if (group.department && user.department !== group.department) {
       return res.status(403).json({
@@ -412,7 +411,7 @@ export const joinGroup = async (req, res) => {
         message: 'You can only join groups in your own department.',
       });
     }
-
+ 
     // Check if user is already a member
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from('group_members')
@@ -420,15 +419,13 @@ export const joinGroup = async (req, res) => {
       .eq('group_id', groupId)
       .eq('user_id', user_id)
       .single();
-
+ 
     // PGRST116 = no rows returned (user not a member - this is expected)
     if (membershipError && membershipError.code !== 'PGRST116') {
       console.error('[joinGroup] Error checking membership:', membershipError);
       throw new Error('Failed to check group membership');
     }
-
-    let action = 'joined';
-
+ 
     // If user already is an active member, return error
     if (membership && !membership.left_at) {
       return res.status(403).json({
@@ -436,76 +433,137 @@ export const joinGroup = async (req, res) => {
         message: 'You are already a member of this group.',
       });
     }
-
+ 
+    // ===== RESTRICTED (is_open: false) GROUPS: request, don't join =====
+    // is_open was never actually checked here before — any user could
+    // join any group directly regardless of whether it was open or
+    // closed. Closed groups now go through group_join_requests instead.
+    if (!group.is_open) {
+      // Check for an existing pending/rejected request to avoid piling
+      // up duplicates on repeated attempts.
+      const { data: existingRequest, error: existingRequestError } = await supabaseAdmin
+        .from('group_join_requests')
+        .select('id, status')
+        .eq('group_id', groupId)
+        .eq('user_id', user_id)
+        .maybeSingle();
+ 
+      if (existingRequestError) {
+        console.error('[joinGroup] Error checking existing join request:', existingRequestError);
+        throw new Error('Failed to check join request status');
+      }
+ 
+      if (existingRequest && existingRequest.status === 'pending') {
+        return res.status(400).json({
+          success: false,
+          message: 'You already have a pending request to join this group.',
+        });
+      }
+ 
+      // A previously rejected request can be resubmitted — reset it back
+      // to pending rather than erroring, since group_join_requests has a
+      // unique (group_id, user_id) constraint and a second insert would
+      // fail outright.
+      if (existingRequest && existingRequest.status === 'rejected') {
+        const { error: resubmitError } = await supabaseAdmin
+          .from('group_join_requests')
+          .update({
+            status: 'pending',
+            requested_at: new Date().toISOString(),
+            reviewed_at: null,
+            reviewed_by: null,
+            review_notes: null,
+          })
+          .eq('id', existingRequest.id);
+ 
+        if (resubmitError) {
+          console.error('[joinGroup] Error resubmitting join request:', resubmitError);
+          throw new Error('Failed to submit join request');
+        }
+      } else {
+        const { error: insertRequestError } = await supabaseAdmin
+          .from('group_join_requests')
+          .insert({
+            group_id: groupId,
+            user_id: user_id,
+            status: 'pending',
+          });
+ 
+        if (insertRequestError) {
+          console.error('[joinGroup] Error creating join request:', insertRequestError);
+          throw new Error('Failed to submit join request');
+        }
+      }
+ 
+      if (isDev) {
+        console.log('[joinGroup] Join request submitted for restricted group:', groupId, 'user:', user_id);
+      }
+ 
+      return res.status(200).json({
+        success: true,
+        message: 'Join request submitted. Awaiting approval from the group manager, creator, or an admin.',
+        data: {
+          group_id: groupId,
+          group_name: group.name,
+          user_id: user_id,
+          action: 'requested',
+        },
+      });
+    }
+ 
+    // ===== OPEN GROUPS: join immediately, as before =====
+    let action = 'joined';
+ 
     // If user previously left, reactivate membership
     if (membership && membership.left_at) {
       const { error: updateError } = await supabaseAdmin
         .from('group_members')
         .update({ left_at: null })
         .eq('id', membership.id);
-
+ 
       if (updateError) {
         console.error('[joinGroup] Error reactivating membership:', updateError);
         throw new Error('Failed to rejoin group');
       }
-
+ 
       action = 'rejoined';
-
+ 
       if (isDev) {
         console.log('[joinGroup] User rejoined group:', groupId, 'user:', user_id);
       }
+ 
+      // Membership row is handled above (reactivation) — still need to
+      // make sure they're back in the conversation too.
+      const { error: attachError } = await attachUserToTeam(groupId, user_id, user_id);
+ 
+      if (attachError && isDev) {
+        console.log('[joinGroup] Failed to fully re-attach user to group:', attachError);
+      }
     } else {
-      // New membership - insert into group_members
-      const { error: insertError } = await supabaseAdmin
-        .from('group_members')
-        .insert({
-          group_id: groupId,
-          user_id: user_id,
-          added_by: user_id,  // User added themselves
-        });
-
-      if (insertError) {
-        console.error('[joinGroup] Error adding member:', insertError);
+      // New membership — attachUserToTeam handles group_members insert,
+      // ensuring the conversation exists, and conversation_participants
+      // all in one call (the old code only did the first and third of
+      // these manually, and never guaranteed the conversation existed).
+      const { error: attachError } = await attachUserToTeam(groupId, user_id, user_id);
+ 
+      if (attachError?.member) {
+        console.error('[joinGroup] Error adding member:', attachError.member);
         throw new Error('Failed to join group');
       }
-
+ 
+      if (attachError?.conversation && isDev) {
+        console.log('[joinGroup] Error setting up group conversation:', attachError.conversation);
+      }
+ 
+      if (attachError?.participant && isDev) {
+        console.log('[joinGroup] Error adding user to conversation:', attachError.participant);
+      }
+ 
       if (isDev) {
         console.log('[joinGroup] User joined group:', groupId, 'user:', user_id);
       }
     }
-
-    // Add user to conversation participants (if group conversation exists)
-    const { data: conversation, error: convError } = await supabaseAdmin
-      .from('conversations')
-      .select('id')
-      .eq('group_id', groupId)
-      .eq('is_group', true)
-      .single();
-
-    if (!convError && conversation) {
-      // Check if already a participant
-      const { data: existingParticipant } = await supabaseAdmin
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', conversation.id)
-        .eq('user_id', user_id)
-        .single();
-
-      // Only add if not already a participant
-      if (!existingParticipant) {
-        const { error: participantError } = await supabaseAdmin
-          .from('conversation_participants')
-          .insert({
-            conversation_id: conversation.id,
-            user_id: user_id,
-          });
-
-        if (participantError) {
-          console.error('[joinGroup] Error adding conversation participant:', participantError);
-        }
-      }
-    }
-
+ 
     res.status(200).json({
       success: true,
       message: `Successfully ${action} the group.`,
@@ -524,6 +582,7 @@ export const joinGroup = async (req, res) => {
     });
   }
 };
+ 
 
 /// --- GET GROUP DETAILS ---
 export const getGroup = async (req, res) => {
@@ -1654,20 +1713,20 @@ export const listJoinRequests = async (req, res) => {
   }
 };
 
-/// --- APPROVE JOIN REQUEST ---
+// --- APPROVE JOIN REQUEST ---
 export const approveJoinRequest = async (req, res) => {
   const { groupId, requestId } = req.params;
   const { review_notes } = req.body;
   const currentUserId = req.user.id;
   const isDev = process.env.NODE_ENV === 'development';
-
+ 
   if (!groupId || !requestId) {
     return res.status(400).json({
       success: false,
       message: 'Group ID and Request ID are required.',
     });
   }
-
+ 
   try {
     // Fetch group details
     const { data: group, error: groupError } = await supabaseAdmin
@@ -1675,40 +1734,40 @@ export const approveJoinRequest = async (req, res) => {
       .select('id, name, requested_by')
       .eq('id', groupId)
       .single();
-
+ 
     if (groupError || !group) {
       return res.status(404).json({
         success: false,
         message: 'Group not found.',
       });
     }
-
+ 
     // Fetch current user details
     const { data: currentUser, error: currentUserError } = await supabaseAdmin
       .from('profiles')
       .select('id, role')
       .eq('id', currentUserId)
       .single();
-
+ 
     if (currentUserError || !currentUser) {
       return res.status(404).json({
         success: false,
         message: 'Current user not found.',
       });
     }
-
+ 
     // Check permissions
     const isCreator = group.requested_by === currentUserId;
     const isAdmin = currentUser.role === 'admin';
     const isManager = currentUser.role === 'manager';
-
+ 
     if (!isCreator && !isAdmin && !isManager) {
       return res.status(403).json({
         success: false,
         message: 'You do not have permission to approve join requests for this group.',
       });
     }
-
+ 
     // Fetch join request
     const { data: joinRequest, error: requestError } = await supabaseAdmin
       .from('group_join_requests')
@@ -1716,14 +1775,14 @@ export const approveJoinRequest = async (req, res) => {
       .eq('id', requestId)
       .eq('group_id', groupId)
       .single();
-
+ 
     if (requestError || !joinRequest) {
       return res.status(404).json({
         success: false,
         message: 'Join request not found.',
       });
     }
-
+ 
     // Check if request is pending
     if (joinRequest.status !== 'pending') {
       return res.status(400).json({
@@ -1731,21 +1790,21 @@ export const approveJoinRequest = async (req, res) => {
         message: `Cannot approve a ${joinRequest.status} request.`,
       });
     }
-
+ 
     // Fetch user details
     const { data: userToAdd, error: userError } = await supabaseAdmin
       .from('profiles')
       .select('id, username, full_name, email')
       .eq('id', joinRequest.user_id)
       .single();
-
+ 
     if (userError || !userToAdd) {
       return res.status(404).json({
         success: false,
         message: 'User not found.',
       });
     }
-
+ 
     // Check if user is already a member
     const { data: existingMembership, error: membershipCheckError } = await supabaseAdmin
       .from('group_members')
@@ -1753,12 +1812,12 @@ export const approveJoinRequest = async (req, res) => {
       .eq('group_id', groupId)
       .eq('user_id', joinRequest.user_id)
       .maybeSingle();
-
+ 
     if (membershipCheckError) {
       console.error('[approveJoinRequest] Error checking membership:', membershipCheckError);
       throw new Error('Failed to check group membership');
     }
-
+ 
     // If user is already an active member, just update the request status
     if (existingMembership && !existingMembership.left_at) {
       const { error: updateRequestError } = await supabaseAdmin
@@ -1770,12 +1829,12 @@ export const approveJoinRequest = async (req, res) => {
           review_notes: review_notes || null,
         })
         .eq('id', requestId);
-
+ 
       if (updateRequestError) {
         console.error('[approveJoinRequest] Error updating request:', updateRequestError);
         throw new Error('Failed to approve request');
       }
-
+ 
       return res.status(200).json({
         success: true,
         message: `${userToAdd.full_name} is already a member. Request marked as approved.`,
@@ -1792,37 +1851,35 @@ export const approveJoinRequest = async (req, res) => {
         },
       });
     }
-
-    // If user left before, reactivate them
-    if (existingMembership && existingMembership.left_at) {
-      const { error: rejoinError } = await supabaseAdmin
-        .from('group_members')
-        .update({
-          left_at: null,
-          joined_at: new Date().toISOString(),
-        })
-        .eq('id', existingMembership.id);
-
-      if (rejoinError) {
-        console.error('[approveJoinRequest] Error reactivating member:', rejoinError);
-        throw new Error('Failed to add member to group');
-      }
-    } else {
-      // Add new member
-      const { error: addMemberError } = await supabaseAdmin
-        .from('group_members')
-        .insert({
-          group_id: groupId,
-          user_id: joinRequest.user_id,
-          added_by: currentUserId,
-        });
-
-      if (addMemberError) {
-        console.error('[approveJoinRequest] Error adding member:', addMemberError);
-        throw new Error('Failed to add member to group');
-      }
+ 
+    // Fully attaches the user: group_members row (insert, or reactivate
+    // if they'd left before), the group's conversation (creating it if
+    // somehow missing), and conversation_participants — the previous
+    // version of this endpoint only ever touched group_members, so an
+    // approved user could be a "member" on paper with no actual access
+    // to the group's chat.
+    const { error: attachError } = await attachUserToTeam(groupId, joinRequest.user_id, currentUserId);
+ 
+    // A failure to add the group_members row itself is fatal — the
+    // approval didn't actually take effect, same strictness the old
+    // insert/reactivate code had.
+    if (attachError?.member) {
+      console.error('[approveJoinRequest] Error adding member:', attachError.member);
+      throw new Error('Failed to add member to group');
     }
-
+ 
+    // conversation / conversation_participants failures are logged but
+    // non-fatal — the user is still a real group_member at this point,
+    // consistent with how conversation-linking failures are treated
+    // everywhere else in the codebase (createGroup, createTeam, etc.).
+    if (attachError?.conversation && isDev) {
+      console.log('[approveJoinRequest] Error setting up group conversation:', attachError.conversation);
+    }
+ 
+    if (attachError?.participant && isDev) {
+      console.log('[approveJoinRequest] Error adding user to conversation:', attachError.participant);
+    }
+ 
     // Update join request status
     const { error: updateRequestError } = await supabaseAdmin
       .from('group_join_requests')
@@ -1833,16 +1890,16 @@ export const approveJoinRequest = async (req, res) => {
         review_notes: review_notes || null,
       })
       .eq('id', requestId);
-
+ 
     if (updateRequestError) {
       console.error('[approveJoinRequest] Error updating request:', updateRequestError);
       throw new Error('Failed to approve request');
     }
-
+ 
     if (isDev) {
       console.log('[approveJoinRequest] Request approved:', requestId, 'user_id:', joinRequest.user_id, 'by:', currentUserId);
     }
-
+ 
     res.status(200).json({
       success: true,
       message: `${userToAdd.full_name}'s request to join has been approved.`,
@@ -1866,6 +1923,7 @@ export const approveJoinRequest = async (req, res) => {
     });
   }
 };
+ 
 
 
 /// --- REJECT JOIN REQUEST ---

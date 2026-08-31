@@ -57,38 +57,45 @@ export function useGroupLogic() {
     setCreatedGroup(null);
 
     const trimmedName = name.trim();
-
     const trimmedDepartment = isAdmin ? department.trim() : "";
-
     const trimmedManagerEmail = managerEmail.trim();
 
+    // ============================================================
     // Frontend validation
+    // ============================================================
 
     if (!trimmedName) {
       setError("Please enter a group name.");
-
       return;
     }
 
     if (trimmedName.length > 255) {
       setError("Group name cannot exceed 255 characters.");
-
       return;
     }
 
-    if (!isOpen && !trimmedManagerEmail) {
-      setError("Manager email is required for a closed group.");
-
+    // ------------------------------------------------------------
+    // Only ADMIN creating a CLOSED group must provide a manager.
+    //
+    // Non-admin:
+    //   - Closed group is allowed without managerEmail.
+    //   - Backend assigns the current user as manager.
+    // ------------------------------------------------------------
+    if (!isOpen && isAdmin && !trimmedManagerEmail) {
+      setError(
+        "Manager email is required when an admin creates a closed group.",
+      );
       return;
     }
 
+    // Validate manager email only when an admin supplied it.
     if (
       !isOpen &&
+      isAdmin &&
       trimmedManagerEmail &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedManagerEmail)
     ) {
       setError("Please enter a valid manager email address.");
-
       return;
     }
 
@@ -97,72 +104,66 @@ export function useGroupLogic() {
 
       if (import.meta.env.DEV) {
         console.group("[CreateGroup] Creating group");
-
         console.log("User:", user);
-
         console.log("Is admin:", isAdmin);
-
         console.log("Name:", trimmedName);
-
         console.log("Is open:", isOpen);
-
         console.log("Department:", trimmedDepartment || null);
-
-        console.log("Manager Email:", trimmedManagerEmail || null);
-
+        console.log(
+          "Manager Email:",
+          isAdmin && !isOpen ? trimmedManagerEmail || null : null,
+        );
         console.groupEnd();
       }
 
-      // ------------ Build request -------------
+      // ============================================================
+      // Build request
+      // ============================================================
 
       const departmentToSend = isAdmin
         ? trimmedDepartment || null
         : user?.department || null;
 
+      // Manager is only explicitly supplied by an admin.
+      //
+      // For non-admin closed groups, managerEmail is null because
+      // the backend should assign req.user.id as the manager.
+      const managerEmailToSend =
+        isAdmin && !isOpen ? trimmedManagerEmail || null : null;
+
       const response = await createGroup(
         trimmedName,
         isOpen,
         departmentToSend,
-        trimmedManagerEmail || null,
+        managerEmailToSend,
       );
 
       if (import.meta.env.DEV) {
         console.group("[CreateGroup] API response");
-
         console.log("Response:", response);
-
         console.log("Created group:", response?.data);
-
         console.groupEnd();
       }
 
       const group = response?.data || null;
 
       setCreatedGroup(group);
-
       setSuccess(response?.message || "Group created successfully.");
 
-      /*
-       * Reset form after successful creation.
-       */
+      // ============================================================
+      // Reset form after successful creation
+      // ============================================================
 
       setName("");
-
       setIsOpen(true);
-
       setDepartment("");
-
       setManagerEmail("");
     } catch (err) {
       if (import.meta.env.DEV) {
         console.group("[CreateGroup] Failed to create group");
-
         console.error("Error:", err);
-
         console.log("Message:", err?.message);
-
         console.log("Status:", err?.status);
-
         console.groupEnd();
       }
 

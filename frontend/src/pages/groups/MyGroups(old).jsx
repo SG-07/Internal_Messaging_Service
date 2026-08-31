@@ -313,8 +313,6 @@ function GroupCard({
 
   const manager = group?.manager;
 
-  const isCreator = !!group?.is_creator;
-
   /*
    * --------------------------------------------------------------
    * Menu handlers
@@ -381,7 +379,7 @@ function GroupCard({
               event.stopPropagation()
             }
           >
-            {/* View Members — visible to everyone */}
+            {/* View Members */}
 
             <button
               type="button"
@@ -393,19 +391,17 @@ function GroupCard({
               View Members
             </button>
 
-            {/* Group Details — creator only */}
+            {/* Group Details */}
 
-            {isCreator && (
-              <button
-                type="button"
-                onClick={
-                  handleDetailsClick
-                }
-                className="flex w-full items-center px-4 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50"
-              >
-                Group Details
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={
+                handleDetailsClick
+              }
+              className="flex w-full items-center px-4 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50"
+            >
+              Group Details
+            </button>
           </div>
         )}
       </div>

@@ -1,11 +1,21 @@
 // src/pages/groups/MyGroupsLogic.js
-import { useCallback, useEffect, useState } from "react";
+
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import { useNavigate } from "react-router";
+
 import { getMyGroups } from "../../api/groups";
+import { useAuth } from "../../context/AuthContext"; // ⬅ adjust to your actual auth hook/context
 
 export function useMyGroupsLogic() {
   const navigate = useNavigate();
+
+  const { user } = useAuth(); // ⬅ assumption: decoded JWT payload exposed here, with user.id
+
   /*
    * ----------------------------------------
    * Groups state
@@ -49,7 +59,10 @@ export function useMyGroupsLogic() {
    */
 
   const loadGroups = useCallback(
-    async ({ page: requestedPage = 1, append = false } = {}) => {
+    async ({
+      page: requestedPage = 1,
+      append = false,
+    } = {}) => {
       try {
         if (append) {
           setLoadingMore(true);
@@ -69,9 +82,14 @@ export function useMyGroupsLogic() {
         }
 
         if (import.meta.env.DEV) {
-          console.group("[My Groups] Fetch Groups");
+          console.group(
+            "[My Groups] Fetch Groups",
+          );
 
-          console.log("Payload sent:", params);
+          console.log(
+            "Payload sent:",
+            params,
+          );
 
           console.log("Query:", {
             page: requestedPage,
@@ -85,75 +103,129 @@ export function useMyGroupsLogic() {
         const response = await getMyGroups(params);
 
         if (import.meta.env.DEV) {
-          console.group("[My Groups] Fetch Groups Response");
+          console.group(
+            "[My Groups] Fetch Groups Response",
+          );
 
-          console.log("Full response:", response);
+          console.log(
+            "Full response:",
+            response,
+          );
 
-          console.log("Response data:", response?.data);
+          console.log(
+            "Response data:",
+            response?.data,
+          );
 
-          console.log("Pagination:", response?.pagination);
+          console.log(
+            "Pagination:",
+            response?.pagination,
+          );
 
           console.groupEnd();
         }
 
-        const responseGroups = Array.isArray(response?.data)
+        const responseGroups = Array.isArray(
+          response?.data,
+        )
           ? response.data
           : [];
 
-        const pagination = response?.pagination || {};
+        /*
+         * Tag each group with whether the
+         * current (JWT) user is its creator.
+         */
+
+        const taggedGroups = responseGroups.map(
+          (group) => ({
+            ...group,
+            is_creator:
+              !!user?.id &&
+              group.created_by === user.id,
+          }),
+        );
+
+        const pagination =
+          response?.pagination || {};
 
         setGroups((previousGroups) => {
           if (!append) {
-            return responseGroups;
+            return taggedGroups;
           }
 
           /*
            * Prevent duplicate groups when
            * loading another page.
            */
-          const existingIds = new Set(previousGroups.map((group) => group.id));
 
-          const newGroups = responseGroups.filter(
-            (group) => !existingIds.has(group.id),
+          const existingIds = new Set(
+            previousGroups.map(
+              (group) => group.id,
+            ),
           );
 
-          return [...previousGroups, ...newGroups];
+          const newGroups =
+            taggedGroups.filter(
+              (group) =>
+                !existingIds.has(group.id),
+            );
+
+          return [
+            ...previousGroups,
+            ...newGroups,
+          ];
         });
 
         setPage(
-          Number.isFinite(Number(pagination.page))
+          Number.isFinite(
+            Number(pagination.page),
+          )
             ? Number(pagination.page)
             : requestedPage,
         );
 
         setTotal(
-          Number.isFinite(Number(pagination.total))
+          Number.isFinite(
+            Number(pagination.total),
+          )
             ? Number(pagination.total)
             : responseGroups.length,
         );
 
-        setHasMore(pagination.has_more === true);
+        setHasMore(
+          pagination.has_more === true,
+        );
       } catch (err) {
         if (import.meta.env.DEV) {
-          console.group("[My Groups] Fetch Groups Error");
+          console.group(
+            "[My Groups] Fetch Groups Error",
+          );
 
           console.error("Error:", err);
 
-          console.log("Status:", err?.status);
+          console.log(
+            "Status:",
+            err?.status,
+          );
 
-          console.log("Message:", err?.message);
+          console.log(
+            "Message:",
+            err?.message,
+          );
 
           console.groupEnd();
         }
 
         setError(
-          err?.message || "Unable to load your groups. Please try again.",
+          err?.message ||
+            "Unable to load your groups. Please try again.",
         );
 
         /*
          * Only clear the list on a normal
          * first-page request.
          */
+
         if (!append) {
           setGroups([]);
           setTotal(0);
@@ -164,7 +236,7 @@ export function useMyGroupsLogic() {
         setLoadingMore(false);
       }
     },
-    [status, sortBy],
+    [status, sortBy, user?.id],
   );
 
   /*
@@ -209,7 +281,11 @@ export function useMyGroupsLogic() {
    */
 
   async function handleLoadMore() {
-    if (loadingMore || loading || !hasMore) {
+    if (
+      loadingMore ||
+      loading ||
+      !hasMore
+    ) {
       return;
     }
 
@@ -234,7 +310,7 @@ export function useMyGroupsLogic() {
 
   /*
    * ----------------------------------------
-   * Open group
+   * Open group chat
    * ----------------------------------------
    */
 
@@ -243,7 +319,51 @@ export function useMyGroupsLogic() {
       return;
     }
 
-    navigate(`/groups/${groupId}/chat`);
+    navigate(
+      `/groups/${groupId}/chat`,
+    );
+  }
+
+  /*
+   * ----------------------------------------
+   * View group members
+   * ----------------------------------------
+   *
+   * NOTE:
+   * Verify this path against your App.jsx
+   * if your existing members route uses
+   * a different URL.
+   */
+
+  function handleViewMembers(groupId) {
+    if (!groupId) {
+      return;
+    }
+
+    navigate(
+      `/groups/${groupId}/members`,
+    );
+  }
+
+  /*
+   * ----------------------------------------
+   * View group details
+   * ----------------------------------------
+   *
+   * NOTE:
+   * Verify this path against your App.jsx
+   * if your existing details route uses
+   * a different URL.
+   */
+
+  function handleViewDetails(groupId) {
+    if (!groupId) {
+      return;
+    }
+
+    navigate(
+      `/groups/${groupId}`,
+    );
   }
 
   /*
@@ -279,6 +399,8 @@ export function useMyGroupsLogic() {
     handleRetry,
 
     handleOpenGroup,
+    handleViewMembers,
+    handleViewDetails,
 
     handleBack,
 
