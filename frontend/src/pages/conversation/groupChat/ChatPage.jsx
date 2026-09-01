@@ -21,7 +21,8 @@ function ChatPage() {
   const { user } = useAuth();
 
   const {
-    group,
+    entity,
+    entityType,
     conversation,
     messages,
     members,
@@ -37,22 +38,13 @@ function ChatPage() {
 
   /*
    * ============================================================
-   * Manager permission
+   * MANAGER PERMISSION
    * ============================================================
    *
-   * The group conversation API now returns:
+   * Both Groups and Teams use manager_id.
    *
-   * manager_id
-   *
-   * Example:
-   *
-   * manager_id:
-   * "1c70b93d-5bdb-438b-b938-aa9a8add0ac7"
-   *
-   * Therefore Group Details is available only when:
-   *
-   * current user ID === group.manager_id
-   * ============================================================
+   * The backend conversation endpoint should provide the
+   * manager_id for the relevant group/team.
    */
 
   const isManager =
@@ -62,22 +54,19 @@ function ChatPage() {
 
   /*
    * ============================================================
-   * UI state
+   * UI STATE
    * ============================================================
    */
 
-  const [membersOpen, setMembersOpen] =
-    useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
 
-  const [menuOpen, setMenuOpen] =
-    useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const [reportOpen, setReportOpen] =
-    useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   /*
    * ============================================================
-   * Debug permission state
+   * DEBUG
    * ============================================================
    */
 
@@ -86,39 +75,25 @@ function ChatPage() {
       return;
     }
 
-    console.group(
-      "[Group Chat] Menu Permission"
-    );
+    console.group(`[${isTeamChat ? "Team" : "Group"} Chat] Menu Permission`);
 
-    console.log(
-      "Current User ID:",
-      user?.id
-    );
+    console.log("Entity Type:", entityType);
 
-    console.log(
-      "Group ID:",
-      group?.id
-    );
+    console.log("Entity ID:", entityId);
 
-    console.log(
-      "Group Name:",
-      group?.name
-    );
+    console.log("Team ID:", isTeamChat ? entityId : undefined);
 
-    console.log(
-      "Manager ID:",
-      group?.manager_id
-    );
+    console.log("Group ID:", !isTeamChat ? entityId : undefined);
 
-    console.log(
-      "Is Manager:",
-      isManager
-    );
+    console.log("Entity Name:", group?.name);
 
-    console.log(
-      "Conversation ID:",
-      conversation?.id
-    );
+    console.log("Manager ID:", group?.manager_id);
+
+    console.log("Current User ID:", user?.id);
+
+    console.log("Is Manager:", isManager);
+
+    console.log("Conversation ID:", conversation?.id);
 
     console.groupEnd();
   }, [
@@ -127,12 +102,15 @@ function ChatPage() {
     group?.name,
     group?.manager_id,
     conversation?.id,
+    entityType,
+    entityId,
+    isTeamChat,
     isManager,
   ]);
 
   /*
    * ============================================================
-   * Loading
+   * LOADING
    * ============================================================
    */
 
@@ -142,9 +120,7 @@ function ChatPage() {
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
 
-          <p className="mt-3 text-sm text-gray-500">
-            Loading conversation...
-          </p>
+          <p className="mt-3 text-sm text-gray-500">Loading conversation...</p>
         </div>
       </div>
     );
@@ -152,7 +128,7 @@ function ChatPage() {
 
   /*
    * ============================================================
-   * Error
+   * ERROR
    * ============================================================
    */
 
@@ -168,9 +144,7 @@ function ChatPage() {
             Unable to load conversation
           </h1>
 
-          <p className="mt-2 text-sm leading-6 text-gray-500">
-            {error}
-          </p>
+          <p className="mt-2 text-sm leading-6 text-gray-500">{error}</p>
 
           <div className="mt-5 flex justify-center gap-3">
             <button
@@ -196,7 +170,7 @@ function ChatPage() {
 
   /*
    * ============================================================
-   * Page
+   * PAGE
    * ============================================================
    */
 
@@ -204,33 +178,26 @@ function ChatPage() {
     <DashboardLayout>
       <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-gray-50">
         {/* ======================================================
-         * Header
+         * HEADER
          * ====================================================== */}
 
         <ChatHeader
-          group={group}
+          entity={entity}
+          entityType={entityType}
           members={members}
           onBack={handleBack}
-          onMembersClick={() =>
-            setMembersOpen(true)
-          }
-          onMenuClick={() =>
-            setMenuOpen(
-              (previous) => !previous
-            )
-          }
+          onMembersClick={() => setMembersOpen(true)}
+          onMenuClick={() => setMenuOpen((previous) => !previous)}
         />
 
         {/* ======================================================
-         * Error banner
+         * ERROR BANNER
          * ====================================================== */}
 
         {error && (
           <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2.5 sm:px-6">
             <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-              <p className="text-sm text-red-700">
-                {error}
-              </p>
+              <p className="text-sm text-red-700">{error}</p>
 
               <button
                 type="button"
@@ -244,16 +211,13 @@ function ChatPage() {
         )}
 
         {/* ======================================================
-         * Messages
+         * MESSAGES
          * ====================================================== */}
 
-        <ChatMessageList
-          messages={messages}
-          currentUserId={user?.id}
-        />
+        <ChatMessageList messages={messages} currentUserId={user?.id} />
 
         {/* ======================================================
-         * Composer
+         * COMPOSER
          * ====================================================== */}
 
         <ChatMessageComposer
@@ -263,52 +227,48 @@ function ChatPage() {
         />
 
         {/* ======================================================
-         * Members panel
+         * MEMBERS PANEL
          * ====================================================== */}
 
         <ChatMembersPanel
           members={members}
           open={membersOpen}
-          onClose={() =>
-            setMembersOpen(false)
-          }
+          onClose={() => setMembersOpen(false)}
         />
 
         {/* ======================================================
-         * Menu
+         * MENU
          * ====================================================== */}
 
         <ChatMenu
           open={menuOpen}
-          onClose={() =>
-            setMenuOpen(false)
-          }
-
+          onClose={() => setMenuOpen(false)}
           onMembers={() => {
             setMenuOpen(false);
             setMembersOpen(true);
           }}
-
           onGroupDetails={() => {
             setMenuOpen(false);
 
-            if (group?.id) {
-              navigate(
-                `/groups/${group.id}`
-              );
+            if (!entity?.id) {
+              return;
             }
-          }}
 
+            navigate(
+              entityType === "team"
+                ? `/teams/${entity.id}`
+                : `/groups/${entity.id}`,
+            );
+          }}
           onReport={() => {
             setMenuOpen(false);
             setReportOpen(true);
           }}
-
           isManager={isManager}
         />
 
         {/* ======================================================
-         * Report placeholder
+         * REPORT PLACEHOLDER
          * ====================================================== */}
 
         {reportOpen && (
@@ -319,16 +279,14 @@ function ChatPage() {
               </h2>
 
               <p className="mt-2 text-sm text-gray-500">
-                The report modal will be connected
-                to the existing report functionality.
+                The report modal will be connected to the existing report
+                functionality.
               </p>
 
               <div className="mt-5 flex justify-end">
                 <button
                   type="button"
-                  onClick={() =>
-                    setReportOpen(false)
-                  }
+                  onClick={() => setReportOpen(false)}
                   className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
                 >
                   Close

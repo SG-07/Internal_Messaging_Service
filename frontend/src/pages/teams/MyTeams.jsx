@@ -1,9 +1,11 @@
 // src/pages/teams/MyTeams.jsx
 import DashboardLayout from "../dashboard/DashboardLayout";
-
+import ManageTeamMembersModal from "./ManageTeamMembersModal";
+import { useAuth } from "../../context/AuthContext";
 import { useMyTeamsLogic } from "./MyTeamsLogic";
 
 function MyTeams() {
+  const { user } = useAuth();
   const {
     isManager,
 
@@ -19,6 +21,9 @@ function MyTeams() {
     createError,
     createSuccess,
 
+    showManageMembers,
+    selectedTeam,
+
     setTeamName,
 
     handleOpenTeam,
@@ -28,6 +33,9 @@ function MyTeams() {
     handleOpenCreateTeam,
     handleCloseCreateTeam,
     handleCreateTeam,
+
+    handleOpenManageMembers,
+    handleCloseManageMembers,
   } = useMyTeamsLogic();
 
   /*
@@ -166,7 +174,10 @@ function MyTeams() {
                 <TeamCard
                   key={team.id}
                   team={team}
+                  user={user}
+                  isManager={isManager}
                   onClick={() => handleOpenTeam(team)}
+                  onManageMembers={() => handleOpenManageMembers(team)}
                 />
               ))}
             </div>
@@ -204,7 +215,7 @@ function MyTeams() {
         )}
       </div>
 
-      {/* ==================================================== */}
+            {/* ==================================================== */}
       {/* CREATE TEAM MODAL */}
       {/* ==================================================== */}
 
@@ -219,6 +230,17 @@ function MyTeams() {
           onSubmit={handleCreateTeam}
         />
       )}
+
+      {/* ==================================================== */}
+      {/* MANAGE TEAM MEMBERS MODAL */}
+      {/* ==================================================== */}
+
+      {showManageMembers && selectedTeam && (
+        <ManageTeamMembersModal
+          team={selectedTeam}
+          onClose={handleCloseManageMembers}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -229,7 +251,7 @@ function MyTeams() {
  * ============================================================
  */
 
-function TeamCard({ team, onClick }) {
+function TeamCard({ team, user, isManager, onClick, onManageMembers }) {
   const manager = team?.manager;
 
   return (
@@ -310,6 +332,23 @@ function TeamCard({ team, onClick }) {
             </p>
           </div>
         </div>
+
+        {isManager &&
+          team?.manager_id === user?.id &&
+          (team?.status === "approved" || team?.status === "active") && (
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onManageMembers();
+                }}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Manage Members
+              </button>
+            </div>
+          )}
 
         {/* Footer */}
 

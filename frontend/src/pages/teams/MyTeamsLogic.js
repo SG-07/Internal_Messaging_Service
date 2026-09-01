@@ -58,6 +58,16 @@ export function useMyTeamsLogic() {
 
   /*
    * ============================================================
+   * MANAGE TEAM MEMBERS
+   * ============================================================
+   */
+
+  const [showManageMembers, setShowManageMembers] = useState(false);
+
+  const [selectedTeam, setSelectedTeam] = useState(null);
+
+  /*
+   * ============================================================
    * LOAD TEAMS
    * ============================================================
    */
@@ -90,9 +100,6 @@ export function useMyTeamsLogic() {
 
       /*
        * listUserTeams returns joined teams.
-       *
-       * Normal users should only see active teams.
-       * Managers can see their active joined teams.
        */
 
       const activeTeams = responseTeams.filter(
@@ -162,15 +169,54 @@ export function useMyTeamsLogic() {
    */
 
   function handleOpenTeam(team) {
-    if (!team?.conversation_id) {
-      console.error(
-        "[My Teams] Cannot open team: conversation_id is missing.",
-        team,
-      );
+    if (!team?.id) {
+      console.error("[My Teams] Cannot open team: team ID is missing.", team);
+
       return;
     }
 
-    navigate(`/conversation/${team.conversation_id}`);
+    navigate(`/teams/${team.id}/chat`);
+  }
+
+  /*
+   * ============================================================
+   * MANAGE TEAM MEMBERS
+   * ============================================================
+   */
+
+  function handleOpenManageMembers(team) {
+    if (!team?.id) {
+      console.error(
+        "[My Teams] Cannot manage members: team ID is missing.",
+        team,
+      );
+
+      return;
+    }
+
+    const canManage =
+      isManager &&
+      team?.manager_id === user?.id &&
+      (team?.status === "approved" || team?.status === "active");
+
+    if (!canManage) {
+      console.warn("[My Teams] User cannot manage this team.", {
+        userId: user?.id,
+        managerId: team?.manager_id,
+        status: team?.status,
+        team,
+      });
+
+      return;
+    }
+
+    setSelectedTeam(team);
+    setShowManageMembers(true);
+  }
+
+  function handleCloseManageMembers() {
+    setShowManageMembers(false);
+    setSelectedTeam(null);
   }
 
   /*
@@ -245,10 +291,6 @@ export function useMyTeamsLogic() {
 
       setTeamName("");
 
-      /*
-       * Refresh the pending requests so the newly
-       * created request immediately appears on the page.
-       */
       await loadTeams();
     } catch (err) {
       if (import.meta.env.DEV) {
@@ -303,6 +345,14 @@ export function useMyTeamsLogic() {
     handleOpenCreateTeam,
     handleCloseCreateTeam,
     handleCreateTeam,
+
+    /*
+     * Manage Members
+     */
+    showManageMembers,
+    selectedTeam,
+    handleOpenManageMembers,
+    handleCloseManageMembers,
 
     reload: handleRetry,
   };

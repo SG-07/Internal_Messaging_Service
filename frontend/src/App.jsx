@@ -436,6 +436,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/teams/:teamId/chat"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+
+
         </Routes>
       </>
     </WebSocketProvider>

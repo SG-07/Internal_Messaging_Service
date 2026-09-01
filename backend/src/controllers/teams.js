@@ -1429,7 +1429,7 @@ export const getTeamConversation = async (req, res) => {
     // Fetch team
     const { data: team, error: teamError } = await supabaseAdmin
       .from('teams')
-      .select('id, name')
+      .select('id, name, manager_id, department, type')
       .eq('id', teamId)
       .eq('type', 'team')
       .single();
@@ -1535,6 +1535,8 @@ export const getTeamConversation = async (req, res) => {
         is_group: conversation.is_group,
         group_id: conversation.group_id,
         team_name: team.name,
+        manager_id: team.manager_id,
+        department: team.department,
         messages: formattedMessages,
         participants: formattedParticipants,
         total_messages: formattedMessages.length,

@@ -56,6 +56,12 @@ export async function getMyTeams(params = {}) {
   }
 }
 
+export const getTeamConversation = async (teamId) => {
+  return request(`/api/teams/${teamId}/conversation`, {
+    method: "GET",
+  });
+};
+
 /*
  * ============================================================
  * MANAGER - TEAM REQUESTS

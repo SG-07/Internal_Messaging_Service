@@ -302,6 +302,7 @@ export const listTeams = asyncHandler('listTeams', 'Unable to fetch teams.', asy
     `,
       { count: 'exact' }
     )
+    .eq('type', 'team')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
