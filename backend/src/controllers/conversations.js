@@ -330,7 +330,7 @@ export const createConversation = async (req, res) => {
 export const getConversations = async (req, res) => {
   const user_id = req.user.id;
   const page = parseInt(req.query.page) || 1;
-  const limit = 15;
+  const limit = 10;
   const offset = (page - 1) * limit;
 
   try {
@@ -357,7 +357,7 @@ export const getConversations = async (req, res) => {
 
     logIfDev("[getConversations] count:", count);
     if (convError) throw new Error("Failed to fetch conversations");
-
+      
     const formattedConversations = await Promise.all(
       conversationLinks.map(async (cp) => {
         const conv = cp.conversations;
