@@ -4,6 +4,7 @@ import {
   summarizeConversation as generateSummary,
   flagImportance,
   generateDigest as generateDigestText,
+  draftReply,
 } from '../services/aiService.js';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -403,9 +404,6 @@ export const getDigest = async (req, res) => {
   }
 };
 
-
-// ===== ADD TO controllers/ai.js =====
-// (import draftReply alongside your existing aiService imports)
 
 export const draftConversationReply = async (req, res) => {
   const { conversationId } = req.params;

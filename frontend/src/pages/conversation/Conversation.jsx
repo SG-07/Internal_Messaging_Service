@@ -1,6 +1,7 @@
 // frontend/src/pages/conversation/Conversation.jsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
+import { generateDraftReply } from "../../api/ai";
 
 import {
   getConversation,
@@ -33,6 +34,10 @@ function Conversation() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [draftReply, setDraftReply] = useState("");
+  const [draftReplyLoading, setDraftReplyLoading] = useState(false);
+  const [draftReplyError, setDraftReplyError] = useState("");
 
   const {
     summary,
@@ -695,6 +700,40 @@ function Conversation() {
     });
   }
 
+  // Generate AI draft reply
+  async function handleGenerateDraft() {
+    try {
+      setDraftReplyLoading(true);
+      setDraftReplyError("");
+
+      const response = await generateDraftReply(id);
+
+      if (import.meta.env.DEV) {
+        console.log("[Conversation] Draft reply response:", response);
+      }
+
+      const draft = response?.data?.draft;
+
+      if (!draft) {
+        throw new Error("AI did not return a draft reply.");
+      }
+
+      setDraftReply(draft);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.error("[Conversation] Failed to generate draft reply:", err);
+      }
+
+      setDraftReplyError(
+        err?.message || "Unable to generate a draft reply. Please try again.",
+      );
+
+      throw err;
+    } finally {
+      setDraftReplyLoading(false);
+    }
+  }
+
   // --------------------------------------------------
   // Render
   // --------------------------------------------------
@@ -751,7 +790,13 @@ function Conversation() {
             />
           </main>
 
-          <ReplyBox onSendReply={handleSendReply} />
+          <ReplyBox
+            onSendReply={handleSendReply}
+            onGenerateDraft={handleGenerateDraft}
+            draft={draftReply}
+            draftLoading={draftReplyLoading}
+            draftError={draftReplyError}
+          />
         </div>
       </div>
     </DashboardLayout>

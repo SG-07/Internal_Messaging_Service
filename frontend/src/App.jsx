@@ -66,6 +66,9 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminReportedItemDetails from "./pages/admin/AdminReportedItemDetails";
 import AdminUpdateUserPassword from "./pages/admin/AdminUpdateUserPassword";
 
+
+import DraftReplyTest from "./pages/ai/DraftReplyTest";
+
 // Team Management Pages
 import MyTeams from "./pages/teams/MyTeams";
 
@@ -442,6 +445,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ai/draft-reply-test"
+            element={
+              <ProtectedRoute>
+                <DraftReplyTest />
               </ProtectedRoute>
             }
           />
