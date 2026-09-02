@@ -9,8 +9,11 @@ import { request } from "./client";
 // Get all conversations for the logged-in user
 export async function getConversations() {
   const response = await request("/api/conversations");
-
-  return response.data || [];
+ 
+  return {
+    conversations: response.data || [],
+    pagination: response.pagination || null,
+  };
 }
 
 // Get one conversation

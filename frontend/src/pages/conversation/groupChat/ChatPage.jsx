@@ -7,6 +7,7 @@ import { useAuth } from "../../../context/AuthContext";
 
 import DashboardLayout from "../../dashboard/DashboardLayout";
 
+import { useConversationAI } from "../useConversationAI";
 import { useChatLogic } from "./ChatLogic";
 
 import ChatHeader from "./ChatHeader";
@@ -38,19 +39,49 @@ function ChatPage() {
 
   /*
    * ============================================================
-   * MANAGER PERMISSION
+   * AI
    * ============================================================
    *
+   * The same hook is used by:
+   *
+   * - Direct conversations
+   * - Group conversations
+   * - Team conversations
+   *
+   * The conversation ID is the only thing AI needs.
+   */
+
+  const {
+    summary,
+    summaryLoading,
+    summaryError,
+    summaryUpdatedLabel,
+    handleGenerateSummary,
+  } = useConversationAI(conversation?.id);
+
+  /*
+   * ============================================================
+   * ENTITY / MANAGER
+   * ============================================================
+   */
+
+  const entityId = entity?.id;
+
+  const isTeamChat = entityType === "team";
+
+  /*
    * Both Groups and Teams use manager_id.
    *
-   * The backend conversation endpoint should provide the
-   * manager_id for the relevant group/team.
+   * Depending on the backend response, manager_id may be
+   * directly on the entity or inside entity.manager.
    */
+
+  const managerId = entity?.manager_id || entity?.manager?.id || null;
 
   const isManager =
     Boolean(user?.id) &&
-    Boolean(group?.manager_id) &&
-    user.id === group.manager_id;
+    Boolean(managerId) &&
+    String(user.id) === String(managerId);
 
   /*
    * ============================================================
@@ -85,9 +116,9 @@ function ChatPage() {
 
     console.log("Group ID:", !isTeamChat ? entityId : undefined);
 
-    console.log("Entity Name:", group?.name);
+    console.log("Entity Name:", entity?.name);
 
-    console.log("Manager ID:", group?.manager_id);
+    console.log("Manager ID:", managerId);
 
     console.log("Current User ID:", user?.id);
 
@@ -98,14 +129,51 @@ function ChatPage() {
     console.groupEnd();
   }, [
     user?.id,
-    group?.id,
-    group?.name,
-    group?.manager_id,
+    entity?.id,
+    entity?.name,
+    entity?.manager_id,
+    entity?.manager?.id,
     conversation?.id,
     entityType,
     entityId,
     isTeamChat,
+    managerId,
     isManager,
+  ]);
+
+  /*
+   * ============================================================
+   * AI DEBUG
+   * ============================================================
+   */
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    console.group("[Group/Team Chat] AI Summary State");
+
+    console.log("Conversation ID:", conversation?.id);
+
+    console.log("Summary:", summary);
+
+    console.log("Summary Loading:", summaryLoading);
+
+    console.log("Summary Error:", summaryError);
+
+    console.log("Summary Updated At:", summaryUpdatedAt);
+
+    console.log("Summary Updated Label:", summaryUpdatedLabel);
+
+    console.groupEnd();
+  }, [
+    conversation?.id,
+    summary,
+    summaryLoading,
+    summaryError,
+    summaryUpdatedAt,
+    summaryUpdatedLabel,
   ]);
 
   /*
@@ -188,6 +256,11 @@ function ChatPage() {
           onBack={handleBack}
           onMembersClick={() => setMembersOpen(true)}
           onMenuClick={() => setMenuOpen((previous) => !previous)}
+          summary={summary}
+          summaryLoading={summaryLoading}
+          summaryError={summaryError}
+          summaryUpdatedLabel={summaryUpdatedLabel}
+          onGenerateSummary={handleGenerateSummary}
         />
 
         {/* ======================================================

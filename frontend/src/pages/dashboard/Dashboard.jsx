@@ -1,3 +1,5 @@
+// src/pages/dashboard/Dashboard.jsx
+
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
@@ -14,7 +16,16 @@ function Dashboard() {
   const { lastMessage } = useWebSocket();
 
   const [conversations, setConversations] = useState([]);
+
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 15,
+    total: 0,
+    has_more: false,
+  });
+
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
   const searchResult =
@@ -42,6 +53,7 @@ function Dashboard() {
         }
 
         setLoading(false);
+        setLoadingMore(false);
         setError('');
 
         setConversations(
@@ -49,6 +61,15 @@ function Dashboard() {
             ? searchResult.data
             : []
         );
+
+        setPagination({
+          page: 1,
+          limit: 15,
+          total: Array.isArray(searchResult.data)
+            ? searchResult.data.length
+            : 0,
+          has_more: false,
+        });
 
         return;
       }
@@ -58,6 +79,7 @@ function Dashboard() {
        */
       try {
         setLoading(true);
+        setLoadingMore(false);
         setError('');
 
         if (import.meta.env.DEV) {
@@ -66,20 +88,34 @@ function Dashboard() {
           );
         }
 
-        const data = await getConversations();
+        const data = await getConversations(1);
 
         if (import.meta.env.DEV) {
           console.log(
             '[Dashboard] Conversations received:',
             data
           );
+
+          console.log(
+            '[Dashboard] Pagination:',
+            data?.pagination
+          );
         }
 
-        setConversations(
-          Array.isArray(data)
-            ? data
-            : []
-        );
+        const receivedConversations =
+          Array.isArray(data?.conversations)
+            ? data.conversations
+            : [];
+
+        setConversations(receivedConversations);
+
+        setPagination({
+          page: data?.pagination?.page || 1,
+          limit: data?.pagination?.limit || 15,
+          total: data?.pagination?.total || 0,
+          has_more:
+            data?.pagination?.has_more || false,
+        });
       } catch (err) {
         console.error(
           '[Dashboard] Failed to load conversations:',
@@ -92,6 +128,13 @@ function Dashboard() {
         );
 
         setConversations([]);
+
+        setPagination({
+          page: 1,
+          limit: 15,
+          total: 0,
+          has_more: false,
+        });
       } finally {
         setLoading(false);
       }
@@ -99,6 +142,114 @@ function Dashboard() {
 
     loadDashboard();
   }, [searchResult]);
+
+  /*
+   * --------------------------------------------------
+   * Fetch next page
+   * --------------------------------------------------
+   */
+  async function handleLoadMore() {
+    if (
+      loadingMore ||
+      !pagination.has_more
+    ) {
+      return;
+    }
+
+    const nextPage =
+      pagination.page + 1;
+
+    try {
+      setLoadingMore(true);
+      setError('');
+
+      if (import.meta.env.DEV) {
+        console.log(
+          `[Dashboard] Fetching conversation page ${nextPage}...`
+        );
+      }
+
+      const data =
+        await getConversations(nextPage);
+
+      if (import.meta.env.DEV) {
+        console.log(
+          `[Dashboard] Page ${nextPage} received:`,
+          data
+        );
+
+        console.log(
+          '[Dashboard] New pagination:',
+          data?.pagination
+        );
+      }
+
+      const newConversations =
+        Array.isArray(data?.conversations)
+          ? data.conversations
+          : [];
+
+      /*
+       * Append the next page while avoiding
+       * duplicate conversation IDs.
+       */
+      setConversations(
+        (previousConversations) => {
+          const existingIds =
+            new Set(
+              previousConversations.map(
+                (conversation) =>
+                  String(conversation.id)
+              )
+            );
+
+          const uniqueNewConversations =
+            newConversations.filter(
+              (conversation) =>
+                conversation?.id &&
+                !existingIds.has(
+                  String(conversation.id)
+                )
+            );
+
+          return [
+            ...previousConversations,
+            ...uniqueNewConversations,
+          ];
+        }
+      );
+
+      setPagination({
+        page:
+          data?.pagination?.page ||
+          nextPage,
+
+        limit:
+          data?.pagination?.limit ||
+          pagination.limit,
+
+        total:
+          data?.pagination?.total ??
+          pagination.total,
+
+        has_more:
+          data?.pagination?.has_more ??
+          false,
+      });
+    } catch (err) {
+      console.error(
+        '[Dashboard] Failed to load more conversations:',
+        err
+      );
+
+      setError(
+        err.message ||
+          'Unable to load more conversations.'
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   /*
    * --------------------------------------------------
@@ -151,7 +302,7 @@ function Dashboard() {
      * NEW MESSAGE
      * --------------------------------------------------
      *
-     * Backend now sends:
+     * Backend:
      *
      * {
      *   type: "new_message",
@@ -159,9 +310,6 @@ function Dashboard() {
      *   conversation: {...},
      *   message: {...}
      * }
-     *
-     * Therefore we can immediately create or update
-     * the Dashboard conversation.
      */
     if (
       lastMessage.type === 'new_message' &&
@@ -187,56 +335,67 @@ function Dashboard() {
         return;
       }
 
-      setConversations((previousConversations) => {
-        const existingConversation =
-          previousConversations.find(
-            (conversation) =>
-              String(conversation.id) ===
-              String(conversationId)
-          );
+      setConversations(
+        (previousConversations) => {
+          const existingConversation =
+            previousConversations.find(
+              (conversation) =>
+                String(conversation.id) ===
+                String(conversationId)
+            );
 
-        const remainingConversations =
-          previousConversations.filter(
-            (conversation) =>
-              String(conversation.id) !==
-              String(conversationId)
-          );
+          const remainingConversations =
+            previousConversations.filter(
+              (conversation) =>
+                String(conversation.id) !==
+                String(conversationId)
+            );
 
-        const mergedConversation = {
-          ...existingConversation,
-          ...incomingConversation,
+          const mergedConversation = {
+            ...existingConversation,
+            ...incomingConversation,
 
-          id: conversationId,
+            id: conversationId,
 
-          type:
-            incomingConversation.type ||
-            incomingConversation.conversation_type ||
-            existingConversation?.type ||
-            'direct',
+            type:
+              incomingConversation.type ||
+              incomingConversation.conversation_type ||
+              existingConversation?.type ||
+              'direct',
 
-          latest_message:
-            incomingMessage ||
-            existingConversation?.latest_message ||
-            null,
+            latest_message:
+              incomingMessage ||
+              existingConversation?.latest_message ||
+              null,
 
-          updated_at:
-            incomingMessage?.created_at ||
-            incomingConversation.updated_at ||
-            existingConversation?.updated_at,
-        };
+            updated_at:
+              incomingMessage?.created_at ||
+              incomingConversation.updated_at ||
+              existingConversation?.updated_at,
+          };
 
-        if (import.meta.env.DEV) {
-          console.log(
-            '[Dashboard] Adding/updating conversation from new_message:',
-            mergedConversation
-          );
+          if (import.meta.env.DEV) {
+            console.log(
+              '[Dashboard] Adding/updating conversation from new_message:',
+              mergedConversation
+            );
+          }
+
+          /*
+           * Put the updated conversation at the top.
+           *
+           * IMPORTANT:
+           * Do NOT use .slice(0, 15) here.
+           *
+           * The user may have already loaded page 2,
+           * page 3, etc.
+           */
+          return [
+            mergedConversation,
+            ...remainingConversations,
+          ];
         }
-
-        return [
-          mergedConversation,
-          ...remainingConversations,
-        ].slice(0, 15);
-      });
+      );
 
       return;
     }
@@ -266,44 +425,46 @@ function Dashboard() {
         return;
       }
 
-      setConversations((previousConversations) => {
-        const existingConversation =
-          previousConversations.find(
-            (conversation) =>
-              String(conversation.id) ===
-              String(conversationId)
-          );
+      setConversations(
+        (previousConversations) => {
+          const existingConversation =
+            previousConversations.find(
+              (conversation) =>
+                String(conversation.id) ===
+                String(conversationId)
+            );
 
-        const remainingConversations =
-          previousConversations.filter(
-            (conversation) =>
-              String(conversation.id) !==
-              String(conversationId)
-          );
+          const remainingConversations =
+            previousConversations.filter(
+              (conversation) =>
+                String(conversation.id) !==
+                String(conversationId)
+            );
 
-        const mergedConversation = {
-          ...existingConversation,
-          ...incomingConversation,
+          const mergedConversation = {
+            ...existingConversation,
+            ...incomingConversation,
 
-          id: conversationId,
+            id: conversationId,
 
-          type:
-            incomingConversation.type ||
-            incomingConversation.conversation_type ||
-            existingConversation?.type ||
-            'direct',
+            type:
+              incomingConversation.type ||
+              incomingConversation.conversation_type ||
+              existingConversation?.type ||
+              'direct',
 
-          latest_message:
-            incomingConversation.latest_message ||
-            existingConversation?.latest_message ||
-            null,
-        };
+            latest_message:
+              incomingConversation.latest_message ||
+              existingConversation?.latest_message ||
+              null,
+          };
 
-        return [
-          mergedConversation,
-          ...remainingConversations,
-        ].slice(0, 15);
-      });
+          return [
+            mergedConversation,
+            ...remainingConversations,
+          ];
+        }
+      );
 
       return;
     }
@@ -322,7 +483,9 @@ function Dashboard() {
    * --------------------------------------------------
    */
   function openConversation(conversationId) {
-    navigate(`/conversation/${conversationId}`);
+    navigate(
+      `/conversation/${conversationId}`
+    );
   }
 
   function openCompose() {
@@ -397,7 +560,8 @@ function Dashboard() {
                     No conversations were found for{' '}
                     <span className="font-medium">
                       {searchQuery}
-                    </span>.
+                    </span>
+                    .
                   </p>
                 </div>
               </div>
@@ -431,10 +595,41 @@ function Dashboard() {
           {!loading &&
             !error &&
             conversations.length > 0 && (
-              <ConversationList
-                conversations={conversations}
-                onConversationClick={openConversation}
-              />
+              <>
+                <ConversationList
+                  conversations={conversations}
+                  onConversationClick={
+                    openConversation
+                  }
+                />
+
+                {!isSearchMode &&
+                  pagination.has_more && (
+                    <div className="flex shrink-0 items-center justify-center border-t px-6 py-5">
+                      <button
+                        type="button"
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {loadingMore
+                          ? 'Loading...'
+                          : 'Load More'}
+                      </button>
+                    </div>
+                  )}
+
+                {!isSearchMode &&
+                  !pagination.has_more &&
+                  pagination.total > 0 && (
+                    <div className="border-t px-6 py-4 text-center">
+                      <p className="text-xs text-gray-400">
+                        Showing {conversations.length} of{' '}
+                        {pagination.total} conversations
+                      </p>
+                    </div>
+                  )}
+              </>
             )}
         </section>
       </main>

@@ -20,6 +20,7 @@ import teamsRoutes from './routes/teams.js';
 import groupRoutes from './routes/group.js';
 import managerRoutes from './routes/manager.js';
 import reportingRoutes from './routes/reporting.js';
+import aiRoutes from './routes/ai.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,6 +57,8 @@ app.use('/api/groups', groupRoutes);
 // Reporting API (Global - anyone can use)
 app.use('/api/reports', reportingRoutes);
  
+app.use('/api/ai', aiRoutes);
+
 // Manager API (Oversight + Team Management)
 app.use('/api/manager', managerRoutes);
 

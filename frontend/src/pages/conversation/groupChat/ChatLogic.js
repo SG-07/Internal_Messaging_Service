@@ -10,6 +10,8 @@ import { getConversation, sendMessage } from "../../../api/conversations";
 import { getGroupConversation } from "../../../api/groups";
 import { getTeamConversation } from "../../../api/teams";
 
+import { generateConversationSummary } from "../../../api/ai";
+
 import { useWebSocket } from "../../../websocket/WebSocketProvider";
 
 export function useChatLogic() {
@@ -24,14 +26,6 @@ export function useChatLogic() {
    * ============================================================
    * ENTITY TYPE
    * ============================================================
-   *
-   * Supported routes:
-   *
-   * /groups/:groupId/chat
-   * /teams/:teamId/chat
-   *
-   * We use the route parameter to determine whether this is
-   * a group conversation or a team conversation.
    */
 
   const isTeamChat = Boolean(teamId);
@@ -44,10 +38,8 @@ export function useChatLogic() {
    * GROUP / TEAM
    * ============================================================
    *
-   * We keep the existing "group" state so the existing
-   * ChatPage and child components do not need to be renamed.
-   *
-   * For team chat, this object represents the team.
+   * Existing "group" state is intentionally retained for now.
+   * It represents either a group or team depending on entityType.
    */
 
   const [group, setGroup] = useState(null);
@@ -85,6 +77,22 @@ export function useChatLogic() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+
+  /*
+   * ============================================================
+   * AI — CONVERSATION SUMMARY
+   * ============================================================
+   *
+   * AI state is intentionally isolated from the normal
+   * conversation loading/error state.
+   *
+   * An AI failure must never break the conversation.
+   */
+
+  const [summary, setSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+  const [summaryUpdatedAt, setSummaryUpdatedAt] = useState(null);
 
   /*
    * ============================================================
@@ -127,14 +135,6 @@ export function useChatLogic() {
        * Step 1
        *
        * Get the group/team conversation.
-       *
-       * IMPORTANT:
-       *
-       * Group:
-       * GET /api/groups/:groupId/conversation
-       *
-       * Team:
-       * GET /api/teams/:teamId/conversation
        * ----------------------------------------------------------
        */
 
@@ -152,21 +152,6 @@ export function useChatLogic() {
         console.groupEnd();
       }
 
-      /*
-       * Your API functions return the backend response.
-       *
-       * Expected:
-       *
-       * {
-       *   success: true,
-       *   data: {
-       *     id: "...",
-       *     group_id/team_id: "...",
-       *     ...
-       *   }
-       * }
-       */
-
       const conversationData = conversationResponse?.data;
 
       if (!conversationData?.id) {
@@ -180,18 +165,6 @@ export function useChatLogic() {
        * Step 2
        *
        * Store initial entity information.
-       *
-       * For groups:
-       *
-       * group_id
-       * group_name
-       *
-       * For teams:
-       *
-       * team_id
-       * team_name
-       *
-       * We normalize both into the existing "group" state.
        * ----------------------------------------------------------
        */
 
@@ -219,10 +192,6 @@ export function useChatLogic() {
 
         manager_id: resolvedManagerId,
 
-        /*
-         * Useful if a child component wants to know whether
-         * this is a team or group.
-         */
         type: entityType,
       });
 
@@ -233,7 +202,7 @@ export function useChatLogic() {
       setConversation(conversationData);
 
       /*
-       * Store participants returned by the endpoint.
+       * Store participants.
        */
 
       setMembers(
@@ -247,12 +216,6 @@ export function useChatLogic() {
        * Step 3
        *
        * Get complete conversation details.
-       *
-       * The group/team endpoint gives us the conversation ID.
-       *
-       * Then:
-       *
-       * GET /api/conversations/:conversationId
        * ----------------------------------------------------------
        */
 
@@ -267,11 +230,6 @@ export function useChatLogic() {
 
         console.groupEnd();
       }
-
-      /*
-       * getConversation() returns response.data according
-       * to your existing API implementation.
-       */
 
       const details = detailsResponse;
 
@@ -333,14 +291,12 @@ export function useChatLogic() {
           conversationData.subject ||
           "Group";
 
-      /*
-       * getConversation() may not return manager_id.
-       *
-       * Therefore conversationData.manager_id is preferred.
-       */
-
       const resolvedManager =
-        conversationData.manager_id || details.manager_id || null;
+        conversationData.manager_id ||
+        conversationData.manager?.id ||
+        details.manager_id ||
+        details.manager?.id ||
+        null;
 
       setGroup({
         id: resolvedId,
@@ -380,9 +336,7 @@ export function useChatLogic() {
         );
 
         console.error("Error:", err);
-
         console.log("Status:", err?.status);
-
         console.log("Message:", err?.message);
 
         console.groupEnd();
@@ -413,6 +367,154 @@ export function useChatLogic() {
 
   /*
    * ============================================================
+   * RESET AI SUMMARY WHEN CONVERSATION CHANGES
+   * ============================================================
+   *
+   * A summary belongs to one conversation.
+   *
+   * Therefore, when navigating from one conversation to another,
+   * we must not display the previous conversation's summary.
+   */
+
+  useEffect(() => {
+    setSummary("");
+    setSummaryError("");
+    setSummaryUpdatedAt(null);
+    setSummaryLoading(false);
+  }, [conversation?.id]);
+
+  /*
+   * ============================================================
+   * AI — GENERATE CONVERSATION SUMMARY
+   * ============================================================
+   */
+
+  const handleGenerateSummary = useCallback(async () => {
+    /*
+     * ----------------------------------------------------------
+     * Validate conversation
+     * ----------------------------------------------------------
+     */
+
+    if (!conversation?.id) {
+      const message = "Conversation is not available.";
+
+      if (import.meta.env.DEV) {
+        console.warn("[AI SUMMARY] Cannot generate summary:", {
+          conversationId: conversation?.id,
+          message,
+        });
+      }
+
+      setSummaryError(message);
+
+      return;
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * Prevent duplicate requests
+     * ----------------------------------------------------------
+     */
+
+    if (summaryLoading) {
+      if (import.meta.env.DEV) {
+        console.warn("[AI SUMMARY] Request already in progress.");
+      }
+
+      return;
+    }
+
+    const conversationId = conversation.id;
+
+    if (import.meta.env.DEV) {
+      console.group("[AI SUMMARY] Generate Summary");
+
+      console.log("Conversation ID:", conversationId);
+
+      console.log("Entity Type:", entityType);
+
+      console.log("Entity ID:", entityId);
+
+      console.log(
+        "Expected API:",
+        `/api/ai/conversations/${conversationId}/summary`,
+      );
+
+      console.groupEnd();
+    }
+
+    try {
+      setSummaryLoading(true);
+      setSummaryError("");
+
+      const response = await generateConversationSummary(conversationId);
+
+      if (import.meta.env.DEV) {
+        console.group("[AI SUMMARY] Success");
+
+        console.log("Conversation ID:", conversationId);
+        console.log("Response:", response);
+        console.log("Summary:", response?.data?.summary);
+        console.log("Cached:", response?.data?.cached);
+        console.log("Updated At:", response?.data?.updated_at);
+
+        console.groupEnd();
+      }
+
+      const summaryData = response?.data;
+
+      if (!summaryData?.summary) {
+        throw new Error("AI summary was not returned.");
+      }
+
+      setSummary(summaryData.summary);
+
+      setSummaryUpdatedAt(summaryData.updated_at || null);
+
+      return response;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.group("[AI SUMMARY] Error");
+
+        console.error("Error:", err);
+
+        console.error("Conversation ID:", conversationId);
+
+        console.error("Status:", err?.status);
+
+        console.error("Message:", err?.message);
+
+        console.error("Response Data:", err?.data);
+
+        console.groupEnd();
+      }
+
+      /*
+       * IMPORTANT:
+       *
+       * Do NOT use setError() here.
+       *
+       * AI errors are isolated from the main conversation.
+       */
+
+      setSummaryError(
+        err?.message || "Unable to generate conversation summary.",
+      );
+
+      throw err;
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [
+    conversation?.id,
+    entityId,
+    entityType,
+    summaryLoading,
+  ]);
+
+  /*
+   * ============================================================
    * LIVE WEBSOCKET MESSAGE
    * ============================================================
    */
@@ -429,10 +531,6 @@ export function useChatLogic() {
     if (!conversation?.id) {
       return;
     }
-
-    /*
-     * Some WebSocket implementations use conversationId.
-     */
 
     if (lastMessage.conversationId !== conversation.id) {
       return;
@@ -451,20 +549,12 @@ export function useChatLogic() {
       return;
     }
 
-    /*
-     * Additional conversation safety check.
-     */
-
     if (
       incomingMessage.conversation_id &&
       incomingMessage.conversation_id !== conversation.id
     ) {
       return;
     }
-
-    /*
-     * Normalize incoming message.
-     */
 
     const normalizedMessage = {
       id: incomingMessage.id,
@@ -490,10 +580,6 @@ export function useChatLogic() {
 
       sender_email: incomingMessage.sender_email || null,
     };
-
-    /*
-     * Prevent duplicate messages.
-     */
 
     setMessages((previousMessages) => {
       const alreadyExists = previousMessages.some(
@@ -523,10 +609,6 @@ export function useChatLogic() {
 
       return [...previousMessages, normalizedMessage];
     });
-
-    /*
-     * Synchronize conversation metadata.
-     */
 
     if (lastMessage.conversation) {
       setConversation((previousConversation) => {
@@ -619,12 +701,6 @@ export function useChatLogic() {
           console.groupEnd();
         }
 
-        /*
-         * Do NOT append the message here.
-         *
-         * Backend WebSocket event will add it.
-         */
-
         return response;
       } catch (err) {
         if (import.meta.env.DEV) {
@@ -689,7 +765,13 @@ export function useChatLogic() {
    */
 
   return {
-    entity,
+    /*
+     * Existing entity representation.
+     *
+     * "group" currently represents either a group or team.
+     */
+    group,
+
     entityType,
 
     conversation,
@@ -700,6 +782,18 @@ export function useChatLogic() {
     sending,
     error,
 
+    /*
+     * AI — Summary
+     */
+    summary,
+    summaryLoading,
+    summaryError,
+    summaryUpdatedAt,
+    handleGenerateSummary,
+
+    /*
+     * Chat actions
+     */
     handleSendMessage,
     handleRetry,
     handleBack,
