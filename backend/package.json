@@ -15,6 +15,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@huggingface/inference": "^4.13.28",
     "@supabase/server": "^1.4.1",
     "@supabase/supabase-js": "^2.109.0",
     "bcrypt": "^6.0.0",

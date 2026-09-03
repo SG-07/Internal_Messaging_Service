@@ -5,6 +5,7 @@ import {
   flagImportance,
   generateDigest as generateDigestText,
   draftReply,
+  PromptInjectionError,
 } from '../services/aiService.js';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -65,7 +66,7 @@ export const summarizeConversation = async (req, res) => {
       return res.status(200).json({
         success: true,
         data: {
-          summary: conversation.ai_summary,
+          ...conversation.ai_summary,
           cached: true,
           updated_at: conversation.ai_summary_updated_at,
         },
@@ -87,12 +88,12 @@ export const summarizeConversation = async (req, res) => {
       sender_name: m.profiles?.full_name || m.profiles?.username || 'Unknown',
     }));
 
-    const summary = await generateSummary(formattedMessages, { subject: conversation.subject });
+    const result = await generateSummary(formattedMessages, { subject: conversation.subject });
 
     const { error: updateError } = await supabaseAdmin
       .from('conversations')
       .update({
-        ai_summary: summary,
+        ai_summary: result,
         ai_summary_updated_at: new Date().toISOString(),
         ai_summary_message_count: currentMessageCount,
       })
@@ -109,12 +110,20 @@ export const summarizeConversation = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        summary,
+        ...result,
         cached: false,
         updated_at: new Date().toISOString(),
       },
     });
   } catch (err) {
+    if (err instanceof PromptInjectionError) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+        details: err.details,
+      });
+    }
+
     console.error('[summarizeConversation] error:', err);
     res.status(500).json({
       success: false,
@@ -245,6 +254,14 @@ export const flagConversationImportance = async (req, res) => {
       },
     });
   } catch (err) {
+    if (err instanceof PromptInjectionError) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+        details: err.details,
+      });
+    }
+
     console.error('[flagConversationImportance] error:', err);
     res.status(500).json({
       success: false,
@@ -404,7 +421,7 @@ export const getDigest = async (req, res) => {
   }
 };
 
-
+// --- DRAFT A REPLY FOR THE CURRENT USER (no caching, always fresh) ---
 export const draftConversationReply = async (req, res) => {
   const { conversationId } = req.params;
   const user_id = req.user.id;
@@ -475,6 +492,14 @@ export const draftConversationReply = async (req, res) => {
       data: { draft },
     });
   } catch (err) {
+    if (err instanceof PromptInjectionError) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+        details: err.details,
+      });
+    }
+
     console.error('[draftConversationReply] error:', err);
     res.status(500).json({
       success: false,
@@ -485,3 +510,6 @@ export const draftConversationReply = async (req, res) => {
 
 
 
+// let's add 1 more route, 
+// We will use it to generate 1st msg of the conversation. It will be used to convert mail/msg to convert it like friendly/ professional/ Deadline related etc.
+// What else should we consider before making it?
