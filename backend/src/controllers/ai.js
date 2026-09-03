@@ -5,6 +5,8 @@ import {
   flagImportance,
   generateDigest as generateDigestText,
   draftReply,
+  composeMessage,
+  VALID_TONES,
   PromptInjectionError,
 } from '../services/aiService.js';
 
@@ -508,8 +510,57 @@ export const draftConversationReply = async (req, res) => {
   }
 };
 
+// --- COMPOSE / REWRITE THE FIRST MESSAGE OF A NEW CONVERSATION (no caching, always fresh) ---
+export const composeFirstMessage = async (req, res) => {
+  const { draft, tone, subject, category, recipientId } = req.body;
 
+  if (!draft || typeof draft !== 'string' || !draft.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Draft text is required.',
+    });
+  }
 
-// let's add 1 more route, 
-// We will use it to generate 1st msg of the conversation. It will be used to convert mail/msg to convert it like friendly/ professional/ Deadline related etc.
-// What else should we consider before making it?
+  if (!VALID_TONES.includes(tone)) {
+    return res.status(400).json({
+      success: false,
+      message: `tone must be one of: ${VALID_TONES.join(', ')}`,
+    });
+  }
+
+  try {
+    let recipientName = null;
+
+    if (recipientId) {
+      const { data: recipientProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('full_name, username')
+        .eq('id', recipientId)
+        .single();
+
+      recipientName = recipientProfile?.full_name || recipientProfile?.username || null;
+    }
+
+    const message = await composeMessage(draft, { tone, subject, category, recipientName });
+
+    res.status(200).json({
+      success: true,
+      data: { message },
+    });
+  } catch (err) {
+    if (err instanceof PromptInjectionError) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+        details: err.details,
+      });
+    }
+
+    console.error('[composeFirstMessage] error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to compose message. Please try again.',
+    });
+  }
+};
+
