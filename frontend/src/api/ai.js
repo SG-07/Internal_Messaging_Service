@@ -168,3 +168,58 @@ export async function generateDraftReply(conversationId) {
     throw error;
   }
 }
+
+export async function composeMessage({
+  draft,
+  tone,
+  subject = "",
+  category = "",
+  recipientId = "",
+}) {
+  const endpoint = "/api/ai/compose-message";
+
+  if (!draft?.trim()) {
+    throw new Error("Draft text is required.");
+  }
+
+  if (!tone) {
+    throw new Error("Tone is required.");
+  }
+
+  const payload = {
+    draft: draft.trim(),
+    tone,
+    subject: subject.trim(),
+    category,
+    recipientId: recipientId.trim(),
+  };
+
+  debugLog("COMPOSE MESSAGE → Request", {
+    endpoint,
+    method: "POST",
+    payload,
+  });
+
+  try {
+    const response = await request(endpoint, {
+      method: "POST",
+      body: payload,
+    });
+
+    debugLog("COMPOSE MESSAGE ← Response", {
+      endpoint,
+      response,
+    });
+
+    return response;
+  } catch (error) {
+    debugLog("COMPOSE MESSAGE ← Error", {
+      endpoint,
+      status: error.status,
+      message: error.message,
+      data: error.data,
+    });
+
+    throw error;
+  }
+}
