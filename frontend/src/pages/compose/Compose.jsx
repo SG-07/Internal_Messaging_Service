@@ -31,15 +31,24 @@ const TONES = [
   },
 ];
 
+const RESTRICTED_TYPES = [
+  "action_required",
+  "approval_required",
+];
+
+const DEFAULT_FORM_DATA = {
+  recipients: [],
+  subject: "",
+  type: "information",
+  body: "",
+};
+
 function Compose() {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    recipient: "",
-    subject: "",
-    type: "information",
-    body: "",
-  });
+  const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
+
+  const [recipientInput, setRecipientInput] = useState("");
 
   const [tone, setTone] = useState("professional");
 
@@ -48,6 +57,16 @@ function Compose() {
 
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+
+  const isBusy = loading || aiLoading;
+
+  const recipientCount = formData.recipients.length;
+
+  const isOneOnOne = recipientCount === 1;
+
+  // --------------------------------------------------
+  // Form helpers
+  // --------------------------------------------------
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -68,6 +87,72 @@ function Compose() {
   }
 
   // --------------------------------------------------
+  // Recipients
+  // --------------------------------------------------
+
+  function addRecipient() {
+    const email = recipientInput.trim().toLowerCase();
+
+    if (!email) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (formData.recipients.includes(email)) {
+      setError("This recipient has already been added.");
+      return;
+    }
+
+    setFormData((previousData) => {
+      const updatedRecipients = [
+        ...previousData.recipients,
+        email,
+      ];
+
+      const shouldResetRestrictedType =
+        updatedRecipients.length > 1 &&
+        RESTRICTED_TYPES.includes(previousData.type);
+
+      return {
+        ...previousData,
+        recipients: updatedRecipients,
+
+        // Action and approval are only for one-on-one.
+        type: shouldResetRestrictedType
+          ? "information"
+          : previousData.type,
+      };
+    });
+
+    setRecipientInput("");
+    setError("");
+    setSuccess("");
+  }
+
+  function removeRecipient(emailToRemove) {
+    setFormData((previousData) => ({
+      ...previousData,
+      recipients: previousData.recipients.filter(
+        (email) => email !== emailToRemove
+      ),
+    }));
+
+    setError("");
+    setSuccess("");
+  }
+
+  function handleRecipientKeyDown(event) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addRecipient();
+    }
+  }
+
+  // --------------------------------------------------
   // AI Compose
   // --------------------------------------------------
 
@@ -75,7 +160,7 @@ function Compose() {
     setError("");
     setSuccess("");
 
-    const { recipient, subject, type, body } = formData;
+    const { subject, type, body } = formData;
 
     if (!body.trim()) {
       setError("Write a rough draft before using AI.");
@@ -90,7 +175,6 @@ function Compose() {
         tone,
         subject,
         category: type,
-        recipientId: recipient,
       });
 
       const rewrittenMessage = response?.data?.message;
@@ -109,7 +193,7 @@ function Compose() {
       setSuccess("Message improved. Review it before sending.");
     } catch (err) {
       setError(
-        err.message || "Unable to improve message. Please try again.",
+        err.message || "Unable to improve message. Please try again."
       );
     } finally {
       setAiLoading(false);
@@ -126,20 +210,50 @@ function Compose() {
     setError("");
     setSuccess("");
 
-    const { recipient, subject, type, body } = formData;
+    const { recipients, subject, type, body } = formData;
 
-    if (!recipient || !subject || !body.trim()) {
-      setError("Recipient, subject, and message are required.");
+    // Add any email currently typed in the input.
+    const typedEmail = recipientInput.trim().toLowerCase();
+
+    let finalRecipients = [...recipients];
+
+    if (typedEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!emailRegex.test(typedEmail)) {
+        setError("Please enter a valid email address.");
+        return;
+      }
+
+      if (!finalRecipients.includes(typedEmail)) {
+        finalRecipients.push(typedEmail);
+      }
+    }
+
+    if (!finalRecipients.length || !subject || !body.trim()) {
+      setError(
+        "At least one recipient, subject, and message are required."
+      );
+      return;
+    }
+
+    // Action and approval are only allowed for one-on-one.
+    if (
+      finalRecipients.length > 1 &&
+      RESTRICTED_TYPES.includes(type)
+    ) {
+      setError(
+        "Action Required and Approval Required are available only for one-on-one conversations."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      // Existing backend flow.
-      // AI does not create the conversation.
+      // Backend payload.
       await createConversation({
-        recipient_id: recipient,
+        recipient_id: finalRecipients,
         subject,
         type,
         body,
@@ -147,30 +261,28 @@ function Compose() {
 
       setSuccess("Message sent successfully.");
 
-      setFormData({
-        recipient: "",
-        subject: "",
-        type: "information",
-        body: "",
-      });
+      setFormData(DEFAULT_FORM_DATA);
+
+      setRecipientInput("");
 
       setTimeout(() => {
         navigate("/dashboard");
       }, 1000);
     } catch (err) {
-      setError(err.message || "Unable to send message. Please try again.");
+      setError(
+        err.message || "Unable to send message. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   }
-
-  const isBusy = loading || aiLoading;
 
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gray-100 px-4 py-8">
         <div className="mx-auto max-w-3xl">
           <div className="rounded-2xl bg-white p-8 shadow-lg">
+
             {/* Header */}
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-gray-900">
@@ -178,7 +290,7 @@ function Compose() {
               </h1>
 
               <p className="mt-1 text-sm text-gray-600">
-                Send a new message to another user.
+                Send a new message to one or more users.
               </p>
             </div>
 
@@ -203,7 +315,8 @@ function Compose() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Recipient */}
+
+              {/* Recipients */}
               <div>
                 <label
                   htmlFor="recipient"
@@ -212,17 +325,55 @@ function Compose() {
                   To
                 </label>
 
-                <input
-                  id="recipient"
-                  name="recipient"
-                  type="text"
-                  value={formData.recipient}
-                  onChange={handleChange}
-                  disabled={isBusy}
-                  required
-                  placeholder="Enter receiver's mail address"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
-                />
+                <div className="rounded-lg border border-gray-300 px-3 py-2 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+
+                  {/* Added recipients */}
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {formData.recipients.map((email) => (
+                      <span
+                        key={email}
+                        className="flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
+                      >
+                        {email}
+
+                        <button
+                          type="button"
+                          onClick={() => removeRecipient(email)}
+                          disabled={isBusy}
+                          className="font-bold text-blue-600 hover:text-blue-900"
+                          aria-label={`Remove ${email}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Email input */}
+                  <input
+                    id="recipient"
+                    type="email"
+                    value={recipientInput}
+                    onChange={(event) => {
+                      setRecipientInput(event.target.value);
+                      setError("");
+                      setSuccess("");
+                    }}
+                    onKeyDown={handleRecipientKeyDown}
+                    onBlur={addRecipient}
+                    disabled={isBusy}
+                    placeholder={
+                      formData.recipients.length
+                        ? "Add another email..."
+                        : "Enter recipient(s) email "
+                    }
+                    className="w-full border-0 px-1 py-1 text-sm outline-none focus:ring-0 disabled:bg-gray-100"
+                  />
+                </div>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Press Enter or comma to add multiple recipients.
+                </p>
               </div>
 
               {/* Subject */}
@@ -264,13 +415,33 @@ function Compose() {
                   disabled={isBusy}
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
                 >
-                  <option value="information">Information</option>
-                  <option value="discussion">Discussion</option>
-                  <option value="action_required">Action Required</option>
-                  <option value="approval_required">
-                    Approval Required
+                  <option value="information">
+                    Information
                   </option>
+
+                  <option value="discussion">
+                    Discussion
+                  </option>
+
+                  {isOneOnOne && (
+                    <>
+                      <option value="action_required">
+                        Action Required
+                      </option>
+
+                      <option value="approval_required">
+                        Approval Required
+                      </option>
+                    </>
+                  )}
                 </select>
+
+                {!isOneOnOne && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Action Required and Approval Required are
+                    available only for one-on-one conversations.
+                  </p>
+                )}
               </div>
 
               {/* Message */}
@@ -303,8 +474,8 @@ function Compose() {
                   </h2>
 
                   <p className="mt-1 text-xs text-gray-600">
-                    Rewrite your draft in a chosen tone. You can edit the
-                    result before sending.
+                    Rewrite your draft in a chosen tone. You can edit
+                    the result before sending.
                   </p>
                 </div>
 
@@ -322,10 +493,13 @@ function Compose() {
                       value={tone}
                       onChange={handleToneChange}
                       disabled={isBusy}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
                     >
                       {TONES.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <option
+                          key={option.value}
+                          value={option.value}
+                        >
                           {option.label}
                         </option>
                       ))}
@@ -338,7 +512,9 @@ function Compose() {
                     disabled={isBusy || !formData.body.trim()}
                     className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
                   >
-                    {aiLoading ? "Improving..." : "Improve with AI"}
+                    {aiLoading
+                      ? "Improving..."
+                      : "Improve with AI"}
                   </button>
                 </div>
               </div>
@@ -362,6 +538,7 @@ function Compose() {
                   {loading ? "Sending..." : "Send Message"}
                 </button>
               </div>
+
             </form>
           </div>
         </div>

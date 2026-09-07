@@ -204,64 +204,114 @@ async function validateWorkflowTransition(category, currentStatus, newStatus) {
 export const createConversation = async (req, res) => {
   const { recipient_id, subject, type, body } = req.body;
   const sender_id = req.user.id;
-  const recipient_email = recipient_id;
 
-  if (!recipient_email || !body) {
+  // recipient_id is now an array of emails (name kept for continuity with
+  // the existing field, despite holding emails rather than IDs — same
+  // convention used elsewhere in this app, e.g. managerId). A bare string
+  // is normalized to a single-item array defensively, in case an older
+  // frontend build is still sending the old shape during rollout.
+  const recipientEmails = Array.isArray(recipient_id)
+    ? recipient_id
+    : recipient_id
+      ? [recipient_id]
+      : [];
+
+  if (recipientEmails.length === 0 || !body) {
     return res.status(400).json({
       success: false,
-      message: "Recipient and message body are required.",
+      message: "At least one recipient and a message body are required.",
     });
   }
 
+  // Validate category
+  const validCategories = [
+    "information",
+    "discussion",
+    "approval_required",
+    "action_required",
+  ];
+  if (!validCategories.includes(type)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid conversation category." });
+  }
+
   try {
-    // Resolve recipient
-    const { data: recipient, error: recipientError } =
-      await fetchUserByEmail(recipient_email);
-    if (recipientError || !recipient) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Recipient not found." });
-    }
-
-    const recipient_id_resolved = recipient.id;
-
-    // Validate self-send
-    if (sender_id === recipient_id_resolved) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Cannot send message to yourself." });
-    }
-
-    // Validate category
-    const validCategories = [
-      "information",
-      "discussion",
-      "approval_required",
-      "action_required",
+    // Resolve every recipient email. Per-email failures don't fail the
+    // whole request — collected separately and reported back so the
+    // frontend can show the user which ones didn't go through.
+    const uniqueEmails = [
+      ...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase())),
     ];
-    if (!validCategories.includes(type)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid conversation category." });
-    }
+
+    const resolvedRecipients = [];
+    const failedRecipients = [];
+    let excludedSelf = false;
+    const isGroup = resolvedRecipients.length > 1;
+    const conversationType = isGroup ? "group" : "direct";
 
     const needsWorkflow =
       type === "action_required" || type === "approval_required";
     const workflowStatus = needsWorkflow ? "PENDING" : null;
 
-    // Create conversation
+    for (const email of uniqueEmails) {
+      const { data: recipient, error: recipientError } =
+        await fetchUserByEmail(email);
+
+      if (recipientError || !recipient) {
+        failedRecipients.push(email);
+        continue;
+      }
+
+      // Sender including themselves in the recipient list is silently
+      // excluded rather than treated as an error — they're already a
+      // participant as the creator.
+      if (recipient.id === sender_id) {
+        excludedSelf = true;
+        continue;
+      }
+
+      resolvedRecipients.push(recipient);
+    }
+
+    if (resolvedRecipients.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          failedRecipients.length > 0
+            ? "No valid recipients found."
+            : excludedSelf
+              ? "Cannot send a message only to yourself."
+              : "No valid recipients found.",
+        failed_recipients: failedRecipients,
+      });
+    }
+
+    if (needsWorkflow && resolvedRecipients.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: `${type === "approval_required" ? "Approval" : "Action"} requests can only be sent to one recipient at a time.`,
+        failed_recipients: failedRecipients,
+      });
+    }
+
+    // Create conversation. Multi-recipient conversations are ad-hoc group
+    // conversations — conversation_type: 'group', group_id stays null,
+    // NOT tied to any teams row. This is intentionally lightweight, not
+    // the persistent Team/Group entity built elsewhere in the app.
     const { data: newConversation, error: conversationError } =
       await supabaseAdmin
         .from("conversations")
         .insert({
-          conversation_type: "direct",
+          conversation_type: conversationType,
           category: type,
           subject: subject || null,
           created_by: sender_id,
           workflow_status: workflowStatus,
+          is_group: isGroup,
         })
         .select(
-          "id, subject, conversation_type, category, created_by, created_at, updated_at, status, workflow_status",
+          "id, subject, conversation_type, category, created_by, created_at, updated_at, status, workflow_status, is_group",
         )
         .single();
 
@@ -269,13 +319,15 @@ export const createConversation = async (req, res) => {
 
     const conversation_id = newConversation.id;
 
-    // Add participants
+    // Add participants — sender plus every resolved recipient.
+    const participantRows = [
+      { conversation_id, user_id: sender_id },
+      ...resolvedRecipients.map((r) => ({ conversation_id, user_id: r.id })),
+    ];
+
     const { error: participantError } = await supabaseAdmin
       .from("conversation_participants")
-      .insert([
-        { conversation_id, user_id: sender_id },
-        { conversation_id, user_id: recipient_id_resolved },
-      ]);
+      .insert(participantRows);
 
     if (participantError) throw new Error("Failed to add participants");
 
@@ -303,6 +355,7 @@ export const createConversation = async (req, res) => {
         created_at: newConversation.created_at,
         updated_at: newConversation.updated_at,
         workflow_status: newConversation.workflow_status,
+        is_group: newConversation.is_group,
         messages: [
           {
             id: newMessage.id,
@@ -315,9 +368,10 @@ export const createConversation = async (req, res) => {
         ],
         participants: [
           formatParticipant(senderProfile),
-          formatParticipant(recipient),
+          ...resolvedRecipients.map((r) => formatParticipant(r)),
         ],
       },
+      failed_recipients: failedRecipients,
     });
   } catch (err) {
     console.error("Create conversation error:", err);
@@ -354,7 +408,7 @@ export const getConversations = async (req, res) => {
       .is("hidden_at", null)
       .or(
         `conversation_type.neq.direct,created_by.neq.${user_id},first_reply_at.not.is.null`,
-        { foreignTable: "conversations" }
+        { foreignTable: "conversations" },
       )
       .order("joined_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -402,12 +456,10 @@ export const getConversation = async (req, res) => {
       user_id,
     );
     if (participantError) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "You are not part of this conversation.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation.",
+      });
     }
 
     // Fetch full conversation
@@ -472,12 +524,10 @@ export const updateConversation = async (req, res) => {
     const { data: isParticipant, error: participantError } =
       await verifyParticipant(conversationId, user_id);
     if (participantError || !isParticipant) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "You are not part of this conversation.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation.",
+      });
     }
 
     const { data: updatedConv, error: updateError } = await supabaseAdmin
@@ -522,12 +572,10 @@ export const deleteConversation = async (req, res) => {
 
     if (updateError) throw new Error("Failed to hide conversation");
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Conversation removed from your dashboard.",
-      });
+    res.status(200).json({
+      success: true,
+      message: "Conversation removed from your dashboard.",
+    });
   } catch (err) {
     console.error("Delete conversation error:", err);
     res
@@ -554,12 +602,10 @@ export const addMessage = async (req, res) => {
       sender_id,
     );
     if (participantError) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "You are not part of this conversation.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation.",
+      });
     }
 
     // Insert message
@@ -622,12 +668,10 @@ export const getConversationsWithUser = async (req, res) => {
     }
 
     if (otherUser.id === user_id) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Cannot search conversations with yourself.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Cannot search conversations with yourself.",
+      });
     }
 
     // Find shared conversations
@@ -915,12 +959,10 @@ export const updateActionStatus = async (req, res) => {
       user_id,
     );
     if (participantError) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "You are not part of this conversation.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation.",
+      });
     }
 
     if (user_id === conversation.created_by) {
@@ -1030,12 +1072,10 @@ export const updateApprovalStatus = async (req, res) => {
       user_id,
     );
     if (participantError) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "You are not part of this conversation.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation.",
+      });
     }
 
     if (user_id === conversation.created_by) {
