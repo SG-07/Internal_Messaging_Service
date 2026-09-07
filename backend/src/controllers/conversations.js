@@ -343,8 +343,8 @@ export const getConversations = async (req, res) => {
       .select(
         `
         conversation_id,
-        conversations(
-          id, subject, conversation_type, category, created_by, created_at, updated_at,
+        conversations!inner(
+          id, subject, conversation_type, category, created_by, created_at, updated_at, first_reply_at,
           creator:profiles!conversations_created_by_fkey(id, username, full_name, email)
         )
       `,
@@ -352,12 +352,16 @@ export const getConversations = async (req, res) => {
       )
       .eq("user_id", user_id)
       .is("hidden_at", null)
+      .or(
+        `conversation_type.neq.direct,created_by.neq.${user_id},first_reply_at.not.is.null`,
+        { foreignTable: "conversations" }
+      )
       .order("joined_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     logIfDev("[getConversations] count:", count);
     if (convError) throw new Error("Failed to fetch conversations");
-      
+
     const formattedConversations = await Promise.all(
       conversationLinks.map(async (cp) => {
         const conv = cp.conversations;

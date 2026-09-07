@@ -30,28 +30,9 @@ function buildWorkflow(conv) {
     status,
     workflow_comment: conv.workflow_comment || null,
     is_final: isFinal,
-    // can_respond is viewer-dependent (true only for the non-creator) and
-    // this payload is broadcast identically to every participant, so it is
-    // NOT computed here. The frontend derives it from
-    // current_user_id !== created_by instead — see Conversation.jsx.
   };
 }
 
-/**
- * Fetches every participant in a conversation (with profile info) in one
- * query, then shapes the result differently depending on conversation
- * type:
- *   - 'direct': the old other_user_name/other_user_email fields, for the
- *     1:1 "who am I talking to" UI.
- *   - 'group' / 'team': a full participants array, since there's no single
- *     "other" person.
- *
- * Replaces the old pattern of `.neq('user_id', created_by).single()` to
- * find "the other participant" — that call throws whenever a conversation
- * has more than 2 participants, which silently broke every broadcast for
- * group/team conversations (the handler errored and returned before
- * reaching broadcastToUsers).
- */
 async function getParticipantInfo(conversationId, conversationType, createdBy) {
   const { data: participantRows, error: participantsError } = await supabaseAdmin
     .from('conversation_participants')
@@ -239,6 +220,25 @@ export function initDbListener() {
 
         const conversationLink = conversationLinks[0];
         const conv = conversationLink.conversations;
+
+        // If this message is from someone other than the conversation's
+        // creator, and this is the first time that's happened, mark
+        // first_reply_at. Used by getConversations() to hide a creator's
+        // own sent-but-unanswered direct conversations from their inbox
+        // until someone replies. The .is('first_reply_at', null) guard
+        // makes this a no-op on every message after the first reply — it
+        // never gets overwritten.
+        if (sender_id !== conv.created_by) {
+          const { error: firstReplyError } = await supabaseAdmin
+            .from('conversations')
+            .update({ first_reply_at: new Date().toISOString() })
+            .eq('id', conversation_id)
+            .is('first_reply_at', null);
+
+          if (firstReplyError) {
+            console.error('[DbListener] Error setting first_reply_at:', firstReplyError.message);
+          }
+        }
 
         const participantInfo = await getParticipantInfo(conversation_id, conv.conversation_type, conv.created_by);
 
