@@ -15,9 +15,15 @@ export const signup = async (req, res) => {
     });
   }
 
+  // Normalize email to lowercase — emails are effectively case-insensitive
+  // in practice, and this prevents "User@x.com" and "user@x.com" being
+  // treated as different accounts (the DB's unique constraint is
+  // case-sensitive by default).
+  const normalizedEmail = email.trim().toLowerCase();
+
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  if (!emailRegex.test(normalizedEmail)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
@@ -46,7 +52,7 @@ export const signup = async (req, res) => {
     const { data: existingEmail, error: emailError } = await supabaseAdmin
       .from('profiles')
       .select('email')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .single();
 
     if (existingEmail) {
@@ -64,7 +70,7 @@ export const signup = async (req, res) => {
     const { data: newUser, error: createError } = await supabaseAdmin
       .from('profiles')
       .insert({
-        email,
+        email: normalizedEmail,
         username,
         full_name: fullName || null,
         password_hash: passwordHash,
@@ -139,12 +145,16 @@ export const login = async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
+  // Same normalization as signup — a user who signed up as "User@x.com"
+  // and later types "user@x.com" must still be found.
+  const normalizedEmail = email.trim().toLowerCase();
+
   try {
     // Fetch user from database
     const { data: user, error: userError } = await supabaseAdmin
       .from('profiles')
       .select('id, email, username, full_name, password_hash, role, department')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .single();
 
     if (userError || !user) {
